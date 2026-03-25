@@ -1521,7 +1521,7 @@ function LeaderPortal({engId,liderId,engs,onLogout,onUpdate}){
           {tab==='visao'&&(
             <>
               <div style={{background:'#fff',border:'1px solid #E4E6EF',borderRadius:9,padding:'14px 18px',marginBottom:16,display:'flex',gap:24}}>
-                <div><div style={{fontSize:10,color:'#A0A3B1',letterSpacing:'1.5px',textTransform:'uppercase',fontWeight:600,marginBottom:4}}>Sessão atual</div><div style={{fontSize:22,fontWeight:600,color:'#4169FF'}}>{eng.sessions.length}<span style={{fontSize:13,color:'#A0A3B1',fontWeight:400}}>/{eng.sessions}</span></div></div>
+                <div><div style={{fontSize:10,color:'#A0A3B1',letterSpacing:'1.5px',textTransform:'uppercase',fontWeight:600,marginBottom:4}}>Sessão atual</div><div style={{fontSize:22,fontWeight:600,color:'#4169FF'}}>{eng.sessions.length}<span style={{fontSize:13,color:'#A0A3B1',fontWeight:400}}>/10</span></div></div>
                 <div><div style={{fontSize:10,color:'#A0A3B1',letterSpacing:'1.5px',textTransform:'uppercase',fontWeight:600,marginBottom:4}}>Etapa atual</div><div style={{fontSize:15,fontWeight:600,color:'#1A1D2E'}}>{STAGES[eng.phase-1]}</div></div>
                 <div><div style={{fontSize:10,color:'#A0A3B1',letterSpacing:'1.5px',textTransform:'uppercase',fontWeight:600,marginBottom:4}}>Cadência</div><div style={{fontSize:15,fontWeight:600,color:'#1A1D2E',textTransform:'capitalize'}}>{eng.cadence}</div></div>
                 <div><div style={{fontSize:10,color:'#A0A3B1',letterSpacing:'1.5px',textTransform:'uppercase',fontWeight:600,marginBottom:4}}>Mini-Surveys</div><div style={{fontSize:15,fontWeight:600,color:'#1A1D2E'}}>{eng.miniSurveys.length} aplicado{eng.miniSurveys.length!==1?'s':''}</div></div>
@@ -1604,7 +1604,7 @@ function RHPortal({company,engs,onLogout}){
                   </div>
                   <StageBar eng={e}/>
                   <div style={{display:'flex',gap:12,marginBottom:8}}>
-                    <span style={{fontSize:11,color:'#6B6E8E'}}>Sessão <strong style={{color:'#1A1D2E'}}>{e.sessions.length}</strong>/{e.sessions}</span>
+                    <span style={{fontSize:11,color:'#6B6E8E'}}>Sessão <strong style={{color:'#1A1D2E'}}>{e.sessions.length}</strong>/10</span>
                     <span style={{fontSize:11,color:'#6B6E8E'}}>{STAGES[e.phase-1]}</span>
                     <span style={{fontSize:11,color:'#6B6E8E'}}>{e.miniSurveys.length} mini-survey{e.miniSurveys.length!==1?'s':''}</span>
                   </div>
