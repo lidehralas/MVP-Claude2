@@ -1434,7 +1434,7 @@ function CoacheePortal({eng,onLogout,onUpdate}){
                       <div style={{fontSize:13,fontWeight:600,color:'#059669'}}>✓ Relatório de Desenvolvimento disponível</div>
                       <div style={{fontSize:12,color:'#6B6E8E',marginTop:2}}>Aprovado em {eng.report.sharedAt}</div>
                     </div>
-                    <div style={{display:'flex',gap:8'}}>
+                    <div style={{display:'flex',gap:8}}>
                       <button className="btn btn-g btn-sm" onClick={()=>window.print()}>Imprimir</button>
                       <button className="btn btn-g btn-sm" onClick={()=>{navigator.clipboard?.writeText(eng.report.content);alert('Conteúdo copiado!');}} >Copiar</button>
                       <span style={{fontSize:11,color:'#A0A3B1',padding:'5px 8px',border:'1px dashed #D8DAE8',borderRadius:6}}>Download PDF — em breve</span>
