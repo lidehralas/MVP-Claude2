@@ -384,7 +384,6 @@ function ProgressChart({miniSurveys}){
   const n = ms.responses.length;
   if(n===0) return <div className="warn-box">Nenhuma resposta coletada ainda.</div>;
 
-  // colors per score bucket
   const segColors = {"-3":"#DC2626","-2":"#F87171","-1":"#FCA5A5","0":"#D1D5DB","+1":"#93C5FD","+2":"#3B82F6","+3":"#1D4ED8"};
 
   const buildDist = (scores) => {
@@ -394,62 +393,97 @@ function ProgressChart({miniSurveys}){
     return dist;
   };
 
+  // Compile qualitative responses — mudancas = "O que melhorou", sugestoes = "Próximos desafios"
+  // These are global (not per-competência in the form), so we show once for Efetividade geral row
+  const mudancasTexts = ms.responses.map(r=>r.mudancas).filter(Boolean);
+  const sugestoesTexts = ms.responses.map(r=>r.sugestoes).filter(Boolean);
+
   const allRows = [
-    ...ms.competencias.map((c,ci)=>({label:c,scores:ms.responses.map(r=>r.scores[ci]||0)})),
-    {label:"Efetividade como líder (geral)",scores:ms.responses.map(r=>r.overall||0)},
+    ...ms.competencias.map((c,ci)=>({label:c,scores:ms.responses.map(r=>r.scores[ci]||0),isGeral:false,ci})),
+    {label:"Efetividade como líder (geral)",scores:ms.responses.map(r=>r.overall||0),isGeral:true},
   ];
+
+  const QualBlock = ({texts,title,color,bg})=>(
+    <div style={{background:bg,border:`1px solid ${color}30`,borderRadius:7,padding:'10px 12px',marginBottom:8}}>
+      <div style={{fontSize:10,fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',color,marginBottom:6}}>{title}</div>
+      {texts.length===0
+        ?<div style={{fontSize:12,color:'#A0A3B1'}}>Sem respostas.</div>
+        :texts.map((t,i)=><div key={i} style={{fontSize:12,color:'#3A3D58',lineHeight:1.5,marginBottom:i<texts.length-1?5:0}}>— {t}</div>)
+      }
+    </div>
+  );
 
   return (
     <div>
       <div style={{fontSize:13,color:'#A0A3B1',marginBottom:16}}>{ms.label} · {ms.period||ms.sentAt} · {n} respondente{n!==1?'s':''}</div>
-      <table className="prog-table">
-        <thead>
-          <tr>
-            <th style={{width:'30%'}}>Competência / Tema</th>
-            <th style={{width:'40%'}}>Percepção de evolução (stakeholders)</th>
-            <th style={{width:'30%'}}></th>
-          </tr>
-        </thead>
-        <tbody>
-          {allRows.map((row,ri)=>{
-            const dist = buildDist(row.scores);
-            return (
-              <tr key={ri}>
-                <td><div className="prog-comp-name" style={{fontWeight:ri===allRows.length-1?700:500}}>{ri===allRows.length-1?<strong>{row.label}</strong>:row.label}</div></td>
-                <td>
-                  <div style={{display:'flex',alignItems:'center',gap:4,marginBottom:4}}>
-                    {SCALE.map(k=><span key={k} style={{fontSize:9,color:'#A0A3B1',width:34,textAlign:'center'}}>{k}</span>)}
-                  </div>
-                  <div className="prog-bar-wrap">
-                    {SCALE.map(k=>{
-                      const cnt=dist[k]||0;
-                      const pct=n>0?Math.round(cnt/n*100):0;
-                      if(cnt===0) return <div key={k} style={{width:34,background:'#F4F5F7',borderRight:'1px solid #fff'}}/>;
-                      return (
-                        <div key={k} className="prog-seg" style={{width:34,background:segColors[k],minWidth:pct>0?34:0}}>
-                          {pct>0?`${pct}%`:''}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </td>
-                <td>
-                  <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
-                    {SCALE.filter(k=>(dist[k]||0)>0).map(k=>{
-                      const pct=Math.round((dist[k]/n)*100);
-                      const n_val=parseInt(k);
-                      const col=n_val>0?'#059669':n_val<0?'#DC2626':'#6B6E8E';
-                      return <span key={k} style={{fontSize:11,fontWeight:700,color:col,background:n_val>0?'rgba(16,185,129,.1)':n_val<0?'rgba(220,38,38,.1)':'#F4F5F7',padding:'2px 6px',borderRadius:4}}>{k}: {pct}%</span>;
-                    })}
-                  </div>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+
+      {/* Quantitative table */}
+      <div style={{overflowX:'auto'}}>
+        <table className="prog-table">
+          <thead>
+            <tr>
+              <th style={{width:'28%'}}>Temas trabalhados</th>
+              <th style={{width:'38%',textAlign:'center'}}>Percepção de evolução (stakeholders)</th>
+              <th style={{width:'34%'}}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {allRows.map((row,ri)=>{
+              const dist = buildDist(row.scores);
+              return (
+                <tr key={ri}>
+                  <td><div className="prog-comp-name" style={{fontWeight:row.isGeral?700:500}}>{row.isGeral?<strong>{row.label}</strong>:row.label}</div></td>
+                  <td>
+                    <div style={{display:'flex',alignItems:'center',gap:2,marginBottom:4}}>
+                      {SCALE.map(k=><span key={k} style={{fontSize:9,color:'#A0A3B1',width:32,textAlign:'center'}}>{k}</span>)}
+                    </div>
+                    <div className="prog-bar-wrap">
+                      {SCALE.map(k=>{
+                        const cnt=dist[k]||0;
+                        const pct=n>0?Math.round(cnt/n*100):0;
+                        if(cnt===0) return <div key={k} style={{width:32,background:'#F4F5F7',borderRight:'1px solid #fff',height:24}}/>;
+                        return (
+                          <div key={k} className="prog-seg" style={{width:32,background:segColors[k]}}>
+                            {pct>0?`${pct}%`:''}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </td>
+                  <td>
+                    <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
+                      {SCALE.filter(k=>(dist[k]||0)>0).map(k=>{
+                        const pct=Math.round((dist[k]/n)*100);
+                        const nv=parseInt(k);
+                        const col=nv>0?'#059669':nv<0?'#DC2626':'#6B6E8E';
+                        return <span key={k} style={{fontSize:11,fontWeight:700,color:col,background:nv>0?'rgba(16,185,129,.1)':nv<0?'rgba(220,38,38,.1)':'#F4F5F7',padding:'2px 6px',borderRadius:4}}>{k}: {pct}%</span>;
+                      })}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Qualitative section */}
+      {(mudancasTexts.length>0||sugestoesTexts.length>0)&&(
+        <div style={{marginTop:20}}>
+          <div className="sec-lbl" style={{marginBottom:14}}>Respostas qualitativas — compilação das percepções</div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
+            <div>
+              <QualBlock texts={mudancasTexts} title="O que melhorou (stakeholders e autopercepção)" color="#059669" bg="rgba(16,185,129,.04)"/>
+            </div>
+            <div>
+              <QualBlock texts={sugestoesTexts} title="Próximos desafios (stakeholders e autopercepção)" color="#3358E0" bg="rgba(65,105,255,.04)"/>
+            </div>
+          </div>
+        </div>
+      )}
+
       {miniSurveys.length>1&&(
-        <div style={{fontSize:12,color:'#A0A3B1',marginTop:8}}>Mostrando o mini-survey mais recente. Total aplicado: {miniSurveys.length}.</div>
+        <div style={{fontSize:12,color:'#A0A3B1',marginTop:12}}>Mostrando o mini-survey mais recente. Total aplicado: {miniSurveys.length}.</div>
       )}
     </div>
   );
@@ -1285,7 +1319,7 @@ function CoacheePortal({eng,onLogout,onUpdate}){
   const c=eng.coachee;
   const notifs=eng.notifications||[];
 
-  const TABS=[{id:'jornada',l:'Minha Jornada'},{id:'stk',l:`Stakeholders${notifs.length>0?` (${notifs.length})`:''}` },{id:'prioridades',l:'Prioridades'},{id:'progresso',l:'Progresso'}];
+  const TABS=[{id:'jornada',l:'Minha Jornada'},{id:'stk',l:`Stakeholders${notifs.length>0?` (${notifs.length})`:''}` },{id:'relatorios',l:'Relatórios'},{id:'progresso',l:'Progresso'}];
 
   return (
     <div className="portal-page">
@@ -1302,11 +1336,25 @@ function CoacheePortal({eng,onLogout,onUpdate}){
       <div className="portal-body">
         <div className="portal-hero">
           <div className="portal-name">{c.name}</div>
-          <div style={{fontSize:11,color:'#A0A3B1',letterSpacing:'1.5px',textTransform:'uppercase',margin:'4px 0 8px'}}>Processo de Desenvolvimento · MGSCC</div>
-          <div style={{fontSize:14,color:'#6B6E8E',lineHeight:1.6}}>{eng.goal}</div>
-          {eng.competencias.length>0&&<div style={{display:'flex',gap:8,marginTop:12,flexWrap:'wrap'}}>
-            {eng.competencias.map((c,i)=><span key={i} style={{fontSize:12,fontWeight:600,color:'#3358E0',background:'#EEF1FF',padding:'3px 10px',borderRadius:5}}>{c.nome}</span>)}
-          </div>}
+          <div style={{fontSize:11,color:'#A0A3B1',letterSpacing:'1.5px',textTransform:'uppercase',margin:'4px 0 10px'}}>Processo de Desenvolvimento · MGSCC</div>
+          <div style={{fontSize:11,color:'#A0A3B1',fontWeight:600,textTransform:'uppercase',letterSpacing:'1px',marginBottom:4}}>Objetivo principal do processo</div>
+          <div style={{fontSize:14,color:'#3A3D58',lineHeight:1.6,marginBottom:eng.competencias.length>0?14:0}}>{eng.goal||'A definir'}</div>
+          {eng.competencias.length>0&&(
+            <div>
+              <div style={{fontSize:11,color:'#A0A3B1',fontWeight:600,textTransform:'uppercase',letterSpacing:'1px',marginBottom:8}}>Competências em desenvolvimento</div>
+              <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                {eng.competencias.map((comp,i)=>(
+                  <div key={i} style={{display:'flex',gap:8,alignItems:'flex-start'}}>
+                    <span style={{fontSize:11,fontWeight:700,color:'#4169FF',background:'#EEF1FF',padding:'2px 8px',borderRadius:4,flexShrink:0}}>Competência {i+1}</span>
+                    <div>
+                      <div style={{fontSize:13,fontWeight:600,color:'#1A1D2E'}}>{comp.nome}</div>
+                      {comp.detalhe&&<div style={{fontSize:11,color:'#6B6E8E'}}>{comp.detalhe}</div>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
         <div className="tabs">{TABS.map(t=><div key={t.id} className={`tab${tab===t.id?' on':''}`} onClick={()=>setTab(t.id)}>{t.l}</div>)}</div>
         <div style={{paddingTop:24}}>
@@ -1376,10 +1424,25 @@ function CoacheePortal({eng,onLogout,onUpdate}){
             </>
           )}
 
-          {tab==='prioridades'&&(
+          {tab==='relatorios'&&(
             <>
-              {!eng.report?.approved?<div className="warn-box">Seu relatório está sendo preparado pelo coach.</div>
-              :<div className="report-view"><div className="report-text">{eng.report.content}</div></div>}
+              {!eng.report?.approved
+                ?<div className="warn-box">Seu relatório de desenvolvimento está sendo preparado pelo coach. Ficará disponível aqui após a aprovação.</div>
+                :<>
+                  <div style={{background:'#F0FDF4',border:'1px solid #BBF7D0',borderRadius:9,padding:'12px 16px',marginBottom:16,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                    <div>
+                      <div style={{fontSize:13,fontWeight:600,color:'#059669'}}>✓ Relatório de Desenvolvimento disponível</div>
+                      <div style={{fontSize:12,color:'#6B6E8E',marginTop:2}}>Aprovado em {eng.report.sharedAt}</div>
+                    </div>
+                    <div style={{display:'flex',gap:8'}}>
+                      <button className="btn btn-g btn-sm" onClick={()=>window.print()}>Imprimir</button>
+                      <button className="btn btn-g btn-sm" onClick={()=>{navigator.clipboard?.writeText(eng.report.content);alert('Conteúdo copiado!');}} >Copiar</button>
+                      <span style={{fontSize:11,color:'#A0A3B1',padding:'5px 8px',border:'1px dashed #D8DAE8',borderRadius:6}}>Download PDF — em breve</span>
+                    </div>
+                  </div>
+                  <div className="report-view"><div className="report-text">{eng.report.content}</div></div>
+                </>
+              }
             </>
           )}
 
@@ -1456,16 +1519,24 @@ function LeaderPortal({engId,liderId,engs,onLogout,onUpdate}){
         <div className="tabs">{TABS.map(t=><div key={t.id} className={`tab${tab===t.id?' on':''}`} onClick={()=>setTab(t.id)}>{t.l}</div>)}</div>
         <div style={{paddingTop:24}}>
           {tab==='visao'&&(
-            <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8}}>
-              {[1,2,3,4].map(p=>{
-                const ss=stageStatus(eng,p);
-                return <div key={p} style={{background:'#fff',border:`1px solid ${p===eng.phase?SC[p-1]+'50':'#E4E6EF'}`,borderRadius:9,padding:'14px 16px'}}>
-                  <div style={{fontSize:10,color:'#A0A3B1',letterSpacing:'1.5px',textTransform:'uppercase',marginBottom:4}}>Etapa {p}</div>
-                  <div style={{fontSize:13,fontWeight:600,color:SC[p-1],marginBottom:8}}>{STAGES[p-1]}</div>
-                  <div style={{display:'flex',alignItems:'center',gap:5}}><span className={`sdot ${STATUS[ss].dot}`}/><span className={STATUS[ss].txt} style={{fontSize:11}}>{STATUS[ss].label}</span></div>
-                </div>;
-              })}
-            </div>
+            <>
+              <div style={{background:'#fff',border:'1px solid #E4E6EF',borderRadius:9,padding:'14px 18px',marginBottom:16,display:'flex',gap:24}}>
+                <div><div style={{fontSize:10,color:'#A0A3B1',letterSpacing:'1.5px',textTransform:'uppercase',fontWeight:600,marginBottom:4}}>Sessão atual</div><div style={{fontSize:22,fontWeight:600,color:'#4169FF'}}>{eng.sessions.length}<span style={{fontSize:13,color:'#A0A3B1',fontWeight:400}}>/{eng.sessions}</span></div></div>
+                <div><div style={{fontSize:10,color:'#A0A3B1',letterSpacing:'1.5px',textTransform:'uppercase',fontWeight:600,marginBottom:4}}>Etapa atual</div><div style={{fontSize:15,fontWeight:600,color:'#1A1D2E'}}>{STAGES[eng.phase-1]}</div></div>
+                <div><div style={{fontSize:10,color:'#A0A3B1',letterSpacing:'1.5px',textTransform:'uppercase',fontWeight:600,marginBottom:4}}>Cadência</div><div style={{fontSize:15,fontWeight:600,color:'#1A1D2E',textTransform:'capitalize'}}>{eng.cadence}</div></div>
+                <div><div style={{fontSize:10,color:'#A0A3B1',letterSpacing:'1.5px',textTransform:'uppercase',fontWeight:600,marginBottom:4}}>Mini-Surveys</div><div style={{fontSize:15,fontWeight:600,color:'#1A1D2E'}}>{eng.miniSurveys.length} aplicado{eng.miniSurveys.length!==1?'s':''}</div></div>
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8}}>
+                {[1,2,3,4].map(p=>{
+                  const ss=stageStatus(eng,p);
+                  return <div key={p} style={{background:'#fff',border:`1px solid ${p===eng.phase?SC[p-1]+'50':'#E4E6EF'}`,borderRadius:9,padding:'14px 16px'}}>
+                    <div style={{fontSize:10,color:'#A0A3B1',letterSpacing:'1.5px',textTransform:'uppercase',marginBottom:4}}>Etapa {p}</div>
+                    <div style={{fontSize:13,fontWeight:600,color:SC[p-1],marginBottom:8}}>{STAGES[p-1]}</div>
+                    <div style={{display:'flex',alignItems:'center',gap:5}}><span className={`sdot ${STATUS[ss].dot}`}/><span className={STATUS[ss].txt} style={{fontSize:11}}>{STATUS[ss].label}</span></div>
+                  </div>;
+                })}
+              </div>
+            </>
           )}
           {tab==='listas'&&(
             <>
@@ -1532,7 +1603,12 @@ function RHPortal({company,engs,onLogout}){
                     <div style={{flex:1}}><div className="ec-name">{e.coachee.name}</div><div className="ec-role">{e.coachee.role}</div></div>
                   </div>
                   <StageBar eng={e}/>
-                  <div className="ec-meta"><StatusBadge status={currentStatus(e)}/><span className="ec-info">{STAGES[e.phase-1]}</span></div>
+                  <div style={{display:'flex',gap:12,marginBottom:8}}>
+                    <span style={{fontSize:11,color:'#6B6E8E'}}>Sessão <strong style={{color:'#1A1D2E'}}>{e.sessions.length}</strong>/{e.sessions}</span>
+                    <span style={{fontSize:11,color:'#6B6E8E'}}>{STAGES[e.phase-1]}</span>
+                    <span style={{fontSize:11,color:'#6B6E8E'}}>{e.miniSurveys.length} mini-survey{e.miniSurveys.length!==1?'s':''}</span>
+                  </div>
+                  <div className="ec-meta"><StatusBadge status={currentStatus(e)}/><span className="ec-info">{e.cadence}</span></div>
                 </div>
               ))}
             </div>
