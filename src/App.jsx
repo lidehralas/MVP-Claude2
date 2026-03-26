@@ -1674,8 +1674,13 @@ export default function App(){
 
   // Save single engagement to Supabase
   const saveEngToDB=async(eng)=>{
-    const{error}=await supabase.from('engagements').upsert({app_id:eng.id,data:eng},{onConflict:'app_id'});
-    if(error) setSaveErr('Erro ao salvar.');
+    const{data:{session}}=await supabase.auth.getSession();
+    if(!session) return;
+    const{error}=await supabase.from('engagements').upsert(
+      {app_id:eng.id, coach_id:session.user.id, data:eng},
+      {onConflict:'app_id'}
+    );
+    if(error){setSaveErr('Erro ao salvar: '+error.message);console.error(error);}
     else setSaveErr('');
   };
 
