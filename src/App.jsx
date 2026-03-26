@@ -991,7 +991,7 @@ ESTRUTURA (use ## para seções):
 
 Tom: profissional, respeitoso, orientado ao desenvolvimento.`;
     try{
-      const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1500,messages:[{role:"user",content:prompt}]})});
+      const res=await fetch("/api/ai",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt,max_tokens:1500})});
       const data=await res.json();
       onUpdate({report:{content:data.content?.[0]?.text||"Erro ao gerar.",approved:false,sharedAt:null}});
     }catch(e){alert("Erro de conexão com a IA.");}
@@ -1094,7 +1094,7 @@ ESTRUTURA:
 
 Máximo 300 palavras.`;
     try{
-      const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,messages:[{role:"user",content:prompt}]})});
+      const res=await fetch("/api/ai",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt,max_tokens:1000})});
       const data=await res.json();
       setAnalysis(data.content?.[0]?.text||"Erro.");
     }catch(e){setAnalysis("Erro de conexão.");}
