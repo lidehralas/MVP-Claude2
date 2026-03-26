@@ -26,29 +26,30 @@ export default async function handler(req) {
         'Content-Type': 'application/json',
         'x-api-key': apiKey,
         'anthropic-version': '2023-06-01',
+        'anthropic-beta': 'messages-2023-12-15',
       },
       body: JSON.stringify({
-        model: 'claude-3-haiku-20240307',
+        model: 'claude-haiku-4-5-20251001',
         max_tokens,
         messages: [{ role: 'user', content: prompt }],
       }),
     });
 
-    // Read raw text first to avoid JSON parse errors
     const raw = await response.text();
 
     let data;
     try {
       data = JSON.parse(raw);
     } catch {
-      return new Response(JSON.stringify({ error: 'Anthropic returned non-JSON: ' + raw.slice(0, 200) }), {
+      return new Response(JSON.stringify({ error: 'Resposta inválida da API: ' + raw.slice(0, 300) }), {
         status: 502,
         headers: { 'Content-Type': 'application/json' },
       });
     }
 
     if (!response.ok) {
-      return new Response(JSON.stringify({ error: data?.error?.message || 'Anthropic error ' + response.status }), {
+      const msg = data?.error?.message || JSON.stringify(data);
+      return new Response(JSON.stringify({ error: msg }), {
         status: response.status,
         headers: { 'Content-Type': 'application/json' },
       });
