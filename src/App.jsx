@@ -993,8 +993,11 @@ Tom: profissional, respeitoso, orientado ao desenvolvimento.`;
     try{
       const res=await fetch("/api/ai",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt,max_tokens:1500})});
       const data=await res.json();
-      onUpdate({report:{content:data.content?.[0]?.text||"Erro ao gerar.",approved:false,sharedAt:null}});
-    }catch(e){alert("Erro de conexão com a IA.");}
+      if(data.error) throw new Error(data.error);
+      const text=data.content?.[0]?.text;
+      if(!text) throw new Error('Resposta vazia da IA');
+      onUpdate({report:{content:text,approved:false,sharedAt:null}});
+    }catch(e){alert("Erro ao gerar relatório: "+e.message);}
     setLoading(false);
   };
 
@@ -1096,8 +1099,9 @@ Máximo 300 palavras.`;
     try{
       const res=await fetch("/api/ai",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt,max_tokens:1000})});
       const data=await res.json();
-      setAnalysis(data.content?.[0]?.text||"Erro.");
-    }catch(e){setAnalysis("Erro de conexão.");}
+      if(data.error) throw new Error(data.error);
+      setAnalysis(data.content?.[0]?.text||"Sem resposta.");
+    }catch(e){setAnalysis("Erro: "+e.message);}
     setLoading(false);
   };
 
