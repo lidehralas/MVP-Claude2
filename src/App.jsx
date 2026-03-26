@@ -1721,7 +1721,6 @@ export default function App(){
 
   if(!user) return <><style>{CSS}</style><Login onLogin={handleLogin}/>;
 
-
   if(user.role==='coachee'){
     const eng=engs.find(e=>e.id===activeEng);
     if(!eng) return <div className="done-page"><style>{CSS}</style><div className="done-icon">⚠</div><div className="done-title">Processo não encontrado</div></div>;
