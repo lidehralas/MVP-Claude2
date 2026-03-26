@@ -1,4 +1,3 @@
-
 export const config = { runtime: 'edge' };
 
 export default async function handler(req) {
@@ -8,7 +7,7 @@ export default async function handler(req) {
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
-    return new Response(JSON.stringify({ error: 'API key not configured' }), { status: 500 });
+    return new Response(JSON.stringify({ error: 'ANTHROPIC_API_KEY not set' }), { status: 500 });
   }
 
   try {
@@ -23,15 +22,23 @@ export default async function handler(req) {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-opus-4-5',
         max_tokens,
         messages: [{ role: 'user', content: prompt }],
       }),
     });
 
     const data = await response.json();
+
+    if (!response.ok) {
+      return new Response(JSON.stringify({ error: data?.error?.message || 'Anthropic error', detail: data }), {
+        status: response.status,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
     return new Response(JSON.stringify(data), {
-      status: response.status,
+      status: 200,
       headers: { 'Content-Type': 'application/json' },
     });
   } catch (err) {
