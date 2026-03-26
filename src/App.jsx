@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { supabase } from './supabase.js';
 
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
@@ -272,7 +273,7 @@ const INIT_ENGS = [
     leaders:[{id:1,name:"Roberto Fonseca",email:"roberto@dimas.com.br",initials:"RF"}],
     rh:[{id:1,name:"Carla Mendes",email:"carla.rh@dimas.com.br",initials:"CM"}],
     goal:"Transição de especialista técnico para líder de visão estratégica com maior presença executiva",
-    startDate:"2024-10-01",endDate:"2025-04-01",cadence:"quinzenal",sessions:10,phase:3,
+    startDate:"2024-10-01",endDate:"2025-04-01",cadence:"quinzenal",totalSessions:10,phase:3,
     competencias:[
       {id:1,nome:"Posicionamento estratégico e presença executiva",detalhe:"Comunicação assertiva, visão de farol alto, presença em reuniões"},
       {id:2,nome:"Delegação e gestão de pessoas",detalhe:"Matriz A/B/C, desenvolvimento de sucessores, autonomia do time"},
@@ -315,7 +316,7 @@ const INIT_ENGS = [
     leaders:[{id:1,name:"Roberto Fonseca",email:"roberto@dimas.com.br",initials:"RF"}],
     rh:[{id:1,name:"Carla Mendes",email:"carla.rh@dimas.com.br",initials:"CM"}],
     goal:"Fortalecer colaboração com pares e qualidade do acompanhamento da equipe",
-    startDate:"2024-09-01",endDate:"2025-03-01",cadence:"semanal",sessions:10,phase:2,
+    startDate:"2024-09-01",endDate:"2025-03-01",cadence:"semanal",totalSessions:10,phase:2,
     competencias:[
       {id:1,nome:"Colaboração com pares",detalhe:"Cumprir combinados, alinhamento direto, confiabilidade"},
       {id:2,nome:"Delegação e acompanhamento da equipe",detalhe:"Presença consistente, acompanhar processo e não só resultado"},
@@ -505,10 +506,16 @@ function Login({onLogin}){
     {id:'stk',name:'Sou Stakeholder',desc:'Responder avaliação ou pesquisa de progresso'},
   ];
 
-  const submit=()=>{
+  const submit=async()=>{
     if(role==='coach'){
-      if(email==='marcio@lidehra.com.br'&&pass==='lidehra2025') onLogin({role:'coach',name:'Marcio Rezende',initials:'MR'});
-      else{setErr('E-mail ou senha incorretos.');setTimeout(()=>setErr(''),3000);}
+      setErr('');
+      const{data,error}=await supabase.auth.signInWithPassword({email,password:pass});
+      if(error){setErr('E-mail ou senha incorretos.');setTimeout(()=>setErr(''),4000);}
+      else{
+        const u=data.user;
+        const nm=u.user_metadata?.name||u.email;
+        onLogin({role:'coach',name:nm,initials:nm.split(' ').slice(0,2).map(w=>w[0].toUpperCase()).join('')});
+      }
     } else {
       const c=code.trim().toUpperCase();
       const patterns={coachee:/^CE-(\d+)$/,lider:/^LD-(\d+)-(\d+)$/,rh:/^RH-(.+)$/,stk:/^ST-(\d+)-(\d+)$/};
@@ -521,7 +528,7 @@ function Login({onLogin}){
     }
   };
 
-  const hints={coach:'marcio@lidehra.com.br · lidehra2025',coachee:'CE-1 (Vagner) · CE-2 (Gabriel)',lider:'LD-1-1 · LD-2-1',rh:'RH-dimas',stk:'ST-1-1 · ST-1-2 · ST-1-3'};
+  const hints={coach:'Use o e-mail e senha cadastrados no Supabase',coachee:'CE-1 (Vagner) · CE-2 (Gabriel)',lider:'LD-1-1 · LD-2-1',rh:'RH-dimas',stk:'ST-1-1 · ST-1-2 · ST-1-3'};
 
   return (
     <div className="login-page">
@@ -617,7 +624,7 @@ function NewEngModal({onSave,onClose}){
     const color=colors[Math.floor(Math.random()*colors.length)];
     onSave({id:Date.now(),title:"Desenvolvimento de Liderança",
       coachee:{name:f.name,initials:ini(f.name),color,role:f.role,company:f.company,email:f.email},
-      leaders:[],rh:[],goal:f.goal,startDate:f.start,endDate:f.end,cadence:f.cadence,sessions:10,phase:1,
+      leaders:[],rh:[],goal:f.goal,startDate:f.start,endDate:f.end,cadence:f.cadence,totalSessions:10,phase:1,
       competencias:[],hasAssessment:f.assessment,assessmentType:f.assessmentType,assessmentFile:'',
       stakeholders360:[],report:null,miniSurveys:[],stakeholdersMS:[],sessions:[],notifications:[],
     });
@@ -1628,25 +1635,92 @@ function RHPortal({company,engs,onLogout}){
 // ─── APP ROOT ─────────────────────────────────────────────────────────────────
 export default function App(){
   const [user,setUser]=useState(null);
-  const [engs,setEngs]=useState(INIT_ENGS);
+  const [engs,setEngs]=useState([]);
   const [view,setView]=useState('dash');
   const [activeEng,setActiveEng]=useState(null);
   const [navItem,setNavItem]=useState('processos');
+  const [loading,setLoading]=useState(true);
+  const [saveErr,setSaveErr]=useState('');
 
-  const updateEng=(id,patch)=>setEngs(p=>p.map(e=>e.id===id?{...e,...patch}:e));
-  const addEng=e=>setEngs(p=>[...p,e]);
-  const logout=()=>{setUser(null);setView('dash');setActiveEng(null);};
+  // Load session on mount
+  useEffect(()=>{
+    supabase.auth.getSession().then(({data:{session}})=>{
+      if(session){
+        const u=session.user;
+        const nm=u.user_metadata?.name||u.email;
+        setUser({role:'coach',name:nm,initials:nm.split(' ').slice(0,2).map(w=>w[0].toUpperCase()).join('')});
+        loadEngsFromDB();
+      } else {
+        setLoading(false);
+      }
+    });
+    const {data:{subscription}}=supabase.auth.onAuthStateChange((_,session)=>{
+      if(!session){setUser(null);setEngs([]);setLoading(false);}
+    });
+    return ()=>subscription.unsubscribe();
+  },[]);
 
+  // Load engagements from Supabase
+  const loadEngsFromDB=async()=>{
+    setLoading(true);
+    const{data,error}=await supabase.from('engagements').select('app_id,data').order('app_id',{ascending:true});
+    if(!error&&data&&data.length>0){
+      setEngs(data.map(row=>({...row.data,id:row.app_id})));
+    } else {
+      setEngs(INIT_ENGS);
+    }
+    setLoading(false);
+  };
+
+  // Save single engagement to Supabase
+  const saveEngToDB=async(eng)=>{
+    const{error}=await supabase.from('engagements').upsert({app_id:eng.id,data:eng},{onConflict:'app_id'});
+    if(error) setSaveErr('Erro ao salvar.');
+    else setSaveErr('');
+  };
+
+  // Update engagement in state + Supabase
+  const updateEng=(id,patch)=>{
+    setEngs(prev=>prev.map(e=>{
+      if(e.id!==id) return e;
+      const merged={...e,...patch};
+      saveEngToDB(merged);
+      return merged;
+    }));
+  };
+
+  // Add new engagement
+  const addEng=async(e)=>{
+    setEngs(prev=>[...prev,e]);
+    await saveEngToDB(e);
+  };
+
+  // Logout
+  const logout=async()=>{
+    if(user?.role==='coach') await supabase.auth.signOut();
+    setUser(null);setEngs([]);setView('dash');setActiveEng(null);
+  };
+
+  // Login handler
   const handleLogin=u=>{
     setUser(u);
     if(u.role==='coachee'){setView('coachee');setActiveEng(u.engId);}
     else if(u.role==='lider'){setView('lider');setActiveEng(u.engId);}
     else if(u.role==='rh'){setView('rh');}
     else if(u.role==='stk'){setView('stk');setActiveEng(u.engId);}
-    else setView('dash');
+    else{setView('dash');loadEngsFromDB();}
   };
 
-  if(!user) return <><style>{CSS}</style><Login onLogin={handleLogin}/></>;
+  if(loading) return (
+    <div style={{minHeight:'100vh',background:'#F4F5F7',display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:16,fontFamily:"'Poppins',sans-serif"}}>
+      <style>{CSS}</style>
+      <div style={{fontSize:22,fontWeight:700,color:'#1A1D2E'}}>Lidehra</div>
+      <Dots/>
+    </div>
+  );
+
+  if(!user) return <><style>{CSS}</style><Login onLogin={handleLogin}/>;
+
 
   if(user.role==='coachee'){
     const eng=engs.find(e=>e.id===activeEng);
@@ -1704,6 +1778,7 @@ export default function App(){
           </div>
         </div>
         <div className="main">
+          {saveErr&&<div style={{background:'#FEF2F2',borderBottom:'1px solid #FCD4D4',padding:'8px 24px',fontSize:12,color:'#DC2626'}}>{saveErr}</div>}
           {view==='dash'&&navItem==='processos'&&(
             <>
               <div className="topbar"><div className="pg-title">Dashboard</div><div className="pg-sub">Processos ativos — {new Date().toLocaleDateString('pt-BR',{month:'long',year:'numeric'})}</div><div className="divline"/></div>
