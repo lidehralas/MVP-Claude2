@@ -1319,7 +1319,7 @@ function FormMiniSurvey({eng,sh,ms,onSubmit}){
 }
 
 // ─── COACHEE PORTAL ───────────────────────────────────────────────────────────
-function CoacheePortal({eng,onLogout,onUpdate}){
+function CoacheePortal({eng,onLogout,onUpdate,isCoachView,onBackToCoach}){
   const [tab,setTab]=useState('jornada');
   const [showAdd360,setShowAdd360]=useState(false);
   const [showAddMS,setShowAddMS]=useState(false);
@@ -1336,8 +1336,9 @@ function CoacheePortal({eng,onLogout,onUpdate}){
       <div className="portal-header">
         <div><div style={{fontWeight:700,fontSize:16,color:'#1A1D2E'}}>Lidehra</div><div style={{fontSize:10,color:'#A0A3B1',letterSpacing:'2px',textTransform:'uppercase'}}>Minha Jornada</div></div>
         <div style={{display:'flex',alignItems:'center',gap:12}}>
+          {isCoachView&&<button className="btn btn-p btn-sm" onClick={onBackToCoach}>← Voltar ao coach</button>}
           <div style={{textAlign:'right'}}><div style={{fontSize:14,fontWeight:600,color:'#1A1D2E'}}>{c.name}</div><div style={{fontSize:12,color:'#A0A3B1'}}>{c.role} · {c.company}</div></div>
-          <button className="btn btn-g btn-sm" onClick={onLogout}>Sair</button>
+          {!isCoachView&&<button className="btn btn-g btn-sm" onClick={onLogout}>Sair</button>}
         </div>
       </div>
       <div className="portal-body">
@@ -1665,7 +1666,11 @@ export default function App(){
     setLoading(true);
     const{data,error}=await supabase.from('engagements').select('app_id,data').order('app_id',{ascending:true});
     if(!error&&data&&data.length>0){
-      setEngs(data.map(row=>({...row.data,id:row.app_id})));
+      const fromDB=data.map(row=>({...row.data,id:row.app_id}));
+      const dbIds=new Set(fromDB.map(e=>e.id));
+      // Merge: DB data takes priority; INIT_ENGS fills in anything not yet saved
+      const merged=[...fromDB, ...INIT_ENGS.filter(e=>!dbIds.has(e.id))];
+      setEngs(merged.sort((a,b)=>a.id-b.id));
     } else {
       setEngs(INIT_ENGS);
     }
@@ -1729,7 +1734,7 @@ export default function App(){
   if(user.role==='coachee'){
     const eng=engs.find(e=>e.id===activeEng);
     if(!eng) return <div className="done-page"><style>{CSS}</style><div className="done-icon">⚠</div><div className="done-title">Processo não encontrado</div></div>;
-    return <CoacheePortal eng={eng} onLogout={logout} onUpdate={updateEng}/>;
+    return <CoacheePortal eng={eng} onLogout={logout} onUpdate={updateEng} isCoachView={user.isCoachView} onBackToCoach={()=>{setUser({role:'coach',name:user._coachName,initials:user._coachInitials});setView('dash');setActiveEng(null);}}/>;
   }
 
   if(user.role==='lider'){
@@ -1789,7 +1794,7 @@ export default function App(){
               <div className="scroll">
                 <Dashboard engs={engs} onSelect={id=>{setActiveEng(id);setView('eng');}} onCreate={addEng}
                   onOpenCoachee={id=>{
-                    setUser({role:'coachee',engId:id});
+                    setUser(prev=>({role:'coachee',engId:id,isCoachView:true,_coachName:prev.name,_coachInitials:prev.initials}));
                     setView('coachee');setActiveEng(id);
                   }}/>
               </div>
