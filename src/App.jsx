@@ -342,21 +342,31 @@ function Overlay({children,onClose}){ return <div className="overlay" onClick={e
 
 function stageStatus(eng, phase){
   if(phase === 1){
-    const pending = eng.stakeholders360.some(s=>s.status==='pending'&&!s.invalid);
-    const allDone = eng.stakeholders360.length>0 && eng.stakeholders360.filter(s=>!s.invalid).every(s=>s.status==='done');
-    if(eng.phase > 1) return 'done';
-    if(!eng.report && allDone) return 'pending';
+    // No activity at all → idle
+    const hasAnyActivity = eng.stakeholders360.length>0 || eng.report || eng.competencias.length>0;
+    if(!hasAnyActivity) return 'idle';
     if(eng.report?.approved) return 'done';
-    if(eng.stakeholders360.length>0) return pending?'pending':'active';
-    return eng.phase===1?'active':'idle';
+    const allDone = eng.stakeholders360.length>0 && eng.stakeholders360.filter(s=>!s.invalid).every(s=>s.status==='done');
+    const hasPending = eng.stakeholders360.some(s=>s.status==='pending'&&!s.invalid);
+    if(allDone && !eng.report) return 'pending';
+    if(hasPending) return 'pending';
+    return 'active';
   }
-  if(phase === 2) return eng.phase>2?'done':eng.phase===2?'active':'idle';
+  if(phase === 2){
+    const hasAnyActivity = eng.competencias.length>0 && eng.stakeholdersMS.length>0;
+    if(!hasAnyActivity) return 'idle';
+    if(eng.stakeholdersMS.every(s=>s.validatedByLeader) && eng.competencias.length>0) return 'active';
+    return 'active';
+  }
   if(phase === 3){
-    if(eng.phase>3) return 'done';
-    if(eng.phase===3) return eng.miniSurveys.length>0?'active':'pending';
-    return 'idle';
+    if(eng.sessions.length===0 && eng.miniSurveys.length===0) return 'idle';
+    return eng.miniSurveys.length>0?'active':'active';
   }
-  if(phase === 4) return eng.phase===4?'active':'idle';
+  if(phase === 4){
+    const lastMS = eng.miniSurveys[eng.miniSurveys.length-1];
+    if(!lastMS) return 'idle';
+    return lastMS.reportApproved?'done':'active';
+  }
   return 'idle';
 }
 
@@ -830,6 +840,8 @@ function Dashboard({engs,onSelect,onCreate,onOpenCoachee}){
 // ─── ROADMAP TAB ──────────────────────────────────────────────────────────────
 function RoadmapTab({eng,onUpdate}){
   const [selStage,setSelStage]=useState(eng.phase-1);
+  const [showEditProfile,setShowEditProfile]=useState(false);
+  const [profileDraft,setProfileDraft]=useState({});
   const stages=[
     {id:'diagnostico',label:'Diagnóstico',phase:1,actions:[
       {id:'onboarding',label:'Onboarding do coachee',who:'coach',status:eng.phase>=1?'done':'idle'},
@@ -867,20 +879,66 @@ function RoadmapTab({eng,onUpdate}){
 
   return (
     <div style={{marginTop:20}}>
+      {showEditProfile&&(
+        <Overlay onClose={()=>setShowEditProfile(false)}>
+          <div className="modal">
+            <div className="modal-title">Editar Perfil do Cliente</div>
+            <div className="modal-sub">Atualize as informações do coachee e do processo</div>
+            <div className="frow">
+              <div className="field"><div className="flbl">Nome</div><input className="finp" value={profileDraft.name} onChange={e=>setProfileDraft(p=>({...p,name:e.target.value}))}/></div>
+              <div className="field"><div className="flbl">E-mail</div><input className="finp" type="email" value={profileDraft.email} onChange={e=>setProfileDraft(p=>({...p,email:e.target.value}))}/></div>
+            </div>
+            <div className="frow">
+              <div className="field"><div className="flbl">Cargo</div><input className="finp" value={profileDraft.role} onChange={e=>setProfileDraft(p=>({...p,role:e.target.value}))}/></div>
+              <div className="field"><div className="flbl">Empresa</div><input className="finp" value={profileDraft.company} onChange={e=>setProfileDraft(p=>({...p,company:e.target.value}))}/></div>
+            </div>
+            <div className="field"><div className="flbl">Objetivo do processo</div><textarea className="finp" rows={2} value={profileDraft.goal} onChange={e=>setProfileDraft(p=>({...p,goal:e.target.value}))}/></div>
+            <div className="frow">
+              <div className="field"><div className="flbl">Início</div><input className="finp" type="date" value={profileDraft.startDate} onChange={e=>setProfileDraft(p=>({...p,startDate:e.target.value}))}/></div>
+              <div className="field"><div className="flbl">Encerramento (previsto)</div><input className="finp" type="date" value={profileDraft.endDate} onChange={e=>setProfileDraft(p=>({...p,endDate:e.target.value}))}/></div>
+            </div>
+            <div className="field"><div className="flbl">Cadência</div>
+              <select className="fsel" value={profileDraft.cadence} onChange={e=>setProfileDraft(p=>({...p,cadence:e.target.value}))}>
+                <option value="semanal">Semanal</option><option value="quinzenal">Quinzenal</option>
+              </select>
+            </div>
+            <div className="modal-foot">
+              <button className="btn btn-g" onClick={()=>setShowEditProfile(false)}>Cancelar</button>
+              <button className="btn btn-p" onClick={()=>{
+                onUpdate({coachee:{...eng.coachee,name:profileDraft.name,email:profileDraft.email,role:profileDraft.role,company:profileDraft.company,initials:ini(profileDraft.name)},goal:profileDraft.goal,startDate:profileDraft.startDate,endDate:profileDraft.endDate,cadence:profileDraft.cadence});
+                setShowEditProfile(false);
+              }}>Salvar</button>
+            </div>
+          </div>
+        </Overlay>
+      )}
+      <div style={{display:'flex',justifyContent:'flex-end',marginBottom:10}}>
+        <button className="btn btn-g btn-sm" onClick={()=>{setProfileDraft({name:eng.coachee.name,email:eng.coachee.email||'',role:eng.coachee.role,company:eng.coachee.company,goal:eng.goal,startDate:eng.startDate,endDate:eng.endDate,cadence:eng.cadence});setShowEditProfile(true);}}>Editar perfil do cliente</button>
+      </div>
       <div className="igrid">
-        {[{l:'Início',v:eng.startDate},{l:'Encerramento',v:eng.endDate},{l:'Cadência',v:eng.cadence},
+        {[{l:'Início',v:eng.startDate},{l:'Encerramento (previsto)',v:eng.endDate},{l:'Cadência',v:eng.cadence},
           {l:'Assessment',v:eng.hasAssessment?eng.assessmentType:'Não aplicável'},
           {l:'Competências',v:eng.competencias.length>0?eng.competencias.length+' definida(s)':'A definir'},
           {l:'Mini-surveys',v:eng.miniSurveys.length+' aplicado(s)'}
         ].map(it=><div key={it.l} className="icard"><div className="ilbl">{it.l}</div><div className="ival">{it.v}</div></div>)}
+      <div style={{background:'#F9FAFB',border:'1px dashed #D8DAE8',borderRadius:9,padding:'12px 16px',marginBottom:12,display:'flex',alignItems:'center',gap:10}}>
+        <span style={{fontSize:13,color:'#A0A3B1'}}>📅 Cronograma automático do processo</span>
+        <span style={{fontSize:11,fontWeight:600,color:'#BCC4F0',background:'#EEF1FF',padding:'3px 8px',borderRadius:4,marginLeft:'auto'}}>Em breve</span>
+      </div>
       </div>
 
       {eng.hasAssessment&&(
         <div style={{background:'#fff',border:'1px solid #E4E6EF',borderRadius:9,padding:'12px 16px',marginBottom:16,display:'flex',alignItems:'center',gap:12}}>
           <span style={{fontSize:13,color:'#6B6E8E'}}>Assessment: <strong style={{color:'#1A1D2E'}}>{eng.assessmentType}</strong></span>
           {eng.assessmentFile
-            ?<span style={{fontSize:12,color:'#059669',marginLeft:'auto'}}>✓ {eng.assessmentFile}</span>
-            :<label style={{marginLeft:'auto',cursor:'pointer'}}><input type="file" style={{display:'none'}} onChange={e=>onUpdate({assessmentFile:e.target.files[0]?.name||''})}/><span className="btn btn-g btn-sm">Upload do resultado</span></label>
+            ?<div style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:8}}>
+                <span style={{fontSize:12,color:'#059669'}}>✓ {eng.assessmentFile}</span>
+                <span style={{fontSize:11,color:'#C8CAD6',padding:'3px 8px',border:'1px dashed #D8DAE8',borderRadius:4}}>Armazenamento — em breve</span>
+              </div>
+            :<div style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:8}}>
+                <label style={{cursor:'pointer'}}><input type="file" style={{display:'none'}} onChange={e=>onUpdate({assessmentFile:e.target.files[0]?.name||''})}/><span className="btn btn-g btn-sm">Registrar nome do arquivo</span></label>
+                <span style={{fontSize:11,color:'#C8CAD6',padding:'3px 8px',border:'1px dashed #D8DAE8',borderRadius:4}}>Upload real — em breve</span>
+              </div>
           }
         </div>
       )}
@@ -1188,7 +1246,8 @@ function TabRelatorios({eng,onUpdate}){
                 <div style={{display:'flex',gap:8}}>
                   {!eng.report.approved&&!editing360&&<button className="btn btn-p btn-sm" onClick={approve360}>✓ Aprovar e Compartilhar</button>}
                   {!editing360&&<button className="btn btn-g btn-sm" onClick={()=>{setDraft360(eng.report.content);setEditing360(true);}}>Editar</button>}
-                  {!editing360&&<button className="btn btn-g btn-sm" onClick={()=>handleUpload(txt=>{onUpdate({report:{...eng.report,content:txt}});})}>↑ Upload</button>}
+                  {!editing360&&<button className="btn btn-g btn-sm" onClick={()=>handleUpload(txt=>{onUpdate({report:{...eng.report,content:txt}});})}>↑ Upload .txt/.md</button>}
+                  {!editing360&&<span style={{fontSize:11,color:'#C8CAD6',padding:'5px 8px',border:'1px dashed #D8DAE8',borderRadius:6,whiteSpace:'nowrap'}}>PDF/DOCX — em breve</span>}
                   {editing360&&<><button className="btn btn-g btn-sm" onClick={()=>setEditing360(false)}>Cancelar</button><button className="btn btn-p btn-sm" onClick={save360}>Salvar</button></>}
                 </div>
               </div>
@@ -1234,7 +1293,8 @@ function TabRelatorios({eng,onUpdate}){
                     <div style={{display:'flex',gap:8}}>
                       {!selMS.reportApproved&&!editingMS&&<button className="btn btn-p btn-sm" onClick={approveMS}>✓ Aprovar e Compartilhar</button>}
                       {!editingMS&&<button className="btn btn-g btn-sm" onClick={()=>{setDraftMS(selMS.reportContent||'');setEditingMS(true);}}>Editar</button>}
-                      {!editingMS&&<button className="btn btn-g btn-sm" onClick={()=>handleUpload(txt=>{updateMS({reportContent:txt});})}>↑ Upload</button>}
+                      {!editingMS&&<button className="btn btn-g btn-sm" onClick={()=>handleUpload(txt=>{updateMS({reportContent:txt});})}>↑ Upload .txt/.md</button>}
+                      {!editingMS&&<span style={{fontSize:11,color:'#C8CAD6',padding:'5px 8px',border:'1px dashed #D8DAE8',borderRadius:6,whiteSpace:'nowrap'}}>PDF/DOCX — em breve</span>}
                       {editingMS&&<><button className="btn btn-g btn-sm" onClick={()=>setEditingMS(false)}>Cancelar</button><button className="btn btn-p btn-sm" onClick={saveMS}>Salvar</button></>}
                     </div>
                   </div>
@@ -1253,24 +1313,91 @@ function TabRelatorios({eng,onUpdate}){
 }
 
 // ─── SESSIONS TAB ─────────────────────────────────────────────────────────────
-function TabSessions({eng}){
-  const mon={Jan:'JAN',Fev:'FEV',Mar:'MAR',Abr:'ABR',Mai:'MAI',Jun:'JUN',Jul:'JUL',Ago:'AGO',Set:'SET',Out:'OUT',Nov:'NOV',Dez:'DEZ'};
+function TabSessions({eng,onUpdate}){
+  const [showNew,setShowNew]=useState(false);
+  const [newSession,setNewSession]=useState({date:'',notes:''});
+  const [expandedIdx,setExpandedIdx]=useState(null);
+  const [editIdx,setEditIdx]=useState(null);
+  const [editNotes,setEditNotes]=useState('');
+
+  const saveNew=()=>{
+    if(!newSession.date||!newSession.notes.trim())return;
+    const num=eng.sessions.length+1;
+    const d=new Date(newSession.date);
+    const months=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    const dateStr=`${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+    onUpdate({sessions:[{num,date:dateStr,notes:newSession.notes.trim()},...eng.sessions]});
+    setNewSession({date:'',notes:''});setShowNew(false);
+  };
+
+  const saveEdit=(i)=>{
+    const updated=eng.sessions.map((s,idx)=>idx===i?{...s,notes:editNotes}:s);
+    onUpdate({sessions:updated});setEditIdx(null);
+  };
+
   return (
     <div style={{marginTop:20}}>
-      <div className="sec"><span className="sec-lbl">Sessões ({eng.sessions.length})</span><button className="btn btn-p btn-sm">+ Registrar</button></div>
+      <div className="sec">
+        <span className="sec-lbl">Sessões ({eng.sessions.length})</span>
+        <button className="btn btn-p btn-sm" onClick={()=>setShowNew(p=>!p)}>+ Registrar sessão</button>
+      </div>
+
+      {showNew&&(
+        <div style={{background:'#EEF1FF',border:'1px solid #D0D8F8',borderRadius:10,padding:16,marginBottom:16}}>
+          <div className="field"><div className="flbl">Data da sessão</div><input className="finp" type="date" value={newSession.date} onChange={e=>setNewSession(p=>({...p,date:e.target.value}))}/></div>
+          <div className="field">
+            <div className="flbl">Anotações da sessão</div>
+            <textarea className="finp" rows={5} placeholder="Registre os principais pontos discutidos, insights do coachee, ações definidas, observações para próximas sessões..." value={newSession.notes} onChange={e=>setNewSession(p=>({...p,notes:e.target.value}))}/>
+            <div style={{fontSize:11,color:'#A0A3B1',marginTop:4}}>Estas anotações poderão ser usadas pela IA para gerar recomendações para o coach.</div>
+          <div style={{marginTop:10,padding:'10px 12px',background:'#F9FAFB',border:'1px dashed #D8DAE8',borderRadius:8,display:'flex',alignItems:'center',gap:10}}>
+            <span style={{fontSize:13,color:'#A0A3B1'}}>📎 Upload de transcrição</span>
+            <span style={{fontSize:11,color:'#C8CAD6',flex:1}}>.txt · .docx · .pdf</span>
+            <span style={{fontSize:11,fontWeight:600,color:'#BCC4F0',background:'#EEF1FF',padding:'3px 8px',borderRadius:4}}>Em breve</span>
+          </div>
+          </div>
+          <div style={{display:'flex',gap:8}}>
+            <button className="btn btn-g btn-sm" onClick={()=>setShowNew(false)}>Cancelar</button>
+            <button className="btn btn-p btn-sm" onClick={saveNew} disabled={!newSession.date||!newSession.notes.trim()}>Salvar</button>
+          </div>
+        </div>
+      )}
+
       {eng.sessions.length===0?<div className="empty"><div className="ei">◌</div>Nenhuma sessão registrada.</div>
       :eng.sessions.map((s,i)=>{
-        const [day,m]=s.date.split(' ');
+        const parts=s.date.split(' ');
+        const day=parts[0]; const m=parts[1]||'';
+        const months={Jan:'JAN',Fev:'FEV',Mar:'MAR',Abr:'ABR',Mai:'MAI',Jun:'JUN',Jul:'JUL',Ago:'AGO',Set:'SET',Out:'OUT',Nov:'NOV',Dez:'DEZ'};
         return (
-          <div key={i} style={{display:'flex',gap:14,padding:'14px 0',borderBottom:'1px solid #E4E6EF'}}>
-            <div style={{minWidth:44,textAlign:'center',background:'#fff',border:'1px solid #E4E6EF',borderRadius:8,padding:'7px 5px'}}>
-              <div style={{fontSize:18,fontWeight:700,color:'#1A1D2E',lineHeight:1}}>{day}</div>
-              <div style={{fontSize:9,color:'#A0A3B1',letterSpacing:'1px',textTransform:'uppercase',marginTop:2}}>{mon[m]||m}</div>
+          <div key={i} style={{borderBottom:'1px solid #E4E6EF'}}>
+            <div style={{display:'flex',gap:14,padding:'14px 0',cursor:'pointer'}} onClick={()=>setExpandedIdx(expandedIdx===i?null:i)}>
+              <div style={{minWidth:44,textAlign:'center',background:'#fff',border:'1px solid #E4E6EF',borderRadius:8,padding:'7px 5px',flexShrink:0}}>
+                <div style={{fontSize:18,fontWeight:700,color:'#1A1D2E',lineHeight:1}}>{day}</div>
+                <div style={{fontSize:9,color:'#A0A3B1',letterSpacing:'1px',textTransform:'uppercase',marginTop:2}}>{months[m]||m}</div>
+              </div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:11,fontWeight:600,color:'#A0A3B1',textTransform:'uppercase',letterSpacing:'.8px',marginBottom:4}}>Sessão {s.num}</div>
+                <div style={{fontSize:14,color:'#6B6E8E',lineHeight:1.5,overflow:'hidden',whiteSpace:expandedIdx===i?'pre-wrap':'nowrap',textOverflow:'ellipsis'}}>{s.notes}</div>
+              </div>
+              <span style={{fontSize:12,color:'#A0A3B1',flexShrink:0,paddingTop:4}}>{expandedIdx===i?'▲':'▼'}</span>
             </div>
-            <div style={{flex:1}}>
-              <div style={{fontSize:11,fontWeight:600,color:'#A0A3B1',textTransform:'uppercase',letterSpacing:'.8px',marginBottom:4}}>Sessão {s.num}</div>
-              <div style={{fontSize:14,color:'#6B6E8E',lineHeight:1.5}}>{s.notes}</div>
-            </div>
+            {expandedIdx===i&&(
+              <div style={{paddingBottom:14}}>
+                {editIdx===i?(
+                  <div>
+                    <textarea className="finp" rows={6} value={editNotes} onChange={e=>setEditNotes(e.target.value)} style={{marginBottom:8}}/>
+                    <div style={{display:'flex',gap:8}}>
+                      <button className="btn btn-g btn-sm" onClick={()=>setEditIdx(null)}>Cancelar</button>
+                      <button className="btn btn-p btn-sm" onClick={()=>saveEdit(i)}>Salvar</button>
+                    </div>
+                  </div>
+                ):(
+                  <div style={{display:'flex',gap:8}}>
+                    <button className="btn btn-g btn-sm" onClick={()=>{setEditIdx(i);setEditNotes(s.notes);}}>Editar anotação</button>
+                    <button className="btn btn-d btn-sm" onClick={()=>{if(window.confirm('Apagar esta sessão?')){onUpdate({sessions:eng.sessions.filter((_,idx)=>idx!==i)});}}}>Apagar</button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         );
       })}
@@ -1279,7 +1406,7 @@ function TabSessions({eng}){
 }
 
 // ─── ENGAGEMENT DETAIL ────────────────────────────────────────────────────────
-function EngDetail({id,engs,onBack,onUpdate}){
+function EngDetail({id,engs,onBack,onUpdate,onDelete}){
   const [tab,setTab]=useState('roadmap');
   const eng=engs.find(e=>e.id===id);
   if(!eng)return null;
@@ -1306,6 +1433,13 @@ function EngDetail({id,engs,onBack,onUpdate}){
           <div style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:10}}>
             <StatusBadge status={currentStatus(eng)}/>
             <span style={{fontSize:12,color:'#A0A3B1'}}>{STAGES[eng.phase-1]} · {eng.cadence}</span>
+            <button className="btn btn-d btn-xs" onClick={()=>{
+              if(!window.confirm('Tem certeza que deseja apagar este processo?')) return;
+              if(!window.confirm('Esta ação é irreversível. Confirma a exclusão de "'+eng.coachee.name+'"?')) return;
+              const nome=window.prompt('Digite o nome do coachee para confirmar:');
+              if(nome?.trim()===eng.coachee.name.trim()){onDelete(eng.id);onBack();}
+              else alert('Nome incorreto. Processo não apagado.');
+            }}>Apagar processo</button>
           </div>
         </div>
         <div className="tabs">{TABS.map(t=><div key={t.id} className={`tab${tab===t.id?' on':''}`} onClick={()=>setTab(t.id)}>{t.label}</div>)}</div>
@@ -1314,7 +1448,7 @@ function EngDetail({id,engs,onBack,onUpdate}){
         {tab==='roadmap'&&<RoadmapTab eng={eng} onUpdate={upd}/>}
         {tab==='stk'&&<TabStakeholders eng={eng} onUpdate={upd}/>}
         {tab==='relatorios'&&<TabRelatorios eng={eng} onUpdate={upd}/>}
-        {tab==='sessions'&&<TabSessions eng={eng}/>}
+        {tab==='sessions'&&<TabSessions eng={eng} onUpdate={upd}/>}
       </div>
     </>
   );
@@ -1922,7 +2056,7 @@ export default function App(){
             </>
           )}
           {view==='eng'&&activeEng&&(
-            <EngDetail id={activeEng} engs={engs} onBack={()=>{setView('dash');setActiveEng(null);}} onUpdate={updateEng}/>
+            <EngDetail id={activeEng} engs={engs} onBack={()=>{setView('dash');setActiveEng(null);}} onUpdate={updateEng} onDelete={id=>{setEngs(prev=>prev.filter(e=>e.id!==id));supabase.from('engagements').delete().eq('app_id',id).then(()=>{});}} />
           )}
           {navItem!=='processos'&&(
             <>
