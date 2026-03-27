@@ -309,6 +309,13 @@ const INIT_ENGS = [
       {num:7,date:"07 Fev 2025",notes:"Delegação via matriz A/B/C."},
     ],
     notifications:[],
+    actionStatuses:{
+      onboarding:'done',cronograma:'done',assessment:'done',
+      comuni360:'done',dispara360:'done',devolutiva:'done',
+      alinhamento:'done',planoacao:'done',engajamento:'done',agenda:'done',
+      comunims:'done',disparams:'done',
+      sessoes1a5:'done',sessoes6a10:'active',
+    },
   },
   {
     id:2,title:"Desenvolvimento de Liderança",
@@ -332,6 +339,12 @@ const INIT_ENGS = [
       {num:4,date:"20 Fev 2025",notes:"Engajamento dos stakeholders. Plano de ações em construção."},
     ],
     notifications:[],
+    actionStatuses:{
+      onboarding:'done',cronograma:'done',
+      comuni360:'done',dispara360:'done',
+      alinhamento:'active',planoacao:'idle',engajamento:'idle',agenda:'idle',
+      comunims:'idle',disparams:'idle',
+    },
   },
 ];
 
@@ -849,6 +862,7 @@ const MANUAL_ACTIONS = new Set([
 // Compute auto status for data-driven actions
 function autoStatus(id, eng){
   switch(id){
+    case 'cronograma': return 'done'; // always done when engagement exists
     case 'lista360': return eng.stakeholders360.length>0?'done':'idle';
     case 'valida360': return eng.stakeholders360.length>0&&eng.stakeholders360.every(s=>s.validatedByLeader||s.invalid)?'done':eng.stakeholders360.length>0?'pending':'idle';
     case 'coleta360': {
@@ -883,9 +897,10 @@ function RoadmapTab({eng,onUpdate}){
   // Toggle manual action through cycle: idle → active → done → idle
   const toggleAction = (id) => {
     if(!MANUAL_ACTIONS.has(id)) return;
-    const cur = as[id] || 'idle';
+    // Use current as from closure (re-evaluated each render)
+    const cur = (eng.actionStatuses||{})[id] || 'idle';
     const next = cur==='idle'?'active':cur==='active'?'done':'idle';
-    onUpdate({actionStatuses:{...as,[id]:next}});
+    onUpdate({actionStatuses:{...(eng.actionStatuses||{}),[id]:next}});
   };
 
   const stages=[
@@ -1103,6 +1118,10 @@ function TabStakeholders({eng,onUpdate}){
   const [section,setSection]=useState('360');
   const [showAdd360,setShowAdd360]=useState(false);
   const [showAddMS,setShowAddMS]=useState(false);
+  const [showSend360,setShowSend360]=useState(false);
+  const [showSendMS,setShowSendMS]=useState(false);
+  const [sending,setSending]=useState(false);
+  const [sendLog,setSendLog]=useState([]);
   const [viewSh,setViewSh]=useState(null);
   const [loading,setLoading]=useState(false);
 
@@ -1157,11 +1176,156 @@ Tom: profissional, orientado ao desenvolvimento.`;
     onUpdate({miniSurveys:[...eng.miniSurveys,ms]});
   };
 
+  const baseUrl = window.location.origin;
+
+  const sendEmails = async(recipients, subjectFn, htmlFn, onDone) => {
+    setSending(true);setSendLog([]);
+    const log = [];
+    for(const sh of recipients){
+      if(!sh.email){log.push({name:sh.name,ok:false,msg:'Sem e-mail cadastrado'});continue;}
+      try{
+        const res=await fetch('/api/send-email',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({to:sh.email,subject:subjectFn(sh),html:htmlFn(sh),from_name:'Lidehra'})});
+        const data=await res.json();
+        if(data.success) log.push({name:sh.name,ok:true,msg:'Enviado'});
+        else log.push({name:sh.name,ok:false,msg:data.error||'Erro'});
+      }catch(e){log.push({name:sh.name,ok:false,msg:e.message});}
+    }
+    setSendLog(log);setSending(false);
+    if(onDone) onDone(log);
+  };
+
+  const doSend360 = () => {
+    const recipients = eng.stakeholders360.filter(s=>s.email&&!s.invalid);
+    const link = (sh) => `${baseUrl}?code=ST-${eng.id}-${sh.id}`;
+    sendEmails(
+      recipients,
+      sh => `Convite para Avaliação 360° — ${eng.coachee.name}`,
+      sh => `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:32px 24px">
+        <h2 style="color:#1A1D2E;margin-bottom:8px">Convite para Avaliação 360°</h2>
+        <p style="color:#6B6E8E;margin-bottom:20px">Olá, ${sh.name}!</p>
+        <p style="color:#3A3D58;line-height:1.7">Você foi convidado(a) a contribuir com o desenvolvimento de <strong>${eng.coachee.name}</strong> através de uma avaliação de feedback 360°.</p>
+        <p style="color:#3A3D58;line-height:1.7;margin-bottom:24px">Sua participação é confidencial e muito importante. O preenchimento leva entre 15 e 20 minutos.</p>
+        <a href="${link(sh)}" style="display:inline-block;background:#4169FF;color:#fff;text-decoration:none;padding:14px 28px;border-radius:8px;font-weight:600;margin-bottom:24px">Acessar Formulário 360°</a>
+        <p style="color:#A0A3B1;font-size:12px">Ou acesse: ${link(sh)}</p>
+        <hr style="border:none;border-top:1px solid #E4E6EF;margin:24px 0"/>
+        <p style="color:#A0A3B1;font-size:12px">Lidehra · Plataforma de Desenvolvimento de Liderança</p>
+      </div>`,
+      (log) => {
+        const ok = log.filter(l=>l.ok).length;
+        if(ok>0) alert(`${ok} e-mail(s) enviado(s) com sucesso!`);
+      }
+    );
+  };
+
+  const doSendMS = () => {
+    const lastMS = eng.miniSurveys[eng.miniSurveys.length-1];
+    if(!lastMS) return;
+    const recipients = eng.stakeholdersMS.filter(s=>s.email&&!s.invalid);
+    const link = (sh) => `${baseUrl}?code=ST-${eng.id}-${sh.id}`;
+    sendEmails(
+      recipients,
+      sh => `Pesquisa de Progresso — ${eng.coachee.name}`,
+      sh => `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:32px 24px">
+        <h2 style="color:#1A1D2E;margin-bottom:8px">Pesquisa de Acompanhamento</h2>
+        <p style="color:#6B6E8E;margin-bottom:20px">Olá, ${sh.name}!</p>
+        <p style="color:#3A3D58;line-height:1.7">Você está sendo convidado(a) a avaliar o progresso de <strong>${eng.coachee.name}</strong> no processo de desenvolvimento de liderança.</p>
+        <p style="color:#3A3D58;line-height:1.7;margin-bottom:24px">A pesquisa é confidencial, leva entre 10 e 15 minutos e sua contribuição é fundamental para o desenvolvimento do(a) líder.</p>
+        <a href="${link(sh)}" style="display:inline-block;background:#4169FF;color:#fff;text-decoration:none;padding:14px 28px;border-radius:8px;font-weight:600;margin-bottom:24px">Acessar Pesquisa de Progresso</a>
+        <p style="color:#A0A3B1;font-size:12px">Ou acesse: ${link(sh)}</p>
+        <hr style="border:none;border-top:1px solid #E4E6EF;margin:24px 0"/>
+        <p style="color:#A0A3B1;font-size:12px">Lidehra · Plataforma de Desenvolvimento de Liderança</p>
+      </div>`,
+      (log) => {
+        const ok = log.filter(l=>l.ok).length;
+        if(ok>0) alert(`${ok} e-mail(s) enviado(s) com sucesso!`);
+      }
+    );
+  };
+
   return (
     <div style={{marginTop:20}}>
       {showAdd360&&<AddShModal tipo="360" currentCount={eng.stakeholders360.length} onSave={sh=>{onUpdate({stakeholders360:[...eng.stakeholders360,sh]});setShowAdd360(false);}} onClose={()=>setShowAdd360(false)}/>}
       {showAddMS&&<AddShModal tipo="ms" currentCount={eng.stakeholdersMS.length} onSave={sh=>{onUpdate({stakeholdersMS:[...eng.stakeholdersMS,sh]});setShowAddMS(false);}} onClose={()=>setShowAddMS(false)}/>}
       {viewSh&&<ViewFeedbackModal sh={viewSh} onClose={()=>setViewSh(null)}/>}
+
+      {/* Send 360 confirmation modal */}
+      {showSend360&&(
+        <Overlay onClose={()=>{setShowSend360(false);setSendLog([]);}}>
+          <div className="modal">
+            <div className="modal-title">Enviar Formulário 360°</div>
+            <div className="modal-sub">Confirme os destinatários antes de enviar</div>
+            {!sending&&sendLog.length===0&&(
+              <>
+                <div className="sh-list" style={{marginBottom:16}}>
+                  {eng.stakeholders360.filter(s=>!s.invalid).map(s=>(
+                    <div key={s.id} className="sh-item">
+                      <div className="sh-av">{s.initials}</div>
+                      <div style={{flex:1}}><div className="sh-name">{s.name}</div><div className="sh-role">{s.email||<span style={{color:'#EF4444'}}>sem e-mail</span>}</div></div>
+                      <span className={`badge ${s.email?'b-new':'b-invalid'}`}>{s.email?'Receberá':'Sem e-mail'}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="info-box">O e-mail incluirá um link personalizado de acesso ao formulário 360°.</div>
+              </>
+            )}
+            {sending&&<div style={{textAlign:'center',padding:'24px 0'}}><Dots/><div style={{fontSize:13,color:'#A0A3B1',marginTop:12}}>Enviando e-mails...</div></div>}
+            {sendLog.length>0&&(
+              <div className="sh-list">
+                {sendLog.map((l,i)=>(
+                  <div key={i} className="sh-item">
+                    <span style={{fontSize:16}}>{l.ok?'✓':'✗'}</span>
+                    <div style={{flex:1}}><div className="sh-name">{l.name}</div><div className="sh-role" style={{color:l.ok?'#059669':'#DC2626'}}>{l.msg}</div></div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="modal-foot">
+              <button className="btn btn-g" onClick={()=>{setShowSend360(false);setSendLog([]);}}>Fechar</button>
+              {sendLog.length===0&&!sending&&<button className="btn btn-p" onClick={doSend360} disabled={sending}>Confirmar e Enviar</button>}
+            </div>
+          </div>
+        </Overlay>
+      )}
+
+      {/* Send MS confirmation modal */}
+      {showSendMS&&(
+        <Overlay onClose={()=>{setShowSendMS(false);setSendLog([]);}}>
+          <div className="modal">
+            <div className="modal-title">Enviar Mini-Survey</div>
+            <div className="modal-sub">{eng.miniSurveys.length>0?`Será enviado: ${eng.miniSurveys[eng.miniSurveys.length-1].label}`:'Crie um mini-survey primeiro'}</div>
+            {!sending&&sendLog.length===0&&(
+              <>
+                <div className="sh-list" style={{marginBottom:16}}>
+                  {eng.stakeholdersMS.filter(s=>!s.invalid).map(s=>(
+                    <div key={s.id} className="sh-item">
+                      <div className="sh-av">{s.initials}</div>
+                      <div style={{flex:1}}><div className="sh-name">{s.name}</div><div className="sh-role">{s.email||<span style={{color:'#EF4444'}}>sem e-mail</span>}</div></div>
+                      <span className={`badge ${s.email?'b-new':'b-invalid'}`}>{s.email?'Receberá':'Sem e-mail'}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="info-box">O e-mail incluirá um link personalizado de acesso ao mini-survey mais recente.</div>
+              </>
+            )}
+            {sending&&<div style={{textAlign:'center',padding:'24px 0'}}><Dots/><div style={{fontSize:13,color:'#A0A3B1',marginTop:12}}>Enviando e-mails...</div></div>}
+            {sendLog.length>0&&(
+              <div className="sh-list">
+                {sendLog.map((l,i)=>(
+                  <div key={i} className="sh-item">
+                    <span style={{fontSize:16}}>{l.ok?'✓':'✗'}</span>
+                    <div style={{flex:1}}><div className="sh-name">{l.name}</div><div className="sh-role" style={{color:l.ok?'#059669':'#DC2626'}}>{l.msg}</div></div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="modal-foot">
+              <button className="btn btn-g" onClick={()=>{setShowSendMS(false);setSendLog([]);}}>Fechar</button>
+              {sendLog.length===0&&!sending&&<button className="btn btn-p" onClick={doSendMS} disabled={sending}>Confirmar e Enviar</button>}
+            </div>
+          </div>
+        </Overlay>
+      )}
 
       {/* Section switcher */}
       <div style={{display:'flex',gap:3,background:'#F4F5F7',borderRadius:9,padding:3,marginBottom:20,width:'fit-content'}}>
@@ -1175,8 +1339,8 @@ Tom: profissional, orientado ao desenvolvimento.`;
           <div className="sec">
             <span className="sec-lbl">Stakeholders 360° ({eng.stakeholders360.filter(s=>s.status==='done').length}/{eng.stakeholders360.length} responderam)</span>
             <div style={{display:'flex',gap:8}}>
-              <button className="btn btn-g btn-sm" onClick={()=>alert('Envio por e-mail em breve. Compartilhe o código ST-{eng}-{id} manualmente.')}>Enviar formulário</button>
-              <button className="btn btn-p btn-sm" onClick={()=>setShowAdd360(true)}>+ Adicionar</button>
+              <button className="btn btn-p btn-sm" onClick={()=>setShowSend360(true)} disabled={eng.stakeholders360.filter(s=>s.email&&!s.invalid).length===0}>📧 Enviar formulários</button>
+              <button className="btn btn-g btn-sm" onClick={()=>setShowAdd360(true)}>+ Adicionar</button>
             </div>
           </div>
           {eng.stakeholders360.length===0&&<div className="empty"><div className="ei">◌</div>Nenhum stakeholder cadastrado.</div>}
@@ -1217,8 +1381,8 @@ Tom: profissional, orientado ao desenvolvimento.`;
           <div className="sec">
             <span className="sec-lbl">Stakeholders Mini-Survey ({eng.stakeholdersMS.length}/15)</span>
             <div style={{display:'flex',gap:8}}>
-              <button className="btn btn-g btn-sm" onClick={()=>alert('Envio por e-mail em breve. Compartilhe os códigos ST- manualmente.')}>Enviar formulário</button>
-              <button className="btn btn-p btn-sm" onClick={()=>setShowAddMS(true)}>+ Adicionar</button>
+              <button className="btn btn-p btn-sm" onClick={()=>setShowSendMS(true)} disabled={eng.stakeholdersMS.filter(s=>s.email&&!s.invalid).length===0||eng.miniSurveys.length===0}>📧 Enviar mini-survey</button>
+              <button className="btn btn-g btn-sm" onClick={()=>setShowAddMS(true)}>+ Adicionar</button>
             </div>
           </div>
           {eng.stakeholdersMS.length===0&&<div className="empty"><div className="ei">◌</div>Nenhum stakeholder de mini-survey cadastrado.</div>}
@@ -1968,8 +2132,19 @@ export default function App(){
   const [loading,setLoading]=useState(true);
   const [saveErr,setSaveErr]=useState('');
 
-  // Load session on mount
+  // Load session on mount — also handle ?code= URL param for stakeholders
   useEffect(()=>{
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    if(code){
+      const c=code.trim().toUpperCase();
+      const mSTK=c.match(/^ST-(\d+)-(\d+)$/);
+      const mCE=c.match(/^CE-(\d+)$/);
+      const mLD=c.match(/^LD-(\d+)-(\d+)$/);
+      if(mSTK){setUser({role:'stk',engId:parseInt(mSTK[1]),shId:parseInt(mSTK[2])});setView('stk');setActiveEng(parseInt(mSTK[1]));setLoading(false);return;}
+      if(mCE){setUser({role:'coachee',engId:parseInt(mCE[1])});setView('coachee');setActiveEng(parseInt(mCE[1]));setLoading(false);return;}
+      if(mLD){setUser({role:'lider',engId:parseInt(mLD[1]),liderId:parseInt(mLD[2])});setView('lider');setActiveEng(parseInt(mLD[1]));setLoading(false);return;}
+    }
     supabase.auth.getSession().then(({data:{session}})=>{
       if(session){
         const u=session.user;
