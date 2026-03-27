@@ -341,31 +341,32 @@ function Dots(){ return <div className="ldots"><div className="ldot"/><div class
 function Overlay({children,onClose}){ return <div className="overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>{children}</div>; }
 
 function stageStatus(eng, phase){
+  const as = eng.actionStatuses || {};
+  const m = (id) => as[id] || 'idle';
   if(phase === 1){
-    // No activity at all → idle
-    const hasAnyActivity = eng.stakeholders360.length>0 || eng.report || eng.competencias.length>0;
-    if(!hasAnyActivity) return 'idle';
-    if(eng.report?.approved) return 'done';
-    const allDone = eng.stakeholders360.length>0 && eng.stakeholders360.filter(s=>!s.invalid).every(s=>s.status==='done');
-    const hasPending = eng.stakeholders360.some(s=>s.status==='pending'&&!s.invalid);
-    if(allDone && !eng.report) return 'pending';
-    if(hasPending) return 'pending';
+    const hasAny = eng.stakeholders360.length>0 || eng.report || eng.competencias.length>0 || m('onboarding')!=='idle';
+    if(!hasAny) return 'idle';
+    if(eng.report?.approved && m('devolutiva')==='done') return 'done';
+    if(eng.stakeholders360.some(s=>s.status==='pending'&&!s.invalid)) return 'pending';
+    if(eng.report&&!eng.report.approved) return 'pending';
     return 'active';
   }
   if(phase === 2){
-    const hasAnyActivity = eng.competencias.length>0 && eng.stakeholdersMS.length>0;
-    if(!hasAnyActivity) return 'idle';
-    if(eng.stakeholdersMS.every(s=>s.validatedByLeader) && eng.competencias.length>0) return 'active';
+    const hasAny = eng.competencias.length>0 || eng.stakeholdersMS.length>0 || m('alinhamento')!=='idle';
+    if(!hasAny) return 'idle';
+    const allDone=['alinhamento','planoacao','engajamento','agenda'].every(id=>m(id)==='done') && eng.competencias.length>0;
+    if(allDone) return 'done';
     return 'active';
   }
   if(phase === 3){
-    if(eng.sessions.length===0 && eng.miniSurveys.length===0) return 'idle';
-    return eng.miniSurveys.length>0?'active':'active';
+    if(eng.sessions.length===0 && eng.miniSurveys.length===0 && m('sessoes1a5')==='idle') return 'idle';
+    if(m('sessoes6a10')==='done' && eng.miniSurveys.length>0) return 'done';
+    return 'active';
   }
   if(phase === 4){
-    const lastMS = eng.miniSurveys[eng.miniSurveys.length-1];
-    if(!lastMS) return 'idle';
-    return lastMS.reportApproved?'done':'active';
+    if(m('msf')==='idle') return 'idle';
+    if(['msf','resultado','apresentacao','depoimentos'].every(id=>m(id)==='done')) return 'done';
+    return 'active';
   }
   return 'idle';
 }
@@ -636,7 +637,7 @@ function NewEngModal({onSave,onClose}){
       coachee:{name:f.name,initials:ini(f.name),color,role:f.role,company:f.company,email:f.email},
       leaders:[],rh:[],goal:f.goal,startDate:f.start,endDate:f.end,cadence:f.cadence,totalSessions:10,phase:1,
       competencias:[],hasAssessment:f.assessment,assessmentType:f.assessmentType,assessmentFile:'',
-      stakeholders360:[],report:null,miniSurveys:[],stakeholdersMS:[],sessions:[],notifications:[],
+      stakeholders360:[],report:null,miniSurveys:[],stakeholdersMS:[],sessions:[],notifications:[],actionStatuses:{},
     });
   };
   return (
@@ -838,42 +839,92 @@ function Dashboard({engs,onSelect,onCreate,onOpenCoachee}){
 }
 
 // ─── ROADMAP TAB ──────────────────────────────────────────────────────────────
+// Manual action IDs — coach can toggle these
+const MANUAL_ACTIONS = new Set([
+  'onboarding','cronograma','assessment','comuni360','dispara360',
+  'comunims','disparams','alinhamento','planoacao','engajamento','agenda',
+  'sessoes1a5','sessoes6a10','msf','resultado','apresentacao','depoimentos','devolutiva'
+]);
+
+// Compute auto status for data-driven actions
+function autoStatus(id, eng){
+  switch(id){
+    case 'lista360': return eng.stakeholders360.length>0?'done':'idle';
+    case 'valida360': return eng.stakeholders360.length>0&&eng.stakeholders360.every(s=>s.validatedByLeader||s.invalid)?'done':eng.stakeholders360.length>0?'pending':'idle';
+    case 'coleta360': {
+      const valid=eng.stakeholders360.filter(s=>!s.invalid);
+      if(!valid.length) return 'idle';
+      return valid.every(s=>s.status==='done')?'done':valid.some(s=>s.status==='done')?'active':'pending';
+    }
+    case 'relatorio360': return eng.report?.approved?'done':eng.report?'pending':'idle';
+    case 'listams': return eng.stakeholdersMS.length>0?'done':'idle';
+    case 'validams': return eng.stakeholdersMS.length>0&&eng.stakeholdersMS.every(s=>s.validatedByLeader||s.invalid)?'done':eng.stakeholdersMS.length>0?'pending':'idle';
+    case 'competencias': return eng.competencias.length>0?'done':'idle';
+    case 'minisurvey1': return eng.miniSurveys.length>0?'done':'idle';
+    default: return null;
+  }
+}
+
 function RoadmapTab({eng,onUpdate}){
-  const [selStage,setSelStage]=useState(eng.phase-1);
+  const [selStage,setSelStage]=useState(0);
   const [showEditProfile,setShowEditProfile]=useState(false);
   const [profileDraft,setProfileDraft]=useState({});
+
+  // actionStatuses stored in eng — manual overrides
+  const as = eng.actionStatuses || {};
+
+  // Get final status for an action: auto-computed OR manual override
+  const getStatus = (id) => {
+    const auto = autoStatus(id, eng);
+    if(auto !== null) return auto; // data-driven: always auto
+    return as[id] || 'idle'; // manual: use stored value
+  };
+
+  // Toggle manual action through cycle: idle → active → done → idle
+  const toggleAction = (id) => {
+    if(!MANUAL_ACTIONS.has(id)) return;
+    const cur = as[id] || 'idle';
+    const next = cur==='idle'?'active':cur==='active'?'done':'idle';
+    onUpdate({actionStatuses:{...as,[id]:next}});
+  };
+
   const stages=[
     {id:'diagnostico',label:'Diagnóstico',phase:1,actions:[
-      {id:'onboarding',label:'Onboarding do coachee',who:'coach',status:eng.phase>=1?'done':'idle'},
-      {id:'cronograma',label:'Cronograma gerado',who:'app',status:eng.phase>=1?'done':'idle'},
-      {id:'assessment',label:`Assessment de perfil${eng.hasAssessment?' ('+eng.assessmentType+')':' (não aplicável)'}`,who:'coach',status:eng.hasAssessment&&eng.assessmentFile?'done':eng.hasAssessment?'pending':'done'},
-      {id:'lista360',label:'Coachee cadastra stakeholders 360°',who:'coachee',status:eng.stakeholders360.length>0?'done':'pending'},
-      {id:'valida360',label:'Líder(es) validam a lista 360°',who:'lider',status:eng.stakeholders360.every(s=>s.validatedByLeader)?'done':'pending'},
-      {id:'envia360',label:'Formulário 360° enviado',who:'app',status:eng.stakeholders360.length>0?'active':'idle'},
-      {id:'coleta360',label:'Stakeholders respondem 360°',who:'stk',status:eng.stakeholders360.filter(s=>s.status==='done').length>0?'active':'idle'},
-      {id:'relatorio360',label:'Coach aprova relatório 360°',who:'coach',status:eng.report?.approved?'done':eng.report?'pending':'idle'},
-      {id:'devolutiva',label:'Devolutiva do relatório ao coachee',who:'coach',status:eng.report?.approved?'active':'idle'},
+      {id:'onboarding',     label:'Onboarding do coachee',                          who:'coach'},
+      {id:'cronograma',     label:'Cronograma gerado e compartilhado',               who:'app'},
+      {id:'assessment',     label:`Assessment de perfil${eng.hasAssessment?' ('+eng.assessmentType+')':' (não aplicável)'}`, who:'coach'},
+      {id:'lista360',       label:'Coachee cadastra lista de stakeholders 360°',     who:'coachee'},
+      {id:'valida360',      label:'Líder(es) validam a lista 360°',                  who:'lider'},
+      {id:'comuni360',      label:'Coachee comunica stakeholders sobre o processo',  who:'coachee'},
+      {id:'dispara360',     label:'Coach dispara formulário 360° aos stakeholders',  who:'coach'},
+      {id:'coleta360',      label:'Stakeholders respondem o 360°',                   who:'stk'},
+      {id:'relatorio360',   label:'Coach aprova relatório 360°',                     who:'coach'},
+      {id:'devolutiva',     label:'Devolutiva do relatório ao coachee',              who:'coach'},
     ]},
     {id:'setup',label:'Setup',phase:2,actions:[
-      {id:'competencias',label:'Competências prioritárias definidas',who:'coachee',status:eng.competencias.length>0?'done':'pending'},
-      {id:'listams',label:'Coachee cadastra stakeholders mini-survey',who:'coachee',status:eng.stakeholdersMS.length>0?'done':'pending'},
-      {id:'validams',label:'Líder(es) validam lista mini-survey',who:'lider',status:eng.stakeholdersMS.every(s=>s.validatedByLeader)?'done':'pending'},
-      {id:'alinhamento',label:'Alinhamento com liderança',who:'coach',status:eng.phase>=2?'done':'idle'},
-      {id:'planoacao',label:'Plano de ação elaborado',who:'coachee',status:eng.phase>=2?'done':'idle'},
-      {id:'engajamento',label:'Reunião de engajamento com stakeholders',who:'coachee',status:eng.phase>=2?'done':'idle'},
+      {id:'competencias',   label:'Competências prioritárias definidas',             who:'coachee'},
+      {id:'listams',        label:'Coachee cadastra lista de stakeholders mini-survey', who:'coachee'},
+      {id:'validams',       label:'Líder(es) validam a lista mini-survey',           who:'lider'},
+      {id:'comunims',       label:'Coachee comunica stakeholders sobre o mini-survey', who:'coachee'},
+      {id:'disparams',      label:'Coach dispara formulário mini-survey aos stakeholders', who:'coach'},
+      {id:'alinhamento',    label:'Alinhamento com liderança (coach + coachee + líder)', who:'coach'},
+      {id:'planoacao',      label:'Plano de ação elaborado',                         who:'coachee'},
+      {id:'engajamento',    label:'Reunião de engajamento com stakeholders',         who:'coachee'},
+      {id:'agenda',         label:'Agenda fixa e periodicidade definidas',           who:'coach'},
     ]},
     {id:'processo',label:'Processo',phase:3,actions:[
-      {id:'sessoes1a5',label:'Sessões 1 a 5 + reuniões mensais',who:'coach',status:eng.phase>=3?'active':'idle'},
-      {id:'minisurvey1',label:'Mini-survey de meio de processo',who:'coach',status:eng.miniSurveys.length>0?'done':'idle'},
-      {id:'sessoes6a10',label:'Sessões 6 a 10 + reuniões mensais',who:'coach',status:eng.phase>=3?'active':'idle'},
+      {id:'sessoes1a5',     label:'Sessões 1 a 5 + reuniões mensais com stakeholders', who:'coach'},
+      {id:'minisurvey1',    label:'Mini-survey de meio de processo aplicado',        who:'coach'},
+      {id:'sessoes6a10',    label:'Sessões 6 a 10 + reuniões mensais com stakeholders', who:'coach'},
     ]},
     {id:'encerramento',label:'Encerramento',phase:4,actions:[
-      {id:'msf',label:'Mini-survey final enviado',who:'coach',status:'idle'},
-      {id:'resultado',label:'Coach compila e apresenta resultado',who:'coach',status:'idle'},
-      {id:'apresentacao',label:'Coachee apresenta síntese ao líder',who:'coachee',status:'idle'},
-      {id:'depoimentos',label:'Líder(es) e RH registram depoimentos',who:'lider',status:'idle'},
+      {id:'msf',            label:'Mini-survey final aplicado',                      who:'coach'},
+      {id:'resultado',      label:'Coach compila e apresenta resultado ao coachee',  who:'coach'},
+      {id:'apresentacao',   label:'Coachee apresenta síntese ao líder',              who:'coachee'},
+      {id:'depoimentos',    label:'Líder(es) e RH registram depoimentos',            who:'lider'},
     ]},
   ];
+
   const whoLabel={coach:'Coach',app:'App',coachee:'Coachee',lider:'Líder',stk:'Stakeholder'};
   const sel=stages[selStage];
 
@@ -955,12 +1006,15 @@ function RoadmapTab({eng,onUpdate}){
               <div className="rm-title" style={{color:SC[s.phase-1]}}>{s.label}</div>
               <div className="rm-status"><span className={`sdot ${STATUS[ss].dot}`}/><span className={STATUS[ss].txt} style={{fontSize:11}}>{STATUS[ss].label}</span></div>
               <ul className="rm-items">
-                {s.actions.slice(0,3).map((a,ai)=>(
-                  <li key={ai} className="rm-li">
-                    <span className="rm-idot" style={{background:a.status==='done'?'#10B981':a.status==='pending'?'#F59E0B':a.status==='active'?'#4169FF':'#D8DAE8'}}/>
-                    <span>{a.label}</span>
-                  </li>
-                ))}
+                {s.actions.slice(0,3).map((a,ai)=>{
+                  const st=getStatus(a.id);
+                  return (
+                    <li key={ai} className="rm-li">
+                      <span className="rm-idot" style={{background:st==='done'?'#10B981':st==='pending'?'#F59E0B':st==='active'?'#4169FF':'#D8DAE8'}}/>
+                      <span>{a.label}</span>
+                    </li>
+                  );
+                })}
                 {s.actions.length>3&&<li className="rm-li" style={{color:'#C8CAD6'}}>+{s.actions.length-3} mais...</li>}
               </ul>
             </div>
@@ -970,19 +1024,35 @@ function RoadmapTab({eng,onUpdate}){
 
       <div className="stage-panel">
         <div style={{fontSize:16,fontWeight:600,color:'#1A1D2E',marginBottom:4}}>{sel.phase}. {sel.label}</div>
-        <div style={{fontSize:13,color:'#6B6E8E',marginBottom:16}}>Ações e responsáveis</div>
+        <div style={{fontSize:13,color:'#6B6E8E',marginBottom:16}}>Clique no status para avançar as ações manuais</div>
         <div className="action-list">
-          {sel.actions.map(a=>(
-            <div key={a.id} className={`action-item ${a.status==='pending'?'ai-pending':a.status==='done'?'ai-done':''}`}>
-              <div className="ai-icon" style={{background:a.status==='done'?'rgba(16,185,129,.1)':a.status==='pending'?'rgba(245,158,11,.1)':a.status==='active'?'rgba(65,105,255,.1)':'#F4F5F7'}}>
-                {a.status==='done'?'✓':a.status==='pending'?'⏳':a.status==='active'?'→':'○'}
+          {sel.actions.map(a=>{
+            const st=getStatus(a.id);
+            const isManual=MANUAL_ACTIONS.has(a.id);
+            return (
+              <div key={a.id} className={`action-item ${st==='pending'?'ai-pending':st==='done'?'ai-done':''}`}>
+                <div className="ai-icon" style={{background:st==='done'?'rgba(16,185,129,.1)':st==='pending'?'rgba(245,158,11,.1)':st==='active'?'rgba(65,105,255,.1)':'#F4F5F7'}}>
+                  {st==='done'?'✓':st==='pending'?'⏳':st==='active'?'→':'○'}
+                </div>
+                <div className="ai-label">
+                  <div className="ai-title">{a.label}</div>
+                  <div className="ai-meta">Responsável: {whoLabel[a.who]} {isManual&&<span style={{color:'#BCC4F0',fontSize:10}}>· manual</span>}</div>
+                </div>
+                {isManual?(
+                  <button className={`ai-badge ${st==='done'?'ai-b-done':st==='active'?'ai-b-active':'ai-b-todo'}`}
+                    style={{cursor:'pointer',border:'none'}}
+                    title="Clique para avançar o status"
+                    onClick={()=>toggleAction(a.id)}>
+                    {st==='done'?'Concluído ✓':st==='active'?'Em andamento →':'A fazer ○'}
+                  </button>
+                ):(
+                  <span className={`ai-badge ${st==='done'?'ai-b-done':st==='pending'?'ai-b-pending':st==='active'?'ai-b-active':'ai-b-todo'}`}>
+                    {st==='done'?'Concluído':st==='pending'?'Pendente':st==='active'?'Em andamento':'A fazer'}
+                  </span>
+                )}
               </div>
-              <div className="ai-label"><div className="ai-title">{a.label}</div><div className="ai-meta">Responsável: {whoLabel[a.who]}</div></div>
-              <span className={`ai-badge ${a.status==='done'?'ai-b-done':a.status==='pending'?'ai-b-pending':a.status==='active'?'ai-b-active':'ai-b-todo'}`}>
-                {a.status==='done'?'Concluído':a.status==='pending'?'Pendente':a.status==='active'?'Em andamento':'A fazer'}
-              </span>
-            </div>
-          ))}
+            );
+          })}
         </div>
         {selStage===0&&(
           <div className="code-box">
