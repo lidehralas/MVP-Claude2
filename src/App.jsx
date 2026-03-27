@@ -2198,9 +2198,24 @@ export default function App(){
       const mSTK=c.match(/^ST-(\d+)-(\d+)$/);
       const mCE=c.match(/^CE-(\d+)$/);
       const mLD=c.match(/^LD-(\d+)-(\d+)$/);
-      if(mSTK){setUser({role:'stk',engId:parseInt(mSTK[1]),shId:parseInt(mSTK[2])});setView('stk');setActiveEng(parseInt(mSTK[1]));setLoading(false);return;}
-      if(mCE){setUser({role:'coachee',engId:parseInt(mCE[1])});setView('coachee');setActiveEng(parseInt(mCE[1]));setLoading(false);return;}
-      if(mLD){setUser({role:'lider',engId:parseInt(mLD[1]),liderId:parseInt(mLD[2])});setView('lider');setActiveEng(parseInt(mLD[1]));setLoading(false);return;}
+      if(mSTK||mCE||mLD){
+        // Load engagements from DB first so the portal has real data
+        const engId=mSTK?parseInt(mSTK[1]):mCE?parseInt(mCE[1]):parseInt(mLD[1]);
+        supabase.from('engagements').select('app_id,data').order('app_id',{ascending:true}).then(({data:rows,error})=>{
+          let loadedEngs=INIT_ENGS;
+          if(!error&&rows&&rows.length>0){
+            const fromDB=rows.map(row=>({...row.data,id:row.app_id}));
+            const dbIds=new Set(fromDB.map(e=>e.id));
+            loadedEngs=[...fromDB,...INIT_ENGS.filter(e=>!dbIds.has(e.id))].sort((a,b)=>a.id-b.id);
+          }
+          setEngs(loadedEngs);
+          if(mSTK){setUser({role:'stk',engId:parseInt(mSTK[1]),shId:parseInt(mSTK[2])});setView('stk');setActiveEng(parseInt(mSTK[1]));}
+          else if(mCE){setUser({role:'coachee',engId:parseInt(mCE[1])});setView('coachee');setActiveEng(parseInt(mCE[1]));}
+          else if(mLD){setUser({role:'lider',engId:parseInt(mLD[1]),liderId:parseInt(mLD[2])});setView('lider');setActiveEng(parseInt(mLD[1]));}
+          setLoading(false);
+        });
+        return;
+      }
     }
     supabase.auth.getSession().then(({data:{session}})=>{
       if(session){
