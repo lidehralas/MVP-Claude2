@@ -1113,6 +1113,33 @@ function exportMiniSurveyExcel(ms, eng) {
   URL.revokeObjectURL(url);
 }
 
+// ─── EDIT STAKEHOLDER FORM ───────────────────────────────────────────────────
+function EditShForm({sh,tipo,onSave,onClose}){
+  const [name,setName]=useState(sh.name);
+  const [email,setEmail]=useState(sh.email||'');
+  const [role,setRole]=useState(sh.role);
+  const roles=tipo==='360'?SH_ROLES_360:SH_ROLES_MS;
+  const save=()=>{
+    if(!name.trim())return;
+    onSave({...sh,name:name.trim(),email:email.trim(),role,initials:ini(name.trim())});
+  };
+  return (
+    <>
+      <div className="field"><div className="flbl">Nome completo</div><input className="finp" value={name} onChange={e=>setName(e.target.value)}/></div>
+      <div className="field"><div className="flbl">E-mail</div><input className="finp" type="email" placeholder="email@empresa.com" value={email} onChange={e=>setEmail(e.target.value)}/></div>
+      <div className="field"><div className="flbl">Tipo de relacionamento</div>
+        <select className="fsel" value={role} onChange={e=>setRole(e.target.value)}>
+          {roles.map(r=><option key={r}>{r}</option>)}
+        </select>
+      </div>
+      <div className="modal-foot">
+        <button className="btn btn-g" onClick={onClose}>Cancelar</button>
+        <button className="btn btn-p" onClick={save} disabled={!name.trim()}>Salvar</button>
+      </div>
+    </>
+  );
+}
+
 // ─── TAB STAKEHOLDERS (360° + Mini-Survey) ────────────────────────────────────
 function TabStakeholders({eng,onUpdate}){
   const [section,setSection]=useState('360');
@@ -1123,6 +1150,7 @@ function TabStakeholders({eng,onUpdate}){
   const [sending,setSending]=useState(false);
   const [sendLog,setSendLog]=useState([]);
   const [viewSh,setViewSh]=useState(null);
+  const [editSh,setEditSh]=useState(null); // {sh, tipo:'360'|'ms'}
   const [loading,setLoading]=useState(false);
 
   const done360=eng.stakeholders360.filter(s=>s.status==='done'&&s.feedback);
@@ -1249,6 +1277,29 @@ Tom: profissional, orientado ao desenvolvimento.`;
       {showAddMS&&<AddShModal tipo="ms" currentCount={eng.stakeholdersMS.length} onSave={sh=>{onUpdate({stakeholdersMS:[...eng.stakeholdersMS,sh]});setShowAddMS(false);}} onClose={()=>setShowAddMS(false)}/>}
       {viewSh&&<ViewFeedbackModal sh={viewSh} onClose={()=>setViewSh(null)}/>}
 
+      {/* Edit stakeholder modal */}
+      {editSh&&(
+        <Overlay onClose={()=>setEditSh(null)}>
+          <div className="modal modal-sm">
+            <div className="modal-title">Editar Stakeholder</div>
+            <div className="modal-sub">{editSh.tipo==='360'?'Avaliação 360°':'Mini-survey'}</div>
+            <EditShForm
+              sh={editSh.sh}
+              tipo={editSh.tipo}
+              onSave={(updated)=>{
+                if(editSh.tipo==='360'){
+                  onUpdate({stakeholders360:eng.stakeholders360.map(s=>s.id===updated.id?updated:s)});
+                } else {
+                  onUpdate({stakeholdersMS:eng.stakeholdersMS.map(s=>s.id===updated.id?updated:s)});
+                }
+                setEditSh(null);
+              }}
+              onClose={()=>setEditSh(null)}
+            />
+          </div>
+        </Overlay>
+      )}
+
       {/* Send 360 confirmation modal */}
       {showSend360&&(
         <Overlay onClose={()=>{setShowSend360(false);setSendLog([]);}}>
@@ -1357,6 +1408,7 @@ Tom: profissional, orientado ao desenvolvimento.`;
                   {s.invalid?'Invalidado':s.status==='done'?'Respondido':'Pendente'}
                 </span>
                 {s.status==='done'&&s.feedback&&<button className="btn btn-g btn-xs" style={{marginRight:6}} onClick={()=>setViewSh(s)}>Ver</button>}
+                <button className="btn btn-g btn-xs" style={{marginRight:6}} onClick={()=>setEditSh({sh:s,tipo:'360'})}>Editar</button>
                 <button className="btn btn-d btn-xs" onClick={()=>onUpdate({stakeholders360:eng.stakeholders360.filter(x=>x.id!==s.id)})}>×</button>
               </div>
             ))}
@@ -1390,8 +1442,13 @@ Tom: profissional, orientado ao desenvolvimento.`;
             {eng.stakeholdersMS.map(s=>(
               <div key={s.id} className="sh-item">
                 <div className="sh-av">{s.initials}</div>
-                <div style={{flex:1}}><div className="sh-name">{s.name}</div><div className="sh-role">{s.role}</div></div>
-                <span className={`badge ${s.status==='done'?'b-done':'b-pend'}`}>{s.status==='done'?'Respondido':'Pendente'}</span>
+                <div style={{flex:1}}>
+                  <div className="sh-name">{s.name}</div>
+                  <div className="sh-role">{s.role}{s.email?` · ${s.email}`:''}</div>
+                </div>
+                <span className={`badge ${s.status==='done'?'b-done':'b-pend'}`} style={{marginRight:8}}>{s.status==='done'?'Respondido':'Pendente'}</span>
+                <button className="btn btn-g btn-xs" style={{marginRight:6}} onClick={()=>setEditSh({sh:s,tipo:'ms'})}>Editar</button>
+                <button className="btn btn-d btn-xs" onClick={()=>onUpdate({stakeholdersMS:eng.stakeholdersMS.filter(x=>x.id!==s.id)})}>×</button>
               </div>
             ))}
           </div>
