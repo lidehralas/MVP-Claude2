@@ -939,17 +939,52 @@ function RoadmapTab({eng,onUpdate}){
   );
 }
 
-// ─── 360 TAB COACH ────────────────────────────────────────────────────────────
-function Tab360Coach({eng,onUpdate}){
-  const [showAdd,setShowAdd]=useState(false);
+// ─── EXCEL EXPORT ────────────────────────────────────────────────────────────
+function exportMiniSurveyExcel(ms, eng) {
+  const SCALE = ['-3','-2','-1','0','+1','+2','+3'];
+  const rows = [];
+  // Header
+  rows.push(['Respondente','Tipo de Interação','Objetivos Compartilhados',
+    ...ms.competencias.flatMap(c=>[`Frequência: ${c}`, `Score: ${c}`]),
+    'Efetividade Geral','O que melhorou','Sugestões'
+  ]);
+  // Data rows
+  ms.responses.forEach(r => {
+    rows.push([
+      r.name, r.role, r.objetivos||'',
+      ...ms.competencias.flatMap((c,ci)=>[r.freq?.[ci]||'', r.scores[ci]??'']),
+      r.overall??'', r.mudancas||'', r.sugestoes||''
+    ]);
+  });
+  // Build CSV
+  const csv = rows.map(row =>
+    row.map(cell => `"${String(cell).replace(/"/g,'""')}"`).join(',')
+  ).join('
+');
+  const bom = '﻿';
+  const blob = new Blob([bom+csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${eng.coachee.name} - ${ms.label}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ─── TAB STAKEHOLDERS (360° + Mini-Survey) ────────────────────────────────────
+function TabStakeholders({eng,onUpdate}){
+  const [section,setSection]=useState('360');
+  const [showAdd360,setShowAdd360]=useState(false);
+  const [showAddMS,setShowAddMS]=useState(false);
   const [viewSh,setViewSh]=useState(null);
   const [loading,setLoading]=useState(false);
-  const done=eng.stakeholders360.filter(s=>s.status==='done'&&s.feedback);
 
-  const generate=async()=>{
-    if(!done.length)return;
+  const done360=eng.stakeholders360.filter(s=>s.status==='done'&&s.feedback);
+
+  const generateReport=async()=>{
+    if(!done360.length)return;
     setLoading(true);
-    const feedbacks=done.map(s=>{
+    const feedbacks=done360.map(s=>{
       const f=s.feedback;
       return `--- ${s.name} (${s.role}) ---
 Pontos positivos: ${[f.pos1&&`${f.pos1} (ex: ${f.pos1ex})`,f.pos2&&`${f.pos2} (ex: ${f.pos2ex})`,f.pos3&&`${f.pos3} (ex: ${f.pos3ex})`].filter(Boolean).join('; ')}
@@ -959,173 +994,257 @@ Começar: ${[f.inic1&&`${f.inic1} (ex: ${f.inic1ex})`,f.inic2&&`${f.inic2} (ex: 
 Prioridade: ${f.prior}`;
     }).join('\n\n');
     const prompt=`Especialista em coaching executivo MGSCC. Gere relatório de desenvolvimento em português brasileiro.
-
 COACHEE: ${eng.coachee.name} | ${eng.coachee.role} | ${eng.coachee.company}
 OBJETIVO: ${eng.goal}
 COMPETÊNCIAS: ${eng.competencias.map(c=>c.nome).join(' / ')||'a definir'}
-
-FEEDBACKS (${done.length} respondentes):
+FEEDBACKS (${done360.length} respondentes):
 ${feedbacks}
-
 ESTRUTURA (use ## para seções):
-
 ## Síntese do Perfil de Liderança
-(2 parágrafos — quem é esse líder hoje)
-
+(2 parágrafos)
 ## Pontos Fortes Consolidados
 (top 3, numerados, com evidências)
-
 ## Prioridades de Desenvolvimento
-(top 3, numeradas, conectadas ao objetivo)
-
+(top 3, numeradas)
 ## Plano de Ação
-
 **Parar de fazer:**
-(comportamentos a eliminar)
-
 **Começar a fazer:**
-(comportamentos concretos a adotar)
-
 ## Checklist Diário de Comportamentos
 (5-7 itens com ☐)
-
-Tom: profissional, respeitoso, orientado ao desenvolvimento.`;
+Tom: profissional, orientado ao desenvolvimento.`;
     try{
       const res=await fetch("/api/ai",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt,max_tokens:1500})});
       const data=await res.json();
       if(data.error) throw new Error(data.error);
       const text=data.content?.[0]?.text;
-      if(!text) throw new Error('Resposta vazia da IA');
-      onUpdate({report:{content:text,approved:false,sharedAt:null}});
-    }catch(e){alert("Erro ao gerar relatório: "+e.message);}
+      if(!text) throw new Error('Resposta vazia');
+      onUpdate({report:{...eng.report,content:text,approved:false,sharedAt:null}});
+      alert('Relatório 360° gerado! Acesse a aba Relatórios para revisar e aprovar.');
+    }catch(e){alert("Erro ao gerar: "+e.message);}
     setLoading(false);
+  };
+
+  const createMiniSurvey=()=>{
+    if(!eng.competencias.length){alert('Defina as competências na aba Jornada primeiro.');return;}
+    const ms={id:Date.now(),label:`Mini-Survey ${eng.miniSurveys.length+1}`,period:'',sentAt:new Date().toISOString().split('T')[0],competencias:eng.competencias.map(c=>c.nome),responses:[],reportContent:'',reportApproved:false,reportFile:''};
+    onUpdate({miniSurveys:[...eng.miniSurveys,ms]});
   };
 
   return (
     <div style={{marginTop:20}}>
-      {showAdd&&<AddShModal tipo="360" currentCount={eng.stakeholders360.length} onSave={sh=>{onUpdate({stakeholders360:[...eng.stakeholders360,sh]});setShowAdd(false);}} onClose={()=>setShowAdd(false)}/>}
+      {showAdd360&&<AddShModal tipo="360" currentCount={eng.stakeholders360.length} onSave={sh=>{onUpdate({stakeholders360:[...eng.stakeholders360,sh]});setShowAdd360(false);}} onClose={()=>setShowAdd360(false)}/>}
+      {showAddMS&&<AddShModal tipo="ms" currentCount={eng.stakeholdersMS.length} onSave={sh=>{onUpdate({stakeholdersMS:[...eng.stakeholdersMS,sh]});setShowAddMS(false);}} onClose={()=>setShowAddMS(false)}/>}
       {viewSh&&<ViewFeedbackModal sh={viewSh} onClose={()=>setViewSh(null)}/>}
-      <div className="sec">
-        <span className="sec-lbl">Stakeholders 360° ({eng.stakeholders360.filter(s=>s.status==='done').length}/{eng.stakeholders360.length} responderam)</span>
-        <button className="btn btn-p btn-sm" onClick={()=>setShowAdd(true)}>+ Adicionar</button>
-      </div>
-      {eng.stakeholders360.length===0&&<div className="empty"><div className="ei">◌</div>Aguardando coachee cadastrar a lista.</div>}
-      <div className="sh-list" style={{marginBottom:16}}>
-        {eng.stakeholders360.map(s=>(
-          <div key={s.id} className={`sh-item ${s.invalid?'sh-invalid':''}`}>
-            <div className="sh-av">{s.initials}</div>
-            <div style={{flex:1}}>
-              <div className="sh-name" style={{textDecoration:s.invalid?'line-through':''}}>{s.name}</div>
-              <div className="sh-role">{s.role}{s.email?` · ${s.email}`:''}</div>
-              {s.invalid&&s.leaderMsg&&<div style={{fontSize:11,color:'#DC2626',marginTop:2}}>Invalidado pelo líder: {s.leaderMsg}</div>}
-            </div>
-            <span className={`badge ${s.invalid?'b-invalid':s.status==='done'?'b-done':'b-pend'}`} style={{marginRight:8}}>
-              {s.invalid?'Invalidado':s.status==='done'?'Respondido':'Pendente'}
-            </span>
-            {s.status==='done'&&s.feedback&&<button className="btn btn-g btn-xs" style={{marginRight:6}} onClick={()=>setViewSh(s)}>Ver</button>}
-          </div>
+
+      {/* Section switcher */}
+      <div style={{display:'flex',gap:3,background:'#F4F5F7',borderRadius:9,padding:3,marginBottom:20,width:'fit-content'}}>
+        {[{id:'360',l:'Avaliação 360°'},{id:'ms',l:'Mini-Surveys'}].map(s=>(
+          <button key={s.id} className={`btn btn-sm ${section===s.id?'btn-p':'btn-g'}`} style={{border:'none'}} onClick={()=>setSection(s.id)}>{s.l}</button>
         ))}
       </div>
-      <div className="divider"/>
-      <div className="sec">
-        <span className="sec-lbl">Gerar Relatório com IA</span>
-        <button className="btn btn-p" onClick={generate} disabled={loading||!done.length}>{loading?<Dots/>:'✦ Gerar Relatório'}</button>
-      </div>
-      {!done.length&&<div style={{fontSize:13,color:'#A0A3B1'}}>Aguardando respostas para gerar o relatório.</div>}
-      {!loading&&eng.report&&<div className="info-box">✓ Relatório gerado. Edite e aprove na aba Relatório.</div>}
-    </div>
-  );
-}
 
-// ─── REPORT TAB ───────────────────────────────────────────────────────────────
-function TabReport({eng,onUpdate}){
-  const [editing,setEditing]=useState(false);
-  const [draft,setDraft]=useState(eng.report?.content||'');
-  if(!eng.report) return <div className="empty" style={{marginTop:24}}><div className="ei">◌</div>Nenhum relatório gerado ainda.<br/>Gere na aba Avaliação 360°.</div>;
-  const approve=()=>onUpdate({report:{...eng.report,approved:true,sharedAt:new Date().toISOString().split('T')[0]}});
-  const saveEdit=()=>{onUpdate({report:{...eng.report,content:draft}});setEditing(false);};
-  return (
-    <div style={{marginTop:20}}>
-      {eng.report.approved&&<div className="approved-banner">✓ Aprovado e compartilhado em {eng.report.sharedAt} — coachee pode visualizar</div>}
-      <div className="sec">
-        <span className="sec-lbl">{editing?'Editando':'Relatório de Desenvolvimento'}</span>
-        <div style={{display:'flex',gap:8}}>
-          {!eng.report.approved&&!editing&&<button className="btn btn-p" onClick={approve}>✓ Aprovar e Compartilhar</button>}
-          {!editing&&<button className="btn btn-g" onClick={()=>{setDraft(eng.report.content);setEditing(true);}}>Editar</button>}
-          {editing&&<><button className="btn btn-g" onClick={()=>setEditing(false)}>Cancelar</button><button className="btn btn-p" onClick={saveEdit}>Salvar</button></>}
-        </div>
-      </div>
-      {editing?<textarea className="report-editor" value={draft} onChange={e=>setDraft(e.target.value)}/>
-      :<div className="report-view"><div className="report-text">{eng.report.content}</div></div>}
-    </div>
-  );
-}
-
-// ─── MINI SURVEY TAB COACH ────────────────────────────────────────────────────
-function TabMiniSurvey({eng,onUpdate}){
-  const [sel,setSel]=useState(eng.miniSurveys[0]||null);
-  const [showAdd,setShowAdd]=useState(false);
-  const [loading,setLoading]=useState(false);
-  const [analysis,setAnalysis]=useState('');
-
-  const sendSurvey=()=>{
-    if(!eng.competencias.length){alert('Defina as competências antes de enviar.');return;}
-    const ms={id:Date.now(),label:`Mini-Survey ${eng.miniSurveys.length+1}`,period:'',sentAt:new Date().toISOString().split('T')[0],competencias:eng.competencias.map(c=>c.nome),responses:[]};
-    onUpdate({miniSurveys:[...eng.miniSurveys,ms]});
-    setSel(ms);
-  };
-
-  const analyze=async()=>{
-    if(!sel||!sel.responses.length)return;
-    setLoading(true);setAnalysis('');
-    const n=sel.responses.length;
-    const compData=sel.competencias.map((c,ci)=>{
-      const scores=sel.responses.map(r=>r.scores[ci]||0);
-      const dist={};['-3','-2','-1','0','+1','+2','+3'].forEach(k=>{dist[k]=sel.responses.filter(r=>{const v=r.scores[ci];return(v>=0?'+':'')+v===k;}).length;});
-      const distStr=Object.entries(dist).filter(([,v])=>v>0).map(([k,v])=>`${k}: ${v} resp. (${Math.round(v/n*100)}%)`).join(', ');
-      return `${c}: ${distStr}`;
-    });
-    const prompt=`Especialista MGSCC. Analise resultados do mini-survey. Português brasileiro.
-COACHEE: ${eng.coachee.name} | PERÍODO: ${sel.period||sel.sentAt} | RESPONDENTES: ${n}
-${compData.join('\n')}
-Efetividade geral: ${Object.entries(sel.responses.reduce((acc,r)=>{const k=(r.overall>=0?'+':'')+r.overall;acc[k]=(acc[k]||0)+1;return acc;},{})).map(([k,v])=>`${k}: ${v} (${Math.round(v/n*100)}%)`).join(', ')}
-
-ESTRUTURA:
-1. **Síntese dos Resultados** (2 parágrafos)
-2. **Insights Críticos** (padrões, divergências)
-3. **Prioridades para o Próximo Ciclo** (3 ações concretas)
-
-Máximo 300 palavras.`;
-    try{
-      const res=await fetch("/api/ai",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt,max_tokens:1000})});
-      const data=await res.json();
-      if(data.error) throw new Error(data.error);
-      setAnalysis(data.content?.[0]?.text||"Sem resposta.");
-    }catch(e){setAnalysis("Erro: "+e.message);}
-    setLoading(false);
-  };
-
-  return (
-    <div style={{marginTop:20}}>
-      {showAdd&&<AddShModal tipo="ms" currentCount={eng.stakeholdersMS.length} onSave={sh=>{onUpdate({stakeholdersMS:[...eng.stakeholdersMS,sh]});setShowAdd(false);}} onClose={()=>setShowAdd(false)}/>}
-      <div className="sec"><span className="sec-lbl">Stakeholders Mini-Survey ({eng.stakeholdersMS.length}/15)</span><button className="btn btn-g btn-sm" onClick={()=>setShowAdd(true)}>+ Adicionar</button></div>
-      {eng.stakeholdersMS.length===0?<div className="warn-box">Aguardando coachee cadastrar a lista de stakeholders.</div>
-      :<div className="sh-list" style={{marginBottom:16}}>{eng.stakeholdersMS.map(s=><div key={s.id} className="sh-item"><div className="sh-av">{s.initials}</div><div style={{flex:1}}><div className="sh-name">{s.name}</div><div className="sh-role">{s.role}</div></div><span className={`badge ${s.status==='done'?'b-done':'b-pend'}`}>{s.status==='done'?'Respondido':'Pendente'}</span></div>)}</div>}
-      <div className="divider"/>
-      <div className="sec"><span className="sec-lbl">Mini-Surveys ({eng.miniSurveys.length})</span><button className="btn btn-p btn-sm" onClick={sendSurvey}>+ Enviar Mini-Survey</button></div>
-      {eng.miniSurveys.length===0?<div className="empty"><div className="ei">◌</div>Nenhum mini-survey enviado.</div>:(
+      {section==='360'&&(
         <>
-          <div style={{display:'flex',gap:8,marginBottom:20}}>
-            {eng.miniSurveys.map(ms=><button key={ms.id} className={`btn ${sel?.id===ms.id?'btn-p':'btn-g'}`} onClick={()=>{setSel(ms);setAnalysis('');}}>
-              {ms.label}{ms.period?` · ${ms.period}`:''}
-            </button>)}
+          <div className="sec">
+            <span className="sec-lbl">Stakeholders 360° ({eng.stakeholders360.filter(s=>s.status==='done').length}/{eng.stakeholders360.length} responderam)</span>
+            <div style={{display:'flex',gap:8}}>
+              <button className="btn btn-g btn-sm" onClick={()=>alert('Envio por e-mail em breve. Compartilhe o código ST-{eng}-{id} manualmente.')}>Enviar formulário</button>
+              <button className="btn btn-p btn-sm" onClick={()=>setShowAdd360(true)}>+ Adicionar</button>
+            </div>
           </div>
-          {sel&&<ProgressChart miniSurveys={[sel]}/>}
-          {sel&&sel.responses.length>0&&(
+          {eng.stakeholders360.length===0&&<div className="empty"><div className="ei">◌</div>Nenhum stakeholder cadastrado.</div>}
+          <div className="sh-list" style={{marginBottom:16}}>
+            {eng.stakeholders360.map(s=>(
+              <div key={s.id} className={`sh-item ${s.invalid?'sh-invalid':''}`}>
+                <div className="sh-av">{s.initials}</div>
+                <div style={{flex:1}}>
+                  <div className="sh-name" style={{textDecoration:s.invalid?'line-through':''}}>{s.name}</div>
+                  <div className="sh-role">{s.role}{s.email?` · ${s.email}`:''}</div>
+                  {s.invalid&&<div style={{fontSize:11,color:'#DC2626',marginTop:2}}>Invalidado: {s.leaderMsg}</div>}
+                </div>
+                <span className={`badge ${s.invalid?'b-invalid':s.status==='done'?'b-done':'b-pend'}`} style={{marginRight:8}}>
+                  {s.invalid?'Invalidado':s.status==='done'?'Respondido':'Pendente'}
+                </span>
+                {s.status==='done'&&s.feedback&&<button className="btn btn-g btn-xs" style={{marginRight:6}} onClick={()=>setViewSh(s)}>Ver</button>}
+                <button className="btn btn-d btn-xs" onClick={()=>onUpdate({stakeholders360:eng.stakeholders360.filter(x=>x.id!==s.id)})}>×</button>
+              </div>
+            ))}
+          </div>
+          {done360.length>0&&(
+            <div style={{background:'#F9FAFB',border:'1px solid #E4E6EF',borderRadius:9,padding:'14px 16px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+              <div style={{fontSize:13,color:'#6B6E8E'}}>{done360.length} resposta{done360.length!==1?'s':''} coletada{done360.length!==1?'s':''} — pronto para gerar relatório</div>
+              <button className="btn btn-p btn-sm" onClick={generateReport} disabled={loading}>{loading?<Dots/>:'✦ Gerar Relatório 360°'}</button>
+            </div>
+          )}
+          {eng.stakeholders360.length>0&&(
+            <div className="code-box" style={{marginTop:12}}>
+              <div className="code-title">Códigos de acesso — compartilhe com cada stakeholder</div>
+              {eng.stakeholders360.map(s=><div key={s.id} className="code-row"><span className="code-lbl">{s.name} ({s.role})</span><span className="code-val">ST-{eng.id}-{s.id}</span></div>)}
+            </div>
+          )}
+        </>
+      )}
+
+      {section==='ms'&&(
+        <>
+          <div className="sec">
+            <span className="sec-lbl">Stakeholders Mini-Survey ({eng.stakeholdersMS.length}/15)</span>
+            <div style={{display:'flex',gap:8}}>
+              <button className="btn btn-g btn-sm" onClick={()=>alert('Envio por e-mail em breve. Compartilhe os códigos ST- manualmente.')}>Enviar formulário</button>
+              <button className="btn btn-p btn-sm" onClick={()=>setShowAddMS(true)}>+ Adicionar</button>
+            </div>
+          </div>
+          {eng.stakeholdersMS.length===0&&<div className="empty"><div className="ei">◌</div>Nenhum stakeholder de mini-survey cadastrado.</div>}
+          <div className="sh-list" style={{marginBottom:16}}>
+            {eng.stakeholdersMS.map(s=>(
+              <div key={s.id} className="sh-item">
+                <div className="sh-av">{s.initials}</div>
+                <div style={{flex:1}}><div className="sh-name">{s.name}</div><div className="sh-role">{s.role}</div></div>
+                <span className={`badge ${s.status==='done'?'b-done':'b-pend'}`}>{s.status==='done'?'Respondido':'Pendente'}</span>
+              </div>
+            ))}
+          </div>
+          {eng.stakeholdersMS.length>0&&(
+            <div className="code-box" style={{marginBottom:16}}>
+              <div className="code-title">Códigos de acesso — stakeholders mini-survey</div>
+              {eng.stakeholdersMS.map(s=><div key={s.id} className="code-row"><span className="code-lbl">{s.name}</span><span className="code-val">ST-{eng.id}-{s.id}</span></div>)}
+            </div>
+          )}
+          <div className="divider"/>
+          <div className="sec">
+            <span className="sec-lbl">Mini-Surveys criados ({eng.miniSurveys.length})</span>
+            <button className="btn btn-p btn-sm" onClick={createMiniSurvey}>+ Criar novo Mini-Survey</button>
+          </div>
+          {eng.miniSurveys.length===0&&<div className="empty"><div className="ei">◌</div>Nenhum mini-survey criado ainda.</div>}
+          {eng.miniSurveys.map((ms,i)=>(
+            <div key={ms.id} style={{background:'#fff',border:'1px solid #E4E6EF',borderRadius:9,padding:'12px 16px',marginBottom:8,display:'flex',alignItems:'center',gap:12}}>
+              <div style={{flex:1}}>
+                <div style={{fontSize:14,fontWeight:600,color:'#1A1D2E'}}>{ms.label}</div>
+                <div style={{fontSize:12,color:'#A0A3B1'}}>Criado em {ms.sentAt} · {ms.responses.length} resposta{ms.responses.length!==1?'s':''}</div>
+              </div>
+              <span className={`badge ${ms.responses.length>0?'b-done':'b-pend'}`}>{ms.responses.length>0?'Com respostas':'Aguardando'}</span>
+              {ms.responses.length>0&&<button className="btn btn-g btn-xs" onClick={()=>exportMiniSurveyExcel(ms,eng)}>↓ Excel</button>}
+            </div>
+          ))}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── TAB RELATÓRIOS ───────────────────────────────────────────────────────────
+function TabRelatorios({eng,onUpdate}){
+  const [section,setSection]=useState('360');
+  const [editing360,setEditing360]=useState(false);
+  const [draft360,setDraft360]=useState(eng.report?.content||'');
+  const [selMS,setSelMS]=useState(eng.miniSurveys[0]||null);
+  const [editingMS,setEditingMS]=useState(false);
+  const [draftMS,setDraftMS]=useState('');
+
+  const approve360=()=>onUpdate({report:{...eng.report,approved:true,sharedAt:new Date().toISOString().split('T')[0]}});
+  const save360=()=>{onUpdate({report:{...eng.report,content:draft360}});setEditing360(false);};
+
+  const updateMS=(patch)=>{
+    const updated=eng.miniSurveys.map(ms=>ms.id===selMS.id?{...ms,...patch}:ms);
+    onUpdate({miniSurveys:updated});
+    setSelMS(prev=>({...prev,...patch}));
+  };
+  const approveMS=()=>updateMS({reportApproved:true,reportSharedAt:new Date().toISOString().split('T')[0]});
+  const saveMS=()=>{updateMS({reportContent:draftMS});setEditingMS(false);};
+
+  const handleUpload=(onContent)=>{
+    const input=document.createElement('input');
+    input.type='file';
+    input.accept='.txt,.md';
+    input.onchange=e=>{
+      const file=e.target.files[0];
+      if(!file)return;
+      const reader=new FileReader();
+      reader.onload=ev=>onContent(ev.target.result);
+      reader.readAsText(file,'utf-8');
+    };
+    input.click();
+  };
+
+  return (
+    <div style={{marginTop:20}}>
+      {/* Section switcher */}
+      <div style={{display:'flex',gap:3,background:'#F4F5F7',borderRadius:9,padding:3,marginBottom:20,width:'fit-content'}}>
+        {[{id:'360',l:'Relatório 360°'},{id:'ms',l:`Relatórios Mini-Survey (${eng.miniSurveys.length})`}].map(s=>(
+          <button key={s.id} className={`btn btn-sm ${section===s.id?'btn-p':'btn-g'}`} style={{border:'none'}} onClick={()=>setSection(s.id)}>{s.l}</button>
+        ))}
+      </div>
+
+      {section==='360'&&(
+        <>
+          {!eng.report?(
+            <div className="empty"><div className="ei">◌</div>Nenhum relatório 360° ainda.<br/>Gere na aba Stakeholders ou cole o conteúdo abaixo.<br/>
+              <button className="btn btn-p btn-sm" style={{marginTop:12}} onClick={()=>{onUpdate({report:{content:'',approved:false,sharedAt:null}});setEditing360(true);}}>+ Criar relatório manualmente</button>
+            </div>
+          ):(
             <>
-              <div className="divider"/>
-              <div className="sec"><span className="sec-lbl">Análise IA</span><button className="btn btn-p" onClick={analyze} disabled={loading}>{loading?<Dots/>:'✦ Analisar'}</button></div>
-              {(analysis||loading)&&<div className="report-view">{loading&&!analysis?<div style={{color:'#A0A3B1',fontSize:13}}>Analisando...</div>:<div className="report-text">{analysis}</div>}</div>}
+              {eng.report.approved&&<div className="approved-banner">✓ Aprovado e compartilhado em {eng.report.sharedAt} — coachee pode visualizar</div>}
+              <div className="sec">
+                <span className="sec-lbl">Relatório de Desenvolvimento — 360°</span>
+                <div style={{display:'flex',gap:8}}>
+                  {!eng.report.approved&&!editing360&&<button className="btn btn-p btn-sm" onClick={approve360}>✓ Aprovar e Compartilhar</button>}
+                  {!editing360&&<button className="btn btn-g btn-sm" onClick={()=>{setDraft360(eng.report.content);setEditing360(true);}}>Editar</button>}
+                  {!editing360&&<button className="btn btn-g btn-sm" onClick={()=>handleUpload(txt=>{onUpdate({report:{...eng.report,content:txt}});})}>↑ Upload</button>}
+                  {editing360&&<><button className="btn btn-g btn-sm" onClick={()=>setEditing360(false)}>Cancelar</button><button className="btn btn-p btn-sm" onClick={save360}>Salvar</button></>}
+                </div>
+              </div>
+              {editing360
+                ?<textarea className="report-editor" value={draft360} onChange={e=>setDraft360(e.target.value)}/>
+                :<div className="report-view"><div className="report-text">{eng.report.content||'Relatório vazio — clique em Editar ou Upload para adicionar conteúdo.'}</div></div>
+              }
+            </>
+          )}
+        </>
+      )}
+
+      {section==='ms'&&(
+        <>
+          {eng.miniSurveys.length===0?(
+            <div className="empty"><div className="ei">◌</div>Nenhum mini-survey criado ainda.<br/>Crie na aba Stakeholders.</div>
+          ):(
+            <>
+              <div style={{display:'flex',gap:8,marginBottom:20,flexWrap:'wrap'}}>
+                {eng.miniSurveys.map(ms=>(
+                  <button key={ms.id} className={`btn btn-sm ${selMS?.id===ms.id?'btn-p':'btn-g'}`} onClick={()=>{setSelMS(ms);setEditingMS(false);setDraftMS(ms.reportContent||'');}}>
+                    {ms.label}
+                  </button>
+                ))}
+              </div>
+
+              {selMS&&(
+                <>
+                  {/* Data view */}
+                  <div style={{marginBottom:20}}>
+                    <ProgressChart miniSurveys={[selMS]}/>
+                    {selMS.responses.length>0&&(
+                      <button className="btn btn-g btn-sm" style={{marginTop:10}} onClick={()=>exportMiniSurveyExcel(selMS,eng)}>↓ Baixar planilha Excel</button>
+                    )}
+                  </div>
+
+                  <div className="divider"/>
+
+                  {/* Narrative report */}
+                  {selMS.reportApproved&&<div className="approved-banner">✓ Relatório aprovado em {selMS.reportSharedAt} — coachee pode visualizar</div>}
+                  <div className="sec">
+                    <span className="sec-lbl">Relatório narrativo — {selMS.label}</span>
+                    <div style={{display:'flex',gap:8}}>
+                      {!selMS.reportApproved&&!editingMS&&<button className="btn btn-p btn-sm" onClick={approveMS}>✓ Aprovar e Compartilhar</button>}
+                      {!editingMS&&<button className="btn btn-g btn-sm" onClick={()=>{setDraftMS(selMS.reportContent||'');setEditingMS(true);}}>Editar</button>}
+                      {!editingMS&&<button className="btn btn-g btn-sm" onClick={()=>handleUpload(txt=>{updateMS({reportContent:txt});})}>↑ Upload</button>}
+                      {editingMS&&<><button className="btn btn-g btn-sm" onClick={()=>setEditingMS(false)}>Cancelar</button><button className="btn btn-p btn-sm" onClick={saveMS}>Salvar</button></>}
+                    </div>
+                  </div>
+                  {editingMS
+                    ?<textarea className="report-editor" value={draftMS} onChange={e=>setDraftMS(e.target.value)}/>
+                    :<div className="report-view"><div className="report-text">{selMS.reportContent||'Relatório narrativo ainda não adicionado. Clique em Editar ou Upload para adicionar.'}</div></div>
+                  }
+                </>
+              )}
             </>
           )}
         </>
@@ -1166,11 +1285,11 @@ function EngDetail({id,engs,onBack,onUpdate}){
   const eng=engs.find(e=>e.id===id);
   if(!eng)return null;
   const upd=patch=>onUpdate(id,patch);
+  const pendingStk=eng.stakeholders360.some(s=>s.status==='pending')||eng.stakeholdersMS.some(s=>s.status==='pending');
   const TABS=[
     {id:'roadmap',label:'Jornada'},
-    {id:'360',label:`360°${eng.stakeholders360.filter(s=>s.status==='done').length>0?' ✓':''}`},
-    {id:'report',label:`Relatório${eng.report?.approved?' ✓':eng.report?' (rascunho)':''}`},
-    {id:'ms',label:`Mini-Survey${eng.miniSurveys.length>0?` (${eng.miniSurveys.length})`:''}`},
+    {id:'stk',label:`Stakeholders${pendingStk?' ⚠':''}` },
+    {id:'relatorios',label:`Relatórios${eng.report?.approved?' ✓':eng.report?' (rascunho)':''}` },
     {id:'sessions',label:`Sessões (${eng.sessions.length})`},
   ];
   return (
@@ -1194,9 +1313,8 @@ function EngDetail({id,engs,onBack,onUpdate}){
       </div>
       <div className="scroll">
         {tab==='roadmap'&&<RoadmapTab eng={eng} onUpdate={upd}/>}
-        {tab==='360'&&<Tab360Coach eng={eng} onUpdate={upd}/>}
-        {tab==='report'&&<TabReport eng={eng} onUpdate={upd}/>}
-        {tab==='ms'&&<TabMiniSurvey eng={eng} onUpdate={upd}/>}
+        {tab==='stk'&&<TabStakeholders eng={eng} onUpdate={upd}/>}
+        {tab==='relatorios'&&<TabRelatorios eng={eng} onUpdate={upd}/>}
         {tab==='sessions'&&<TabSessions eng={eng}/>}
       </div>
     </>
