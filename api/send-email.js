@@ -22,7 +22,7 @@ export default async function handler(req) {
       });
     }
 
-    const fromAddress = `${from_name || 'Lidehra'} <onboarding@resend.dev>`;
+    const fromAddress = `${from_name || 'Lidehra'} <noreply@lidehra.com.br>`;
 
     const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
