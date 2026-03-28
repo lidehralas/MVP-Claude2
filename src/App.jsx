@@ -1864,6 +1864,40 @@ function FormMiniSurvey({eng,sh,ms,onSubmit}){
   );
 }
 
+// ─── PROGRESS CHART COACHEE (all surveys + selector) ─────────────────────────
+function ProgressChartCoachee({miniSurveys}){
+  const [selId,setSelId]=useState(null); // null = most recent
+
+  const ms = selId
+    ? miniSurveys.find(m=>m.id===selId)||miniSurveys[miniSurveys.length-1]
+    : miniSurveys[miniSurveys.length-1];
+
+  if(!ms||ms.responses.length===0){
+    return <div className="warn-box">Nenhuma resposta coletada ainda neste mini-survey.</div>;
+  }
+
+  return (
+    <div>
+      {/* Multi-survey selector */}
+      {miniSurveys.length>1&&(
+        <div style={{marginBottom:20}}>
+          <div style={{fontSize:11,color:'#A0A3B1',marginBottom:8,fontWeight:600,letterSpacing:'1px',textTransform:'uppercase'}}>Selecionar período</div>
+          <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+            {miniSurveys.map(m=>(
+              <button key={m.id}
+                className={`btn btn-sm ${(selId===m.id||(selId===null&&m.id===miniSurveys[miniSurveys.length-1].id))?'btn-p':'btn-g'}`}
+                onClick={()=>setSelId(m.id)}>
+                {m.label}{m.period?` · ${m.period}`:''}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      <ProgressChart miniSurveys={[ms]}/>
+    </div>
+  );
+}
+
 // ─── COACHEE PORTAL ───────────────────────────────────────────────────────────
 function CoacheePortal({eng,onLogout,onUpdate,isCoachView,onBackToCoach}){
   const [tab,setTab]=useState('jornada');
@@ -1980,27 +2014,70 @@ function CoacheePortal({eng,onLogout,onUpdate,isCoachView,onBackToCoach}){
 
           {tab==='relatorios'&&(
             <>
+              {/* Relatório 360° */}
+              <div style={{fontSize:11,fontWeight:700,letterSpacing:'1.5px',textTransform:'uppercase',color:'#4169FF',marginBottom:12}}>Relatório de Desenvolvimento — 360°</div>
               {!eng.report?.approved
-                ?<div className="warn-box">Seu relatório de desenvolvimento está sendo preparado pelo coach. Ficará disponível aqui após a aprovação.</div>
-                :<>
-                  <div style={{background:'#F0FDF4',border:'1px solid #BBF7D0',borderRadius:9,padding:'12px 16px',marginBottom:16,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                ?<div className="warn-box" style={{marginBottom:20}}>Seu relatório 360° está sendo preparado pelo coach. Ficará disponível aqui após a aprovação.</div>
+                :<div style={{marginBottom:24}}>
+                  <div style={{background:'#F0FDF4',border:'1px solid #BBF7D0',borderRadius:9,padding:'12px 16px',marginBottom:12,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                     <div>
-                      <div style={{fontSize:13,fontWeight:600,color:'#059669'}}>✓ Relatório de Desenvolvimento disponível</div>
+                      <div style={{fontSize:13,fontWeight:600,color:'#059669'}}>✓ Relatório disponível</div>
                       <div style={{fontSize:12,color:'#6B6E8E',marginTop:2}}>Aprovado em {eng.report.sharedAt}</div>
                     </div>
                     <div style={{display:'flex',gap:8}}>
                       <button className="btn btn-g btn-sm" onClick={()=>window.print()}>Imprimir</button>
-                      <button className="btn btn-g btn-sm" onClick={()=>{navigator.clipboard?.writeText(eng.report.content);alert('Conteúdo copiado!');}} >Copiar</button>
+                      <button className="btn btn-g btn-sm" onClick={()=>{navigator.clipboard?.writeText(eng.report.content);alert('Conteúdo copiado!');}}>Copiar</button>
                       <span style={{fontSize:11,color:'#A0A3B1',padding:'5px 8px',border:'1px dashed #D8DAE8',borderRadius:6}}>Download PDF — em breve</span>
                     </div>
                   </div>
                   <div className="report-view"><div className="report-text">{eng.report.content}</div></div>
-                </>
+                </div>
               }
+
+              {/* Relatórios Mini-Survey */}
+              {eng.miniSurveys.length>0&&(
+                <>
+                  <div style={{fontSize:11,fontWeight:700,letterSpacing:'1.5px',textTransform:'uppercase',color:'#8B5CF6',marginBottom:12,marginTop:8}}>Relatórios de Mini-Survey</div>
+                  {eng.miniSurveys.map((ms,i)=>(
+                    <div key={ms.id} style={{marginBottom:16}}>
+                      {ms.reportApproved?(
+                        <>
+                          <div style={{background:'#F0FDF4',border:'1px solid #BBF7D0',borderRadius:9,padding:'12px 16px',marginBottom:8,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                            <div>
+                              <div style={{fontSize:13,fontWeight:600,color:'#059669'}}>✓ {ms.label} — relatório disponível</div>
+                              <div style={{fontSize:12,color:'#6B6E8E',marginTop:2}}>Aprovado em {ms.reportSharedAt}</div>
+                            </div>
+                            <div style={{display:'flex',gap:8}}>
+                              <button className="btn btn-g btn-sm" onClick={()=>{navigator.clipboard?.writeText(ms.reportContent||'');alert('Conteúdo copiado!');}}>Copiar</button>
+                              <span style={{fontSize:11,color:'#A0A3B1',padding:'5px 8px',border:'1px dashed #D8DAE8',borderRadius:6}}>Download PDF — em breve</span>
+                            </div>
+                          </div>
+                          <div className="report-view"><div className="report-text">{ms.reportContent}</div></div>
+                        </>
+                      ):(
+                        <div className="warn-box">
+                          <strong>{ms.label}</strong> — relatório narrativo sendo preparado pelo coach.
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </>
+              )}
             </>
           )}
 
-          {tab==='progresso'&&<ProgressChart miniSurveys={eng.miniSurveys}/>}
+          {tab==='progresso'&&(
+            <>
+              {eng.miniSurveys.length===0
+                ?<div className="empty"><div className="ei">◌</div>O progresso será exibido após o primeiro mini-survey.</div>
+                :(
+                  <>
+                    <ProgressChartCoachee miniSurveys={eng.miniSurveys}/>
+                  </>
+                )
+              }
+            </>
+          )}
         </div>
       </div>
     </div>
