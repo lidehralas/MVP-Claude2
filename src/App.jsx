@@ -265,6 +265,34 @@ const STATUS = {
   idle:{label:"Não iniciada",dot:"s-idle",txt:"s-idle-txt"},
 };
 
+// ─── STORAGE UTILITIES ───────────────────────────────────────────────────────
+async function uploadFile(file, path) {
+  const { data, error } = await supabase.storage.from('lidehra-files').upload(path, file, { upsert: true });
+  if (error) throw error;
+  return data.path;
+}
+
+async function getFileUrl(path) {
+  const { data } = await supabase.storage.from('lidehra-files').createSignedUrl(path, 3600);
+  return data?.signedUrl || null;
+}
+
+async function deleteFile(path) {
+  await supabase.storage.from('lidehra-files').remove([path]);
+}
+
+function generatePDF(content, filename) {
+  // Simple HTML-to-print PDF generation
+  const win = window.open('', '_blank');
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${filename}</title>
+    <style>body{font-family:Georgia,serif;max-width:800px;margin:40px auto;padding:0 24px;color:#1A1D2E;line-height:1.8}
+    h1,h2,h3{color:#1A1D2E}h2{border-bottom:1px solid #E4E6EF;padding-bottom:8px;margin-top:32px}
+    p{margin:8px 0}strong{font-weight:700}@media print{body{margin:0}}</style>
+    </head><body><pre style="white-space:pre-wrap;font-family:Georgia,serif;font-size:14px">${content}</pre>
+    <script>window.onload=()=>{window.print();}<\/script></body></html>`);
+  win.document.close();
+}
+
 // ─── INITIAL DATA ─────────────────────────────────────────────────────────────
 const INIT_ENGS = [
   {
@@ -999,11 +1027,20 @@ function RoadmapTab({eng,onUpdate}){
           {eng.assessmentFile
             ?<div style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:8}}>
                 <span style={{fontSize:12,color:'#059669'}}>✓ {eng.assessmentFile}</span>
-                <span style={{fontSize:11,color:'#C8CAD6',padding:'3px 8px',border:'1px dashed #D8DAE8',borderRadius:4}}>Armazenamento — em breve</span>
+                {eng.assessmentFilePath&&<button className="btn btn-g btn-xs" onClick={async()=>{
+                  const url=await getFileUrl(eng.assessmentFilePath);
+                  if(url) window.open(url,'_blank'); else alert('Arquivo não encontrado.');
+                }}>Baixar</button>}
+                <button className="btn btn-d btn-xs" onClick={()=>onUpdate({assessmentFile:'',assessmentFilePath:''})}>Remover</button>
               </div>
-            :<div style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:8}}>
-                <label style={{cursor:'pointer'}}><input type="file" style={{display:'none'}} onChange={e=>onUpdate({assessmentFile:e.target.files[0]?.name||''})}/><span className="btn btn-g btn-sm">Registrar nome do arquivo</span></label>
-                <span style={{fontSize:11,color:'#C8CAD6',padding:'3px 8px',border:'1px dashed #D8DAE8',borderRadius:4}}>Upload real — em breve</span>
+            :<div style={{marginLeft:'auto'}}>
+                <UploadZone
+                  accept=".pdf,.docx,.doc,.txt"
+                  storagePath={`assessments/${eng.id}/assessment`}
+                  onUploaded={(path,name)=>onUpdate({assessmentFile:name,assessmentFilePath:path})}
+                  currentFile={null}
+                  onRemove={()=>{}}
+                />
               </div>
           }
         </div>
@@ -1538,7 +1575,22 @@ function TabRelatorios({eng,onUpdate}){
                   {!eng.report.approved&&!editing360&&<button className="btn btn-p btn-sm" onClick={approve360}>✓ Aprovar e Compartilhar</button>}
                   {!editing360&&<button className="btn btn-g btn-sm" onClick={()=>{setDraft360(eng.report.content);setEditing360(true);}}>Editar</button>}
                   {!editing360&&<button className="btn btn-g btn-sm" onClick={()=>handleUpload(txt=>{onUpdate({report:{...eng.report,content:txt}});})}>↑ Upload .txt/.md</button>}
-                  {!editing360&&<span style={{fontSize:11,color:'#C8CAD6',padding:'5px 8px',border:'1px dashed #D8DAE8',borderRadius:6,whiteSpace:'nowrap'}}>PDF/DOCX — em breve</span>}
+                  {!editing360&&<label className="btn btn-g btn-sm" style={{cursor:'pointer'}}>
+                    ↑ Upload PDF/DOCX
+                    <input type="file" style={{display:'none'}} accept=".pdf,.docx,.doc" onChange={async(e)=>{
+                      const file=e.target.files[0];if(!file)return;
+                      try{
+                        const path=await uploadFile(file,`reports/${eng.id}/360_${Date.now()}_${file.name}`);
+                        onUpdate({report:{...eng.report,reportFile:path,reportFileName:file.name}});
+                        alert('Arquivo enviado: '+file.name);
+                      }catch(err){alert('Erro ao enviar: '+err.message);}
+                    }}/>
+                  </label>}
+                  {!editing360&&eng.report.content&&<button className="btn btn-g btn-sm" onClick={()=>generatePDF(eng.report.content,`Relatório 360° - ${eng.coachee.name}`)}>↓ Baixar PDF</button>}
+                  {!editing360&&eng.report.reportFileName&&<button className="btn btn-g btn-sm" onClick={async()=>{
+                    const url=await getFileUrl(eng.report.reportFile);
+                    if(url) window.open(url,'_blank'); else alert('Arquivo não encontrado.');
+                  }}>📎 {eng.report.reportFileName}</button>}
                   {editing360&&<><button className="btn btn-g btn-sm" onClick={()=>setEditing360(false)}>Cancelar</button><button className="btn btn-p btn-sm" onClick={save360}>Salvar</button></>}
                 </div>
               </div>
@@ -1585,7 +1637,22 @@ function TabRelatorios({eng,onUpdate}){
                       {!selMS.reportApproved&&!editingMS&&<button className="btn btn-p btn-sm" onClick={approveMS}>✓ Aprovar e Compartilhar</button>}
                       {!editingMS&&<button className="btn btn-g btn-sm" onClick={()=>{setDraftMS(selMS.reportContent||'');setEditingMS(true);}}>Editar</button>}
                       {!editingMS&&<button className="btn btn-g btn-sm" onClick={()=>handleUpload(txt=>{updateMS({reportContent:txt});})}>↑ Upload .txt/.md</button>}
-                      {!editingMS&&<span style={{fontSize:11,color:'#C8CAD6',padding:'5px 8px',border:'1px dashed #D8DAE8',borderRadius:6,whiteSpace:'nowrap'}}>PDF/DOCX — em breve</span>}
+                      {!editingMS&&<label className="btn btn-g btn-sm" style={{cursor:'pointer'}}>
+                        ↑ Upload PDF/DOCX
+                        <input type="file" style={{display:'none'}} accept=".pdf,.docx,.doc" onChange={async(e)=>{
+                          const file=e.target.files[0];if(!file)return;
+                          try{
+                            const path=await uploadFile(file,`reports/${eng.id}/ms_${selMS.id}_${Date.now()}_${file.name}`);
+                            updateMS({reportFile:path,reportFileName:file.name});
+                            alert('Arquivo enviado: '+file.name);
+                          }catch(err){alert('Erro ao enviar: '+err.message);}
+                        }}/>
+                      </label>}
+                      {!editingMS&&selMS.reportContent&&<button className="btn btn-g btn-sm" onClick={()=>generatePDF(selMS.reportContent,`${selMS.label} - ${eng.coachee.name}`)}>↓ Baixar PDF</button>}
+                      {!editingMS&&selMS.reportFileName&&<button className="btn btn-g btn-sm" onClick={async()=>{
+                        const url=await getFileUrl(selMS.reportFile);
+                        if(url) window.open(url,'_blank'); else alert('Arquivo não encontrado.');
+                      }}>📎 {selMS.reportFileName}</button>}
                       {editingMS&&<><button className="btn btn-g btn-sm" onClick={()=>setEditingMS(false)}>Cancelar</button><button className="btn btn-p btn-sm" onClick={saveMS}>Salvar</button></>}
                     </div>
                   </div>
@@ -1603,6 +1670,42 @@ function TabRelatorios({eng,onUpdate}){
   );
 }
 
+// ─── UPLOAD ZONE COMPONENT ───────────────────────────────────────────────────
+function UploadZone({accept,storagePath,onUploaded,currentFile,onRemove}){
+  const [uploading,setUploading]=useState(false);
+  const [err,setErr]=useState('');
+
+  const handleFile=async(file)=>{
+    if(!file)return;
+    setUploading(true);setErr('');
+    try{
+      const path=`${storagePath}_${file.name}`;
+      await uploadFile(file,path);
+      onUploaded(path,file.name);
+    }catch(e){setErr('Erro ao enviar: '+e.message);}
+    setUploading(false);
+  };
+
+  if(currentFile) return (
+    <div style={{background:'#F0FDF4',border:'1px solid #BBF7D0',borderRadius:8,padding:'10px 14px',display:'flex',alignItems:'center',gap:10}}>
+      <span style={{fontSize:13,color:'#059669'}}>✓ {currentFile}</span>
+      <button className="btn btn-d btn-xs" style={{marginLeft:'auto'}} onClick={onRemove}>Remover</button>
+    </div>
+  );
+
+  return (
+    <label style={{display:'block',cursor:'pointer'}}>
+      <input type="file" accept={accept} style={{display:'none'}} onChange={e=>handleFile(e.target.files[0])}/>
+      <div style={{background:'#F9FAFB',border:'1px dashed #D8DAE8',borderRadius:8,padding:'12px 16px',display:'flex',alignItems:'center',gap:10,transition:'border-color .12s'}}>
+        <span style={{fontSize:13,color:'#A0A3B1'}}>📎 {uploading?'Enviando...':`Clique para selecionar (${accept})`}</span>
+        {!uploading&&<span className="btn btn-g btn-xs" style={{marginLeft:'auto',pointerEvents:'none'}}>Selecionar</span>}
+        {uploading&&<Dots/>}
+      </div>
+      {err&&<div style={{fontSize:11,color:'#DC2626',marginTop:4}}>{err}</div>}
+    </label>
+  );
+}
+
 // ─── SESSIONS TAB ─────────────────────────────────────────────────────────────
 function TabSessions({eng,onUpdate}){
   const [showNew,setShowNew]=useState(false);
@@ -1612,13 +1715,13 @@ function TabSessions({eng,onUpdate}){
   const [editNotes,setEditNotes]=useState('');
 
   const saveNew=()=>{
-    if(!newSession.date||!newSession.notes.trim())return;
+    if(!newSession.date||(![newSession.notes.trim(),newSession.fileName].some(Boolean)))return;
     const num=eng.sessions.length+1;
     const d=new Date(newSession.date);
     const months=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
     const dateStr=`${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
-    onUpdate({sessions:[{num,date:dateStr,notes:newSession.notes.trim()},...eng.sessions]});
-    setNewSession({date:'',notes:''});setShowNew(false);
+    onUpdate({sessions:[{num,date:dateStr,notes:newSession.notes.trim(),filePath:newSession.filePath||'',fileName:newSession.fileName||''},...eng.sessions]});
+    setNewSession({date:'',notes:'',filePath:'',fileName:''});setShowNew(false);
   };
 
   const saveEdit=(i)=>{
@@ -1637,18 +1740,25 @@ function TabSessions({eng,onUpdate}){
         <div style={{background:'#EEF1FF',border:'1px solid #D0D8F8',borderRadius:10,padding:16,marginBottom:16}}>
           <div className="field"><div className="flbl">Data da sessão</div><input className="finp" type="date" value={newSession.date} onChange={e=>setNewSession(p=>({...p,date:e.target.value}))}/></div>
           <div className="field">
-            <div className="flbl">Anotações da sessão</div>
+            <div className="flbl">Anotações do coach</div>
+            <div style={{fontSize:11,color:'#A0A3B1',marginBottom:6}}>Espaço livre para suas anotações e reflexões sobre a sessão</div>
             <textarea className="finp" rows={5} placeholder="Registre os principais pontos discutidos, insights do coachee, ações definidas, observações para próximas sessões..." value={newSession.notes} onChange={e=>setNewSession(p=>({...p,notes:e.target.value}))}/>
-            <div style={{fontSize:11,color:'#A0A3B1',marginTop:4}}>Estas anotações poderão ser usadas pela IA para gerar recomendações para o coach.</div>
-          <div style={{marginTop:10,padding:'10px 12px',background:'#F9FAFB',border:'1px dashed #D8DAE8',borderRadius:8,display:'flex',alignItems:'center',gap:10}}>
-            <span style={{fontSize:13,color:'#A0A3B1'}}>📎 Upload de transcrição</span>
-            <span style={{fontSize:11,color:'#C8CAD6',flex:1}}>.txt · .docx · .pdf</span>
-            <span style={{fontSize:11,fontWeight:600,color:'#BCC4F0',background:'#EEF1FF',padding:'3px 8px',borderRadius:4}}>Em breve</span>
+            <div style={{fontSize:11,color:'#A0A3B1',marginTop:4}}>Estas anotações poderão ser usadas pela IA para gerar recomendações.</div>
           </div>
+          <div className="field">
+            <div className="flbl">Upload de arquivo</div>
+            <div style={{fontSize:11,color:'#A0A3B1',marginBottom:6}}>Anotações externas (.txt, .docx) ou transcrições (.pdf, .txt)</div>
+            <UploadZone
+              accept=".txt,.md,.docx,.pdf"
+              storagePath={`sessions/${eng.id}/${Date.now()}`}
+              onUploaded={(path,name)=>setNewSession(p=>({...p,filePath:path,fileName:name}))}
+              currentFile={newSession.fileName}
+              onRemove={()=>setNewSession(p=>({...p,filePath:'',fileName:''}))}
+            />
           </div>
           <div style={{display:'flex',gap:8}}>
             <button className="btn btn-g btn-sm" onClick={()=>setShowNew(false)}>Cancelar</button>
-            <button className="btn btn-p btn-sm" onClick={saveNew} disabled={!newSession.date||!newSession.notes.trim()}>Salvar</button>
+            <button className="btn btn-p btn-sm" onClick={saveNew} disabled={!newSession.date||(!newSession.notes.trim()&&!newSession.fileName)}>Salvar</button>
           </div>
         </div>
       )}
@@ -1682,9 +1792,21 @@ function TabSessions({eng,onUpdate}){
                     </div>
                   </div>
                 ):(
-                  <div style={{display:'flex',gap:8}}>
-                    <button className="btn btn-g btn-sm" onClick={()=>{setEditIdx(i);setEditNotes(s.notes);}}>Editar anotação</button>
-                    <button className="btn btn-d btn-sm" onClick={()=>{if(window.confirm('Apagar esta sessão?')){onUpdate({sessions:eng.sessions.filter((_,idx)=>idx!==i)});}}}>Apagar</button>
+                  <div>
+                    {s.fileName&&(
+                      <div style={{background:'#F9FAFB',border:'1px solid #E4E6EF',borderRadius:8,padding:'10px 14px',marginBottom:10,display:'flex',alignItems:'center',gap:10}}>
+                        <span style={{fontSize:13,color:'#6B6E8E'}}>📎 {s.fileName}</span>
+                        <button className="btn btn-g btn-xs" style={{marginLeft:'auto'}} onClick={async()=>{
+                          const url=await getFileUrl(s.filePath);
+                          if(url) window.open(url,'_blank');
+                          else alert('Arquivo não encontrado.');
+                        }}>Baixar</button>
+                      </div>
+                    )}
+                    <div style={{display:'flex',gap:8}}>
+                      <button className="btn btn-g btn-sm" onClick={()=>{setEditIdx(i);setEditNotes(s.notes);}}>Editar anotação</button>
+                      <button className="btn btn-d btn-sm" onClick={()=>{if(window.confirm('Apagar esta sessão?')){onUpdate({sessions:eng.sessions.filter((_,idx)=>idx!==i)});}}}>Apagar</button>
+                    </div>
                   </div>
                 )}
               </div>
