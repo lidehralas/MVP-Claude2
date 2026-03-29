@@ -26,10 +26,9 @@ export default async function handler(req) {
         'Content-Type': 'application/json',
         'x-api-key': apiKey,
         'anthropic-version': '2023-06-01',
-        'anthropic-beta': 'messages-2023-12-15',
       },
       body: JSON.stringify({
-        model: 'claude-3-5-haiku-20241022',
+        model: 'claude-haiku-4-5-20251001',
         max_tokens,
         messages: [{ role: 'user', content: prompt }],
       }),
@@ -41,15 +40,15 @@ export default async function handler(req) {
     try {
       data = JSON.parse(raw);
     } catch {
-      return new Response(JSON.stringify({ error: 'Resposta inválida da API: ' + raw.slice(0, 300) }), {
+      return new Response(JSON.stringify({ error: 'Resposta inválida: ' + raw.slice(0, 400) }), {
         status: 502,
         headers: { 'Content-Type': 'application/json' },
       });
     }
 
     if (!response.ok) {
-      const msg = data?.error?.message || JSON.stringify(data);
-      return new Response(JSON.stringify({ error: msg }), {
+      const msg = data?.error?.message || data?.error?.type || JSON.stringify(data);
+      return new Response(JSON.stringify({ error: 'Anthropic: ' + msg }), {
         status: response.status,
         headers: { 'Content-Type': 'application/json' },
       });
