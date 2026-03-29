@@ -1509,6 +1509,36 @@ Tom: profissional, orientado ao desenvolvimento.`;
               </div>
             ))}
           </div>
+          <div style={{background:'#F9FAFB',border:'1px solid #E4E6EF',borderRadius:9,padding:'14px 16px',marginBottom:8}}>
+            <div style={{fontSize:11,fontWeight:600,letterSpacing:'1px',textTransform:'uppercase',color:'#A0A3B1',marginBottom:10}}>Upload de dados brutos</div>
+            <div style={{fontSize:12,color:'#6B6E8E',marginBottom:10}}>Suba a planilha gerada pelo Google Forms, Typeform ou outra fonte para gerar o relatório pela IA</div>
+            <label style={{cursor:'pointer',display:'inline-block'}}>
+              <input type="file" style={{display:'none'}} accept=".pdf,.docx,.doc,.xlsx,.xls,.csv,.txt"
+                onChange={async(e)=>{
+                  const file=e.target.files[0];if(!file)return;
+                  try{
+                    const path=await uploadFile(file,`raw360/${eng.id}/${Date.now()}_${file.name}`);
+                    onUpdate({raw360File:path,raw360FileName:file.name});
+                    alert('Arquivo enviado: '+file.name+'. Vá em Relatórios para gerar o relatório.');
+                  }catch(err){alert('Erro ao enviar: '+err.message);}
+                }}/>
+              <span className="btn btn-g btn-sm">↑ Upload dados brutos 360°</span>
+            </label>
+            {eng.raw360FileName&&(
+              <span style={{fontSize:12,color:'#059669',marginLeft:12}}>✓ {eng.raw360FileName}</span>
+            )}
+          </div>
+          {/* Upload dados brutos 360 */}
+          <div style={{marginBottom:10}}>
+            <UploadZone
+              accept=".xlsx,.xls,.csv,.docx,.doc,.pdf"
+              storagePath={`raw360/${eng.id}/dados_360`}
+              onUploaded={(path,name)=>onUpdate({raw360File:path,raw360FileName:name})}
+              currentFile={eng.raw360FileName||null}
+              onRemove={()=>onUpdate({raw360File:'',raw360FileName:''})}
+            />
+            {!eng.raw360FileName&&<div style={{fontSize:11,color:'#A0A3B1',marginTop:4}}>Opcional: suba a planilha bruta do 360° (Google Forms, TypeForm etc.) para uso pela IA</div>}
+          </div>
           {done360.length>0&&(
             <div style={{background:'#F9FAFB',border:'1px solid #E4E6EF',borderRadius:9,padding:'14px 16px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
               <div style={{fontSize:13,color:'#6B6E8E'}}>{done360.length} resposta{done360.length!==1?'s':''} coletada{done360.length!==1?'s':''} — pronto para gerar relatório</div>
@@ -1526,50 +1556,59 @@ Tom: profissional, orientado ao desenvolvimento.`;
 
       {section==='ms'&&(
         <>
+          {/* Step 1: Create mini-survey — always at top */}
+          <div style={{background:'#EEF1FF',border:'1px solid #D0D8F8',borderRadius:10,padding:'14px 16px',marginBottom:20}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+              <div>
+                <div style={{fontSize:13,fontWeight:600,color:'#1A1D2E'}}>Mini-Surveys ({eng.miniSurveys.length} criado{eng.miniSurveys.length!==1?'s':''})</div>
+                <div style={{fontSize:11,color:'#6B6E8E',marginTop:2}}>Cada mini-survey é uma rodada de coleta de percepções dos stakeholders</div>
+              </div>
+              <button className="btn btn-p btn-sm" onClick={createMiniSurvey}>+ Criar novo Mini-Survey</button>
+            </div>
+            {eng.miniSurveys.length>0&&(
+              <div style={{display:'flex',gap:8,marginTop:12,flexWrap:'wrap'}}>
+                {eng.miniSurveys.map((ms)=>(
+                  <div key={ms.id} style={{background:'#fff',border:'1px solid #D0D8F8',borderRadius:8,padding:'8px 12px',minWidth:160}}>
+                    <div style={{fontSize:13,fontWeight:600,color:'#1A1D2E'}}>{ms.label}</div>
+                    <div style={{fontSize:11,color:'#A0A3B1',marginTop:2}}>{ms.sentAt} · {ms.responses.length} resposta{ms.responses.length!==1?'s':''}</div>
+                    <span className={`badge ${ms.responses.length>0?'b-done':'b-pend'}`} style={{marginTop:6,display:'inline-block'}}>{ms.responses.length>0?'Com respostas':'Aguardando'}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Step 2: Stakeholders */}
           <div className="sec">
-            <span className="sec-lbl">Stakeholders Mini-Survey ({eng.stakeholdersMS.length}/15)</span>
+            <span className="sec-lbl">Stakeholders ({eng.stakeholdersMS.length}/15)</span>
             <div style={{display:'flex',gap:8}}>
-              <button className="btn btn-p btn-sm" onClick={()=>setShowSendMS(true)} disabled={eng.stakeholdersMS.filter(s=>s.email&&!s.invalid).length===0||eng.miniSurveys.length===0}>📧 Enviar mini-survey</button>
+              <button className="btn btn-p btn-sm" onClick={()=>setShowSendMS(true)} disabled={eng.stakeholdersMS.filter(s=>s.email&&!s.invalid).length===0||eng.miniSurveys.length===0}>📧 Enviar</button>
               <button className="btn btn-g btn-sm" onClick={()=>setShowAddMS(true)}>+ Adicionar</button>
             </div>
           </div>
-          {eng.stakeholdersMS.length===0&&<div className="empty"><div className="ei">◌</div>Nenhum stakeholder de mini-survey cadastrado.</div>}
-          <div className="sh-list" style={{marginBottom:16}}>
-            {eng.stakeholdersMS.map(s=>(
-              <div key={s.id} className="sh-item">
-                <div className="sh-av">{s.initials}</div>
-                <div style={{flex:1}}>
-                  <div className="sh-name">{s.name}</div>
-                  <div className="sh-role">{s.role}{s.email?` · ${s.email}`:''}</div>
+          {eng.stakeholdersMS.length===0
+            ?<div className="warn-box">Cadastre os stakeholders que avaliarão o progresso do coachee.</div>
+            :<div className="sh-list" style={{marginBottom:12}}>
+              {eng.stakeholdersMS.map(s=>(
+                <div key={s.id} className="sh-item">
+                  <div className="sh-av">{s.initials}</div>
+                  <div style={{flex:1}}>
+                    <div className="sh-name">{s.name}</div>
+                    <div className="sh-role">{s.role}{s.email?` · ${s.email}`:''}</div>
+                  </div>
+                  <span className={`badge ${s.status==='done'?'b-done':'b-pend'}`} style={{marginRight:6}}>{s.status==='done'?'Respondido':'Pendente'}</span>
+                  <button className="btn btn-g btn-xs" style={{marginRight:4}} onClick={()=>setEditSh({sh:s,tipo:'ms'})}>Editar</button>
+                  <button className="btn btn-d btn-xs" onClick={()=>{if(safeConfirm('Remover '+s.name+'?','O stakeholder será removido.')) onUpdate({stakeholdersMS:eng.stakeholdersMS.filter(x=>x.id!==s.id)});}}>×</button>
                 </div>
-                <span className={`badge ${s.status==='done'?'b-done':'b-pend'}`} style={{marginRight:8}}>{s.status==='done'?'Respondido':'Pendente'}</span>
-                <button className="btn btn-g btn-xs" style={{marginRight:6}} onClick={()=>setEditSh({sh:s,tipo:'ms'})}>Editar</button>
-                <button className="btn btn-d btn-xs" onClick={()=>{if(safeConfirm('Remover '+s.name+' da lista mini-survey?','O stakeholder será removido.')) onUpdate({stakeholdersMS:eng.stakeholdersMS.filter(x=>x.id!==s.id)});}}>×</button>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          }
           {eng.stakeholdersMS.length>0&&(
             <div className="code-box" style={{marginBottom:16}}>
-              <div className="code-title">Códigos de acesso — stakeholders mini-survey</div>
+              <div className="code-title">Códigos de acesso</div>
               {eng.stakeholdersMS.map(s=><div key={s.id} className="code-row"><span className="code-lbl">{s.name}</span><span className="code-val">ST-{eng.id}-{s.id}</span></div>)}
             </div>
           )}
-          <div className="divider"/>
-          <div className="sec">
-            <span className="sec-lbl">Mini-Surveys criados ({eng.miniSurveys.length})</span>
-            <button className="btn btn-p btn-sm" onClick={createMiniSurvey}>+ Criar novo Mini-Survey</button>
-          </div>
-          {eng.miniSurveys.length===0&&<div className="empty"><div className="ei">◌</div>Nenhum mini-survey criado ainda.</div>}
-          {eng.miniSurveys.map((ms,i)=>(
-            <div key={ms.id} style={{background:'#fff',border:'1px solid #E4E6EF',borderRadius:9,padding:'12px 16px',marginBottom:8,display:'flex',alignItems:'center',gap:12}}>
-              <div style={{flex:1}}>
-                <div style={{fontSize:14,fontWeight:600,color:'#1A1D2E'}}>{ms.label}</div>
-                <div style={{fontSize:12,color:'#A0A3B1'}}>Criado em {ms.sentAt} · {ms.responses.length} resposta{ms.responses.length!==1?'s':''}</div>
-              </div>
-              <span className={`badge ${ms.responses.length>0?'b-done':'b-pend'}`}>{ms.responses.length>0?'Com respostas':'Aguardando'}</span>
-              {ms.responses.length>0&&<button className="btn btn-g btn-xs" onClick={()=>exportMiniSurveyExcel(ms,eng)}>↓ Excel</button>}
-            </div>
-          ))}
         </>
       )}
     </div>
@@ -1764,6 +1803,13 @@ function TabRelatorios({eng,onUpdate}){
 
   const Report360Section=({eng,onUpdate,editing360,setEditing360,draft360,setDraft360,approve360,save360,cancel360,handleTextUpload})=>(
     <>
+      {/* 360 Summary - always show if there are responses */}
+      {eng.stakeholders360.filter(s=>s.status==='done'&&s.feedback).length>0&&(
+        <div style={{marginBottom:20}}>
+          <Tab360Summary eng={eng} onUpdate={onUpdate}/>
+          <div className="divider"/>
+        </div>
+      )}
       {!eng.report?(
         <div className="empty">
           <div className="ei">◌</div>
@@ -1778,6 +1824,11 @@ function TabRelatorios({eng,onUpdate}){
           {eng.report.approved&&(
             <div className="approved-banner">✓ Aprovado e compartilhado em {eng.report.sharedAt} — visível para o coachee</div>
           )}
+
+          {/* 360 Summary */}
+          <div style={{marginBottom:16}}>
+            <Tab360Summary eng={eng} onUpdate={onUpdate}/>
+          </div>
 
           {/* Content editor */}
           <div style={{background:'#fff',border:'1px solid #E4E6EF',borderRadius:10,padding:'16px 18px',marginBottom:12}}>
@@ -1840,41 +1891,49 @@ function TabRelatorios({eng,onUpdate}){
       {eng.miniSurveys.length===0?(
         <div className="empty"><div className="ei">◌</div>Nenhum mini-survey criado.<br/>Crie na aba Stakeholders.</div>
       ):(
-        <>
-          <div style={{display:'flex',gap:8,marginBottom:20,flexWrap:'wrap'}}>
-            {eng.miniSurveys.map(ms=>(
-              <button key={ms.id} className={`btn btn-sm ${selMS?.id===ms.id?'btn-p':'btn-g'}`}
-                onClick={()=>{setSelMS(ms);setEditingMS(false);setDraftMS(ms.reportContent||'');}}>
-                {ms.label}
-              </button>
-            ))}
-          </div>
+        <div>
+          {/* Survey selector */}
+          {eng.miniSurveys.length>1&&(
+            <div style={{display:'flex',gap:8,marginBottom:20,flexWrap:'wrap'}}>
+              {eng.miniSurveys.map(ms=>(
+                <button key={ms.id} className={`btn btn-sm ${selMS?.id===ms.id?'btn-p':'btn-g'}`}
+                  onClick={()=>{setSelMS(ms);setEditingMS(false);setDraftMS(ms.reportContent||'');}}>
+                  {ms.label}{ms.reportApproved?' ✓':''}
+                </button>
+              ))}
+            </div>
+          )}
 
           {selMS&&(
-            <div>
-              {/* Data + Excel */}
-              <div style={{background:'#fff',border:'1px solid #E4E6EF',borderRadius:10,padding:'16px 18px',marginBottom:12}}>
+            <div style={{border:'2px solid #E4E6EF',borderRadius:12,overflow:'hidden'}}>
+              {/* Survey header */}
+              <div style={{background:'#F4F5F7',borderBottom:'1px solid #E4E6EF',padding:'12px 18px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                <div>
+                  <div style={{fontSize:14,fontWeight:700,color:'#1A1D2E'}}>{selMS.label}</div>
+                  <div style={{fontSize:12,color:'#A0A3B1'}}>Criado em {selMS.sentAt} · {selMS.responses.length} resposta{selMS.responses.length!==1?'s':''}</div>
+                </div>
+                {selMS.reportApproved&&<span style={{fontSize:11,fontWeight:600,color:'#059669',background:'#F0FDF4',padding:'4px 10px',borderRadius:6}}>✓ Aprovado</span>}
+              </div>
+
+              {/* Section 1: Data */}
+              <div style={{padding:'16px 18px',borderBottom:'1px solid #E4E6EF'}}>
                 <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
-                  <div style={{fontSize:11,fontWeight:600,letterSpacing:'1px',textTransform:'uppercase',color:'#A0A3B1'}}>
-                    Dados — {selMS.label} · {selMS.responses.length} resposta{selMS.responses.length!==1?'s':''}
-                  </div>
+                  <div style={{fontSize:11,fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',color:'#A0A3B1'}}>Dados da pesquisa</div>
                   <div style={{display:'flex',gap:6}}>
-                    <button className="btn btn-g btn-sm" onClick={handleCSVUpload}>↑ Importar CSV/Excel externo</button>
+                    <button className="btn btn-g btn-sm" onClick={handleCSVUpload}>↑ Importar CSV/Excel</button>
                     {selMS.responses.length>0&&<button className="btn btn-g btn-sm" onClick={()=>exportMiniSurveyExcel(selMS,eng)}>↓ Planilha Excel</button>}
                   </div>
                 </div>
                 {selMS.responses.length>0
                   ?<ProgressChart miniSurveys={[selMS]}/>
-                  :<div style={{fontSize:13,color:'#A0A3B1',textAlign:'center',padding:'16px 0'}}>Sem respostas ainda. Importe dados externos ou aguarde os stakeholders responderem.</div>
+                  :<div style={{fontSize:13,color:'#A0A3B1',textAlign:'center',padding:'16px 0'}}>Sem respostas. Importe dados ou aguarde os stakeholders.</div>
                 }
               </div>
 
-              {/* Narrative report */}
-              <div style={{background:'#fff',border:'1px solid #E4E6EF',borderRadius:10,padding:'16px 18px',marginBottom:12}}>
+              {/* Section 2: Narrative report */}
+              <div style={{padding:'16px 18px',borderBottom:'1px solid #E4E6EF'}}>
                 <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
-                  <div style={{fontSize:11,fontWeight:600,letterSpacing:'1px',textTransform:'uppercase',color:'#A0A3B1'}}>
-                    {editingMS?'Editando relatório':'Relatório narrativo'}
-                  </div>
+                  <div style={{fontSize:11,fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',color:'#A0A3B1'}}>Relatório narrativo</div>
                   <div style={{display:'flex',gap:6}}>
                     {!editingMS&&!selMS.reportApproved&&(
                       <button className="btn btn-g btn-sm" onClick={()=>handleTextUpload(txt=>{
@@ -1882,45 +1941,42 @@ function TabRelatorios({eng,onUpdate}){
                         updateMS({reportContent:txt});
                       })}>↑ Importar .txt/.md</button>
                     )}
-                    {!editingMS&&<button className="btn btn-g btn-sm" onClick={()=>{setDraftMS(selMS.reportContent||'');setEditingMS(true);}}>
-                      {selMS.reportApproved?'Ver texto':'Editar'}
-                    </button>}
+                    {!editingMS&&<button className="btn btn-g btn-sm" onClick={()=>{setDraftMS(selMS.reportContent||'');setEditingMS(true);}}>{selMS.reportApproved?'Ver':'Editar'}</button>}
                     {!editingMS&&selMS.reportContent&&<button className="btn btn-g btn-sm" onClick={()=>generateDOCX(selMS.reportContent,`${selMS.label} - ${eng.coachee.name}`)}>↓ Baixar .doc</button>}
-                    {editingMS&&<>
-                      <button className="btn btn-g btn-sm" onClick={cancelMS}>Cancelar</button>
-                      {!selMS.reportApproved&&<button className="btn btn-p btn-sm" onClick={saveMS}>Salvar</button>}
-                    </>}
+                    {editingMS&&<><button className="btn btn-g btn-sm" onClick={cancelMS}>Cancelar</button>{!selMS.reportApproved&&<button className="btn btn-p btn-sm" onClick={saveMS}>Salvar</button>}</>}
                   </div>
                 </div>
-                {selMS.reportApproved&&<div className="approved-banner" style={{margin:'0 0 12px'}}>✓ Aprovado em {selMS.reportSharedAt}</div>}
                 {editingMS
                   ?<textarea className="report-editor" value={draftMS} onChange={e=>setDraftMS(e.target.value)} readOnly={selMS.reportApproved}/>
-                  :<div className="report-view" style={{maxHeight:280,overflowY:'auto'}}>
-                    <div className="report-text" style={{fontSize:13}}>{selMS.reportContent||'Sem conteúdo — edite ou importe para adicionar.'}</div>
+                  :<div className="report-view" style={{maxHeight:240,overflowY:'auto'}}>
+                    <div className="report-text" style={{fontSize:13}}>{selMS.reportContent||'Sem conteúdo — edite ou importe.'}</div>
                   </div>
                 }
               </div>
 
-              {/* File + approve */}
-              <ReportFileBar
-                label="Arquivo final (relatório completo para download)"
-                storagePath={`reports/${eng.id}/ms_${selMS.id}`}
-                fileName={selMS.reportFileName}
-                filePath={selMS.reportFile}
-                onFileUploaded={(path,name)=>updateMS({reportFile:path,reportFileName:name})}
-                onFileDeleted={()=>updateMS({reportFile:'',reportFileName:''})}
-              />
-              {!selMS.reportApproved&&(
-                <div style={{display:'flex',justifyContent:'flex-end',marginTop:8}}>
-                  <button className="btn btn-p" onClick={approveMS}>✓ Aprovar e Compartilhar com coachee</button>
-                </div>
-              )}
+              {/* Section 3: File + approve */}
+              <div style={{padding:'16px 18px'}}>
+                <ReportFileBar
+                  label="Arquivo final para download"
+                  storagePath={`reports/${eng.id}/ms_${selMS.id}`}
+                  fileName={selMS.reportFileName}
+                  filePath={selMS.reportFile}
+                  onFileUploaded={(path,name)=>updateMS({reportFile:path,reportFileName:name})}
+                  onFileDeleted={()=>updateMS({reportFile:'',reportFileName:''})}
+                />
+                {!selMS.reportApproved&&(
+                  <div style={{display:'flex',justifyContent:'flex-end',marginTop:8}}>
+                    <button className="btn btn-p" onClick={approveMS}>✓ Aprovar e Compartilhar com coachee</button>
+                  </div>
+                )}
+              </div>
             </div>
           )}
-        </>
+        </div>
       )}
     </>
   );
+
 
   return (
     <div style={{marginTop:20}}>
@@ -2282,15 +2338,16 @@ function Tab360Summary({eng,onUpdate}){
 
 // ─── TAB PLANO DE AÇÕES ───────────────────────────────────────────────────────
 const AP_STATUS=['Não iniciada','Em andamento','Concluída'];
-const AP_CAT=['Começar a fazer','Parar de fazer','Continuar fazendo'];
+const AP_CAT=['Começar a fazer','Parar de fazer'];
 const AP_STATUS_COLOR={'Não iniciada':'#A0A3B1','Em andamento':'#4169FF','Concluída':'#059669'};
 const AP_STATUS_BG={'Não iniciada':'#F4F5F7','Em andamento':'rgba(65,105,255,.08)','Concluída':'rgba(16,185,129,.08)'};
 
 function TabPlanoAcoes({eng,onUpdate,isCoach=false}){
   const [showAdd,setShowAdd]=useState(false);
-  const [newAcao,setNewAcao]=useState({competenciaId:'',descricao:'',categoria:AP_CAT[0],status:AP_STATUS[0],resultado:''});
+  const [newAcao,setNewAcao]=useState({competenciaId:'',descricao:'',categoria:AP_CAT[0],status:AP_STATUS[0],resultado:'',dataInicio:'',dataFim:''});
   const [expandedId,setExpandedId]=useState(null);
   const [editingId,setEditingId]=useState(null);
+  const [aiLoading,setAiLoading]=useState(false);
   const [editDraft,setEditDraft]=useState({});
 
   const acoes=eng.planoAcoes||[];
@@ -2299,7 +2356,7 @@ function TabPlanoAcoes({eng,onUpdate,isCoach=false}){
     if(!newAcao.descricao.trim()||!newAcao.competenciaId)return;
     const a={id:Date.now(),...newAcao};
     onUpdate({planoAcoes:[...acoes,a]});
-    setNewAcao({competenciaId:'',descricao:'',categoria:AP_CAT[0],status:AP_STATUS[0],resultado:''});
+    setNewAcao({competenciaId:'',descricao:'',categoria:AP_CAT[0],status:AP_STATUS[0],resultado:'',dataInicio:'',dataFim:''});
     setShowAdd(false);
   };
 
@@ -2328,7 +2385,39 @@ function TabPlanoAcoes({eng,onUpdate,isCoach=false}){
     <div style={{marginTop:20}}>
       <div className="sec">
         <span className="sec-lbl">Plano de Ações ({acoes.length} ação{acoes.length!==1?'ões':''})</span>
-        <button className="btn btn-p btn-sm" onClick={()=>setShowAdd(p=>!p)}>+ Adicionar ação</button>
+        <div style={{display:'flex',gap:8}}>
+          {isCoach&&eng.report?.content&&acoes.length===0&&(
+            <button className="btn btn-g btn-sm" disabled={aiLoading} onClick={async()=>{
+              if(!eng.competencias.length){alert('Defina as competências antes de gerar o plano.');return;}
+              setAiLoading(true);
+              const prompt=`Você é especialista em coaching executivo MGSCC. Com base no relatório 360° abaixo, gere um plano de ações inicial para o coachee.
+
+COACHEE: ${eng.coachee.name} | ${eng.coachee.role}
+COMPETÊNCIAS: ${eng.competencias.map(c=>c.nome).join(' / ')}
+RELATÓRIO 360°:
+${eng.report.content.slice(0,2000)}
+
+Gere exatamente ${eng.competencias.length*2} ações no formato JSON array. Cada ação: {"competenciaId":"[id da competência]","descricao":"[comportamento concreto]","categoria":"Começar a fazer" ou "Parar de fazer","status":"Não iniciada","resultado":"","dataInicio":"","dataFim":""}
+
+IDs das competências: ${eng.competencias.map(c=>`${c.id}="${c.nome}"`).join(', ')}
+
+Responda APENAS com o JSON array, sem texto adicional.`;
+              try{
+                const res=await fetch('/api/ai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt,max_tokens:1500})});
+                const data=await res.json();
+                if(data.error) throw new Error(data.error);
+                const txt=data.content?.[0]?.text||'';
+                const clean=txt.replace(/```json|```/g,'').trim();
+                const arr=JSON.parse(clean);
+                const acoes=arr.map((a,i)=>({...a,id:Date.now()+i,competenciaId:parseInt(a.competenciaId)||eng.competencias[0]?.id}));
+                onUpdate({planoAcoes:acoes});
+                alert(acoes.length+' ações geradas com sucesso! Revise e edite conforme necessário.');
+              }catch(e){alert('Erro ao gerar: '+e.message);}
+              setAiLoading(false);
+            }}>{aiLoading?<Dots/>:'✦ Gerar com IA'}</button>
+          )}
+          <button className="btn btn-p btn-sm" onClick={()=>setShowAdd(p=>!p)}>+ Adicionar ação</button>
+        </div>
       </div>
 
       {showAdd&&(
@@ -2351,6 +2440,10 @@ function TabPlanoAcoes({eng,onUpdate,isCoach=false}){
           <div className="field">
             <div className="flbl">Descrição da ação</div>
             <textarea className="finp" rows={2} placeholder="Descreva o comportamento ou ação concreta..." value={newAcao.descricao} onChange={e=>setNewAcao(p=>({...p,descricao:e.target.value}))}/>
+          </div>
+          <div className="frow">
+            <div className="field"><div className="flbl">Prazo de início</div><input className="finp" type="date" value={newAcao.dataInicio||''} onChange={e=>setNewAcao(p=>({...p,dataInicio:e.target.value}))}/></div>
+            <div className="field"><div className="flbl">Prazo de conclusão</div><input className="finp" type="date" value={newAcao.dataFim||''} onChange={e=>setNewAcao(p=>({...p,dataFim:e.target.value}))}/></div>
           </div>
           <div style={{display:'flex',gap:8}}>
             <button className="btn btn-g btn-sm" onClick={()=>setShowAdd(false)}>Cancelar</button>
@@ -2383,6 +2476,7 @@ function TabPlanoAcoes({eng,onUpdate,isCoach=false}){
                       <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
                         <span style={{fontSize:11,color:'#6B6E8E',background:'#F4F5F7',padding:'2px 8px',borderRadius:4}}>{a.categoria}</span>
                         <span style={{fontSize:11,fontWeight:600,color:AP_STATUS_COLOR[a.status],background:AP_STATUS_BG[a.status],padding:'2px 8px',borderRadius:4}}>{a.status}</span>
+                        {a.dataFim&&<span style={{fontSize:11,color:'#A0A3B1'}}>até {a.dataFim}</span>}
                       </div>
                     </div>
                     <span style={{fontSize:11,color:'#A0A3B1'}}>{isExpanded?'▲':'▼'}</span>
@@ -2430,6 +2524,10 @@ function TabPlanoAcoes({eng,onUpdate,isCoach=false}){
                                 {AP_STATUS.map(s=><option key={s}>{s}</option>)}
                               </select>
                             </div>
+                          </div>
+                          <div className="frow">
+                            <div className="field"><div className="flbl">Prazo de início</div><input className="finp" type="date" value={editDraft.dataInicio||''} onChange={e=>setEditDraft(p=>({...p,dataInicio:e.target.value}))}/></div>
+                            <div className="field"><div className="flbl">Prazo de conclusão</div><input className="finp" type="date" value={editDraft.dataFim||''} onChange={e=>setEditDraft(p=>({...p,dataFim:e.target.value}))}/></div>
                           </div>
                         </>
                       )}
@@ -3196,7 +3294,17 @@ export default function App(){
             </>
           )}
           {view==='eng'&&activeEng&&(
-            <EngDetail id={activeEng} engs={engs} onBack={()=>{setView('dash');setActiveEng(null);}} onUpdate={updateEng} onDelete={id=>{setEngs(prev=>prev.filter(e=>e.id!==id));supabase.from('engagements').delete().eq('app_id',id).then(()=>{});}} />
+            <EngDetail id={activeEng} engs={engs} onBack={()=>{setView('dash');setActiveEng(null);}} onUpdate={updateEng}
+              onDelete={id=>{setEngs(prev=>prev.filter(e=>e.id!==id));supabase.from('engagements').delete().eq('app_id',id).then(()=>{});}}
+              onOpenPortal={(engId,portal)=>{
+                const _coach={role:'coach',name:user.name,initials:user.initials};
+                if(portal.role==='coachee') setUser({role:'coachee',engId,isCoachView:true,_coach});
+                else if(portal.role==='lider') setUser({role:'lider',engId,liderId:portal.liderId,isCoachView:true,_coach});
+                else if(portal.role==='rh'){const rhe=engs.find(e=>e.id===engId);setUser({role:'rh',company:rhe?.coachee?.company,isCoachView:true,_coach});}
+                setActiveEng(engId);
+                setView(portal.role==='coachee'?'coachee':portal.role==='lider'?'lider':'rh');
+              }}
+            />
           )}
           {navItem!=='processos'&&(
             <>
