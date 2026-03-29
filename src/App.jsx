@@ -1755,7 +1755,7 @@ function TabRelatorios({eng,onUpdate}){
     alert(`${imported.length} resposta(s) importada(s) com sucesso!`);
   };
 
-  const Report360Section=()=>(
+  const Report360Section=({eng,onUpdate,editing360,setEditing360,draft360,setDraft360,approve360,save360,cancel360,handleTextUpload})=>(
     <>
       {!eng.report?(
         <div className="empty">
@@ -1828,7 +1828,7 @@ function TabRelatorios({eng,onUpdate}){
     </>
   );
 
-  const MSSection=()=>(
+  const MSSection=({eng,selMS,setSelMS,editingMS,setEditingMS,draftMS,setDraftMS,updateMS,approveMS,saveMS,cancelMS,handleTextUpload,handleCSVUpload})=>(
     <>
       {eng.miniSurveys.length===0?(
         <div className="empty"><div className="ei">◌</div>Nenhum mini-survey criado.<br/>Crie na aba Stakeholders.</div>
@@ -1930,8 +1930,8 @@ function TabRelatorios({eng,onUpdate}){
           <button key={s.id} className={`btn btn-sm ${section===s.id?'btn-p':'btn-g'}`} style={{border:'none'}} onClick={()=>setSection(s.id)}>{s.l}</button>
         ))}
       </div>
-      {section==='360'&&<Report360Section/>}
-      {section==='ms'&&<MSSection/>}
+      {section==='360'&&<Report360Section eng={eng} onUpdate={onUpdate} editing360={editing360} setEditing360={setEditing360} draft360={draft360} setDraft360={setDraft360} approve360={approve360} save360={save360} cancel360={cancel360} handleTextUpload={handleTextUpload}/>}
+      {section==='ms'&&<MSSection eng={eng} selMS={selMS} setSelMS={setSelMS} editingMS={editingMS} setEditingMS={setEditingMS} draftMS={draftMS} setDraftMS={setDraftMS} updateMS={updateMS} approveMS={approveMS} saveMS={saveMS} cancelMS={cancelMS} handleTextUpload={handleTextUpload} handleCSVUpload={handleCSVUpload}/>}
     </div>
   );
 }
