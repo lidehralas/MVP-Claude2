@@ -248,6 +248,13 @@ input,textarea,select,button{font-family:'Poppins',sans-serif;}
 .info-box{background:#EEF1FF;border:1px solid #D0D8F8;border-radius:8px;padding:12px 16px;font-size:13px;color:#3358E0;margin-bottom:16px;}
 .warn-box{background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;padding:12px 16px;font-size:13px;color:#D97706;margin-bottom:16px;}
 .char-count{font-size:11px;color:#A0A3B1;text-align:right;margin-top:3px;}
+.action-plan-item{background:#fff;border:1px solid #E4E6EF;border-radius:10px;padding:16px 18px;margin-bottom:10px;}
+.action-plan-item.ap-done{border-color:#BBF7D0;background:#F0FDF4;}
+.action-plan-item.ap-active{border-color:#BCC4F0;background:#EEF1FF;}
+.portal-dropdown{position:relative;display:inline-block;}
+.portal-menu{position:absolute;right:0;top:36px;background:#fff;border:1px solid #E4E6EF;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.1);z-index:100;min-width:200px;overflow:hidden;}
+.portal-menu-item{padding:10px 16px;font-size:13px;color:#1A1D2E;cursor:pointer;display:block;width:100%;text-align:left;border:none;background:none;transition:background .1s;}
+.portal-menu-item:hover{background:#F4F5F7;}
 `;
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
@@ -2085,18 +2092,28 @@ function TabSessions({eng,onUpdate}){
 }
 
 // ─── ENGAGEMENT DETAIL ────────────────────────────────────────────────────────
-function EngDetail({id,engs,onBack,onUpdate,onDelete}){
+function EngDetail({id,engs,onBack,onUpdate,onDelete,onOpenPortal}){
   const [tab,setTab]=useState('roadmap');
+  const [showPortalMenu,setShowPortalMenu]=useState(false);
   const eng=engs.find(e=>e.id===id);
   if(!eng)return null;
   const upd=patch=>onUpdate(id,patch);
   const pendingStk=eng.stakeholders360.some(s=>s.status==='pending')||eng.stakeholdersMS.some(s=>s.status==='pending');
+  const hasActions=(eng.planoAcoes||[]).length;
   const TABS=[
     {id:'roadmap',label:'Jornada'},
-    {id:'stk',label:`Stakeholders${pendingStk?' ⚠':''}` },
-    {id:'relatorios',label:`Relatórios${eng.report?.approved?' ✓':eng.report?' (rascunho)':''}` },
+    {id:'stk',label:`Stakeholders${pendingStk?' ⚠':''}`},
+    {id:'relatorios',label:`Relatórios${eng.report?.approved?' ✓':eng.report?' (rascunho)':''}`},
+    {id:'plano',label:`Plano de Ações${hasActions?' ('+hasActions+')':''}`},
     {id:'sessions',label:`Sessões (${eng.sessions.length})`},
   ];
+
+  const portals=[
+    {label:'Portal do Coachee',role:'coachee'},
+    ...(eng.leaders||[]).map(l=>({label:`Portal: ${l.name} (Líder)`,role:'lider',liderId:l.id})),
+    {label:'Portal do RH',role:'rh'},
+  ];
+
   return (
     <>
       <div className="topbar">
@@ -2112,13 +2129,34 @@ function EngDetail({id,engs,onBack,onUpdate,onDelete}){
           <div style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:10}}>
             <StatusBadge status={currentStatus(eng)}/>
             <span style={{fontSize:12,color:'#A0A3B1'}}>{STAGES[eng.phase-1]} · {eng.cadence}</span>
+
+            {/* Portal dropdown */}
+            <div className="portal-dropdown">
+              <button className="btn btn-g btn-sm" onClick={()=>setShowPortalMenu(p=>!p)}>
+                Acessar portal ▾
+              </button>
+              {showPortalMenu&&(
+                <>
+                  <div style={{position:'fixed',inset:0,zIndex:99}} onClick={()=>setShowPortalMenu(false)}/>
+                  <div className="portal-menu">
+                    {portals.map((p,i)=>(
+                      <button key={i} className="portal-menu-item" onClick={()=>{
+                        setShowPortalMenu(false);
+                        onOpenPortal(eng.id,p);
+                      }}>{p.label}</button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
             <button className="btn btn-d btn-xs" onClick={()=>{
               if(!window.confirm('Tem certeza que deseja apagar este processo?')) return;
               if(!safeConfirm('Confirma a exclusão de "'+eng.coachee.name+'"?','TODOS os dados deste processo serão permanentemente excluídos.')) return;
               const nome=window.prompt('Digite o nome do coachee para confirmar:');
               if(nome?.trim()===eng.coachee.name.trim()){onDelete(eng.id);onBack();}
               else alert('Nome incorreto. Processo não apagado.');
-            }}>Apagar processo</button>
+            }}>Apagar</button>
           </div>
         </div>
         <div className="tabs">{TABS.map(t=><div key={t.id} className={`tab${tab===t.id?' on':''}`} onClick={()=>setTab(t.id)}>{t.label}</div>)}</div>
@@ -2127,9 +2165,291 @@ function EngDetail({id,engs,onBack,onUpdate,onDelete}){
         {tab==='roadmap'&&<RoadmapTab eng={eng} onUpdate={upd}/>}
         {tab==='stk'&&<TabStakeholders eng={eng} onUpdate={upd}/>}
         {tab==='relatorios'&&<TabRelatorios eng={eng} onUpdate={upd}/>}
+        {tab==='plano'&&<TabPlanoAcoes eng={eng} onUpdate={upd} isCoach={true}/>}
         {tab==='sessions'&&<TabSessions eng={eng} onUpdate={upd}/>}
       </div>
     </>
+  );
+}
+
+// ─── 360° SUMMARY (visual digest for coach) ──────────────────────────────────
+function Tab360Summary({eng,onUpdate}){
+  const feedbacks = eng.stakeholders360.filter(s=>s.status==='done'&&s.feedback);
+  const [editPriorities,setEditPriorities]=useState(false);
+  const [draftPrio,setDraftPrio]=useState(eng.summary360Priorities||'');
+
+  if(feedbacks.length===0) return (
+    <div className="empty"><div className="ei">◌</div>Aguardando respostas do 360° para gerar o resumo.</div>
+  );
+
+  // Compile top positives
+  const positives=[];
+  feedbacks.forEach(f=>{
+    const fb=f.feedback;
+    [fb.pos1,fb.pos2,fb.pos3].filter(Boolean).forEach(p=>positives.push(p));
+  });
+  const posCount={};
+  positives.forEach(p=>{const k=p.toLowerCase().trim();posCount[k]=(posCount[k]||0)+1;});
+  const topPos=Object.entries(posCount).sort((a,b)=>b[1]-a[1]).slice(0,5);
+
+  // Compile top gaps (parar + começar)
+  const gaps=[];
+  feedbacks.forEach(f=>{
+    const fb=f.feedback;
+    [fb.par1,fb.par2,fb.par3,fb.inic1,fb.inic2,fb.inic3].filter(Boolean).forEach(g=>gaps.push(g));
+  });
+  const gapCount={};
+  gaps.forEach(g=>{const k=g.toLowerCase().trim();gapCount[k]=(gapCount[k]||0)+1;});
+  const topGaps=Object.entries(gapCount).sort((a,b)=>b[1]-a[1]).slice(0,5);
+
+  // Priorities from stakeholders
+  const priors=feedbacks.map(f=>f.feedback?.prior).filter(Boolean);
+
+  return (
+    <div style={{marginTop:20}}>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:20}}>
+        {/* Top positives */}
+        <div style={{background:'#F0FDF4',border:'1px solid #BBF7D0',borderRadius:10,padding:'16px 18px'}}>
+          <div style={{fontSize:11,fontWeight:700,letterSpacing:'1.2px',textTransform:'uppercase',color:'#059669',marginBottom:12}}>
+            Top Pontos Positivos ({feedbacks.length} respondentes)
+          </div>
+          {topPos.length===0?<div style={{fontSize:13,color:'#A0A3B1'}}>Sem dados.</div>:
+          topPos.map(([p,c],i)=>(
+            <div key={i} style={{display:'flex',alignItems:'flex-start',gap:10,marginBottom:8}}>
+              <span style={{background:'#059669',color:'#fff',borderRadius:'50%',width:20,height:20,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:700,flexShrink:0}}>{i+1}</span>
+              <div style={{flex:1}}>
+                <div style={{fontSize:13,color:'#1A1D2E',fontWeight:500,textTransform:'capitalize'}}>{p}</div>
+                {c>1&&<div style={{fontSize:11,color:'#059669'}}>{c} menções</div>}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Top gaps */}
+        <div style={{background:'#FEF2F2',border:'1px solid #FCD4D4',borderRadius:10,padding:'16px 18px'}}>
+          <div style={{fontSize:11,fontWeight:700,letterSpacing:'1.2px',textTransform:'uppercase',color:'#DC2626',marginBottom:12}}>
+            Top Pontos a Desenvolver
+          </div>
+          {topGaps.length===0?<div style={{fontSize:13,color:'#A0A3B1'}}>Sem dados.</div>:
+          topGaps.map(([g,c],i)=>(
+            <div key={i} style={{display:'flex',alignItems:'flex-start',gap:10,marginBottom:8}}>
+              <span style={{background:'#DC2626',color:'#fff',borderRadius:'50%',width:20,height:20,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:700,flexShrink:0}}>{i+1}</span>
+              <div style={{flex:1}}>
+                <div style={{fontSize:13,color:'#1A1D2E',fontWeight:500,textTransform:'capitalize'}}>{g}</div>
+                {c>1&&<div style={{fontSize:11,color:'#DC2626'}}>{c} menções</div>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Priorities from stakeholders */}
+      {priors.length>0&&(
+        <div style={{background:'#FFFBEB',border:'1px solid #FDE68A',borderRadius:10,padding:'16px 18px',marginBottom:16}}>
+          <div style={{fontSize:11,fontWeight:700,letterSpacing:'1.2px',textTransform:'uppercase',color:'#D97706',marginBottom:10}}>
+            Prioridades Indicadas pelos Stakeholders
+          </div>
+          {priors.map((p,i)=>(
+            <div key={i} style={{fontSize:13,color:'#92400E',marginBottom:5}}>— {p}</div>
+          ))}
+        </div>
+      )}
+
+      {/* Editable coach priorities */}
+      <div style={{background:'#EEF1FF',border:'1px solid #D0D8F8',borderRadius:10,padding:'16px 18px'}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
+          <div style={{fontSize:11,fontWeight:700,letterSpacing:'1.2px',textTransform:'uppercase',color:'#4169FF'}}>
+            Pontos Prioritários Recomendados (editável pelo coach)
+          </div>
+          {!editPriorities
+            ?<button className="btn btn-g btn-xs" onClick={()=>{setDraftPrio(eng.summary360Priorities||'');setEditPriorities(true);}}>Editar</button>
+            :<div style={{display:'flex',gap:6}}>
+              <button className="btn btn-g btn-xs" onClick={()=>setEditPriorities(false)}>Cancelar</button>
+              <button className="btn btn-p btn-xs" onClick={()=>{onUpdate({summary360Priorities:draftPrio});setEditPriorities(false);}}>Salvar</button>
+            </div>
+          }
+        </div>
+        {editPriorities
+          ?<textarea className="finp" rows={4} placeholder="1. [Ponto prioritário 1]&#10;2. [Ponto prioritário 2]" value={draftPrio} onChange={e=>setDraftPrio(e.target.value)}/>
+          :<div style={{fontSize:13,color:'#3358E0',lineHeight:1.7,whiteSpace:'pre-wrap',minHeight:60}}>
+            {eng.summary360Priorities||'Clique em Editar para definir os pontos prioritários recomendados.'}
+          </div>
+        }
+      </div>
+    </div>
+  );
+}
+
+// ─── TAB PLANO DE AÇÕES ───────────────────────────────────────────────────────
+const AP_STATUS=['Não iniciada','Em andamento','Concluída'];
+const AP_CAT=['Começar a fazer','Parar de fazer','Continuar fazendo'];
+const AP_STATUS_COLOR={'Não iniciada':'#A0A3B1','Em andamento':'#4169FF','Concluída':'#059669'};
+const AP_STATUS_BG={'Não iniciada':'#F4F5F7','Em andamento':'rgba(65,105,255,.08)','Concluída':'rgba(16,185,129,.08)'};
+
+function TabPlanoAcoes({eng,onUpdate,isCoach=false}){
+  const [showAdd,setShowAdd]=useState(false);
+  const [newAcao,setNewAcao]=useState({competenciaId:'',descricao:'',categoria:AP_CAT[0],status:AP_STATUS[0],resultado:''});
+  const [expandedId,setExpandedId]=useState(null);
+  const [editingId,setEditingId]=useState(null);
+  const [editDraft,setEditDraft]=useState({});
+
+  const acoes=eng.planoAcoes||[];
+
+  const addAcao=()=>{
+    if(!newAcao.descricao.trim()||!newAcao.competenciaId)return;
+    const a={id:Date.now(),...newAcao};
+    onUpdate({planoAcoes:[...acoes,a]});
+    setNewAcao({competenciaId:'',descricao:'',categoria:AP_CAT[0],status:AP_STATUS[0],resultado:''});
+    setShowAdd(false);
+  };
+
+  const updateAcao=(id,patch)=>{
+    onUpdate({planoAcoes:acoes.map(a=>a.id===id?{...a,...patch}:a)});
+  };
+
+  const deleteAcao=(id)=>{
+    if(!safeConfirm('Apagar esta ação?','A ação e seus resultados serão perdidos.'))return;
+    onUpdate({planoAcoes:acoes.filter(a=>a.id!==id)});
+  };
+
+  // Group by competencia
+  const byComp={};
+  eng.competencias.forEach(c=>{byComp[c.id]=[];});
+  byComp['outras']=[];
+  acoes.forEach(a=>{
+    const cid=a.competenciaId;
+    if(byComp[cid]!==undefined) byComp[cid].push(a);
+    else byComp['outras'].push(a);
+  });
+
+  const statusIcon={'Não iniciada':'○','Em andamento':'→','Concluída':'✓'};
+
+  return (
+    <div style={{marginTop:20}}>
+      <div className="sec">
+        <span className="sec-lbl">Plano de Ações ({acoes.length} ação{acoes.length!==1?'ões':''}{acoes.filter(a=>a.status==='Concluída').length>0?' · '+acoes.filter(a=>a.status==='Concluída').length+' concluída'+(acoes.filter(a=>a.status==='Concluída').length!==1?'s':'':''})</span>
+        <button className="btn btn-p btn-sm" onClick={()=>setShowAdd(p=>!p)}>+ Adicionar ação</button>
+      </div>
+
+      {showAdd&&(
+        <div style={{background:'#EEF1FF',border:'1px solid #D0D8F8',borderRadius:10,padding:16,marginBottom:16}}>
+          <div className="frow">
+            <div className="field">
+              <div className="flbl">Competência</div>
+              <select className="fsel" value={newAcao.competenciaId} onChange={e=>setNewAcao(p=>({...p,competenciaId:e.target.value}))}>
+                <option value="">Selecione...</option>
+                {eng.competencias.map(c=><option key={c.id} value={c.id}>{c.nome}</option>)}
+              </select>
+            </div>
+            <div className="field">
+              <div className="flbl">Categoria</div>
+              <select className="fsel" value={newAcao.categoria} onChange={e=>setNewAcao(p=>({...p,categoria:e.target.value}))}>
+                {AP_CAT.map(c=><option key={c}>{c}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="field">
+            <div className="flbl">Descrição da ação</div>
+            <textarea className="finp" rows={2} placeholder="Descreva o comportamento ou ação concreta..." value={newAcao.descricao} onChange={e=>setNewAcao(p=>({...p,descricao:e.target.value}))}/>
+          </div>
+          <div style={{display:'flex',gap:8}}>
+            <button className="btn btn-g btn-sm" onClick={()=>setShowAdd(false)}>Cancelar</button>
+            <button className="btn btn-p btn-sm" onClick={addAcao} disabled={!newAcao.descricao.trim()||!newAcao.competenciaId}>Salvar</button>
+          </div>
+        </div>
+      )}
+
+      {acoes.length===0&&<div className="empty"><div className="ei">◌</div>Nenhuma ação cadastrada.<br/>Adicione ações vinculadas às competências do processo.</div>}
+
+      {eng.competencias.map(c=>{
+        const cAcoes=byComp[c.id]||[];
+        if(cAcoes.length===0&&!showAdd) return null;
+        return (
+          <div key={c.id} style={{marginBottom:20}}>
+            <div style={{fontSize:11,fontWeight:700,letterSpacing:'1.2px',textTransform:'uppercase',color:'#4169FF',marginBottom:10,display:'flex',alignItems:'center',gap:8}}>
+              <span>{c.nome}</span>
+              <span style={{fontSize:11,color:'#A0A3B1',fontWeight:400}}>({cAcoes.length} ação{cAcoes.length!==1?'ões':''})</span>
+            </div>
+            {cAcoes.map(a=>{
+              const isExpanded=expandedId===a.id;
+              const isEditing=editingId===a.id;
+              const bgCls=a.status==='Concluída'?'ap-done':a.status==='Em andamento'?'ap-active':'';
+              return (
+                <div key={a.id} className={`action-plan-item ${bgCls}`}>
+                  <div style={{display:'flex',alignItems:'flex-start',gap:10,cursor:'pointer'}} onClick={()=>setExpandedId(isExpanded?null:a.id)}>
+                    <span style={{fontSize:16,color:AP_STATUS_COLOR[a.status],flexShrink:0,marginTop:2}}>{statusIcon[a.status]}</span>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:13,fontWeight:500,color:'#1A1D2E',marginBottom:3}}>{a.descricao}</div>
+                      <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                        <span style={{fontSize:11,color:'#6B6E8E',background:'#F4F5F7',padding:'2px 8px',borderRadius:4}}>{a.categoria}</span>
+                        <span style={{fontSize:11,fontWeight:600,color:AP_STATUS_COLOR[a.status],background:AP_STATUS_BG[a.status],padding:'2px 8px',borderRadius:4}}>{a.status}</span>
+                      </div>
+                    </div>
+                    <span style={{fontSize:11,color:'#A0A3B1'}}>{isExpanded?'▲':'▼'}</span>
+                  </div>
+
+                  {isExpanded&&!isEditing&&(
+                    <div style={{marginTop:14,paddingTop:14,borderTop:'1px solid #E4E6EF'}}>
+                      <div style={{fontSize:11,fontWeight:600,letterSpacing:'1px',textTransform:'uppercase',color:'#A0A3B1',marginBottom:8}}>Resultado observado</div>
+                      <div style={{fontSize:13,color:'#3A3D58',lineHeight:1.6,marginBottom:12,minHeight:40,whiteSpace:'pre-wrap'}}>
+                        {a.resultado||'Nenhum resultado registrado ainda.'}
+                      </div>
+                      <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                        {AP_STATUS.map(s=>(
+                          <button key={s} className={`btn btn-xs ${a.status===s?'btn-p':'btn-g'}`}
+                            onClick={()=>updateAcao(a.id,{status:s})}>
+                            {statusIcon[s]} {s}
+                          </button>
+                        ))}
+                        <div style={{marginLeft:'auto',display:'flex',gap:6}}>
+                          <button className="btn btn-g btn-xs" onClick={()=>{setEditDraft({...a});setEditingId(a.id);}}>Editar</button>
+                          {isCoach&&<button className="btn btn-d btn-xs" onClick={()=>deleteAcao(a.id)}>Apagar</button>}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {isExpanded&&isEditing&&(
+                    <div style={{marginTop:14,paddingTop:14,borderTop:'1px solid #E4E6EF'}}>
+                      {isCoach&&(
+                        <>
+                          <div className="field">
+                            <div className="flbl">Descrição</div>
+                            <textarea className="finp" rows={2} value={editDraft.descricao} onChange={e=>setEditDraft(p=>({...p,descricao:e.target.value}))}/>
+                          </div>
+                          <div className="frow">
+                            <div className="field">
+                              <div className="flbl">Categoria</div>
+                              <select className="fsel" value={editDraft.categoria} onChange={e=>setEditDraft(p=>({...p,categoria:e.target.value}))}>
+                                {AP_CAT.map(c=><option key={c}>{c}</option>)}
+                              </select>
+                            </div>
+                            <div className="field">
+                              <div className="flbl">Status</div>
+                              <select className="fsel" value={editDraft.status} onChange={e=>setEditDraft(p=>({...p,status:e.target.value}))}>
+                                {AP_STATUS.map(s=><option key={s}>{s}</option>)}
+                              </select>
+                            </div>
+                          </div>
+                        </>
+                      )}
+                      <div className="field">
+                        <div className="flbl">Resultado observado {!isCoach&&'(preenchido pelo coachee)'}</div>
+                        <textarea className="finp" rows={3} placeholder="Descreva o que aconteceu, o que mudou, o que ainda precisa melhorar..." value={editDraft.resultado||''} onChange={e=>setEditDraft(p=>({...p,resultado:e.target.value}))}/>
+                      </div>
+                      <div style={{display:'flex',gap:8}}>
+                        <button className="btn btn-g btn-sm" onClick={()=>setEditingId(null)}>Cancelar</button>
+                        <button className="btn btn-p btn-sm" onClick={()=>{updateAcao(a.id,editDraft);setEditingId(null);}}>Salvar</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -2371,7 +2691,7 @@ function CoacheePortal({eng,onLogout,onUpdate,isCoachView,onBackToCoach}){
   const c=eng.coachee;
   const notifs=eng.notifications||[];
 
-  const TABS=[{id:'jornada',l:'Minha Jornada'},{id:'stk',l:`Stakeholders${notifs.length>0?` (${notifs.length})`:''}` },{id:'relatorios',l:'Relatórios'},{id:'progresso',l:'Progresso'}];
+  const TABS=[{id:'jornada',l:'Minha Jornada'},{id:'stk',l:`Stakeholders${notifs.length>0?` (${notifs.length})`:''}`},{id:'relatorios',l:'Relatórios'},{id:'plano',l:`Plano de Ações${(eng.planoAcoes||[]).length>0?' ('+(eng.planoAcoes||[]).length+')':''}`},{id:'progresso',l:'Progresso'}];
 
   return (
     <div className="portal-page">
@@ -2381,7 +2701,7 @@ function CoacheePortal({eng,onLogout,onUpdate,isCoachView,onBackToCoach}){
       <div className="portal-header">
         <div><div style={{fontWeight:700,fontSize:16,color:'#1A1D2E'}}>Lidehra</div><div style={{fontSize:10,color:'#A0A3B1',letterSpacing:'2px',textTransform:'uppercase'}}>Minha Jornada</div></div>
         <div style={{display:'flex',alignItems:'center',gap:12}}>
-          {isCoachView&&<button className="btn btn-p btn-sm" onClick={onBackToCoach}>← Voltar ao coach</button>}
+          {isCoachView&&<button className="btn btn-p btn-sm" onClick={onBackToCoach}>← Voltar ao processo</button>}
           <div style={{textAlign:'right'}}><div style={{fontSize:14,fontWeight:600,color:'#1A1D2E'}}>{c.name}</div><div style={{fontSize:12,color:'#A0A3B1'}}>{c.role} · {c.company}</div></div>
           {!isCoachView&&<button className="btn btn-g btn-sm" onClick={onLogout}>Sair</button>}
         </div>
@@ -2481,6 +2801,7 @@ function CoacheePortal({eng,onLogout,onUpdate,isCoachView,onBackToCoach}){
             <CoacheeRelatorios eng={eng}/>
           )}
 
+          {tab==='plano'&&<TabPlanoAcoes eng={eng} onUpdate={upd=>onUpdate(eng.id,upd)} isCoach={false}/>}
           {tab==='progresso'&&(
             <>
               {eng.miniSurveys.length===0
@@ -2538,7 +2859,7 @@ function LeaderPortal({engId,liderId,engs,onLogout,onUpdate}){
     alert('Lista validada!');
   };
 
-  const TABS=[{id:'visao',l:'Visão Geral'},{id:'listas',l:'Listas de Stakeholders'},{id:'progresso',l:'Progresso'}];
+  const TABS=[{id:'visao',l:'Visão Geral'},{id:'listas',l:'Listas de Stakeholders'},{id:'plano',l:'Plano de Ações'},{id:'progresso',l:'Progresso'}];
 
   return (
     <div className="portal-page">
@@ -2613,6 +2934,7 @@ function LeaderPortal({engId,liderId,engs,onLogout,onUpdate}){
               <div style={{fontSize:12,color:'#A0A3B1',marginTop:12}}>Limite: 15 stakeholders por lista</div>
             </>
           )}
+          {tab==='plano'&&<TabPlanoAcoes eng={eng} onUpdate={()=>{}} isCoach={false}/>}
           {tab==='progresso'&&<ProgressChart miniSurveys={eng.miniSurveys}/>}
         </div>
       </div>
@@ -2660,8 +2982,17 @@ function RHPortal({company,engs,onLogout}){
             </div>
             {selEng&&(
               <div>
-                <div style={{fontSize:16,fontWeight:600,color:'#1A1D2E',marginBottom:16}}>Progresso — {selEng.coachee.name}</div>
+                <div style={{display:'flex',gap:3,background:'#F4F5F7',borderRadius:9,padding:3,marginBottom:16,width:'fit-content'}}>
+                  {[{id:'prog',l:'Progresso'},{id:'plano',l:'Plano de Ações'}].map(t=>(
+                    <button key={t.id} className={`btn btn-sm ${(selEng._rhTab||'prog')===t.id?'btn-p':'btn-g'}`} style={{border:'none'}}
+                      onClick={()=>setSelId(prev=>{const e=compEngs.find(x=>x.id===prev);if(e)e._rhTab=t.id;return prev;})}>
+                      {t.l}
+                    </button>
+                  ))}
+                </div>
+                <div style={{fontSize:16,fontWeight:600,color:'#1A1D2E',marginBottom:16}}>{selEng.coachee.name}</div>
                 <ProgressChart miniSurveys={selEng.miniSurveys}/>
+                <TabPlanoAcoes eng={selEng} onUpdate={()=>{}} isCoach={false}/>
               </div>
             )}
           </>
@@ -2798,7 +3129,7 @@ export default function App(){
   if(user.role==='coachee'){
     const eng=engs.find(e=>e.id===activeEng);
     if(!eng) return <div className="done-page"><style>{CSS}</style><div className="done-icon">⚠</div><div className="done-title">Processo não encontrado</div></div>;
-    return <CoacheePortal eng={eng} onLogout={logout} onUpdate={updateEng} isCoachView={user.isCoachView} onBackToCoach={()=>{setUser({role:'coach',name:user._coachName,initials:user._coachInitials});setView('dash');setActiveEng(null);}}/>;
+    return <CoacheePortal eng={eng} onLogout={logout} onUpdate={updateEng} isCoachView={user.isCoachView} onBackToCoach={()=>{setUser({...user._coach,role:'coach'});setView('eng');}}/>;
   }
 
   if(user.role==='lider'){
