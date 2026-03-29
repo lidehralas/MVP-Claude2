@@ -2232,7 +2232,7 @@ function EngDetail({id,engs,onBack,onUpdate,onDelete,onOpenPortal}){
 function Tab360Summary({eng,onUpdate}){
   const feedbacks = eng.stakeholders360.filter(s=>s.status==='done'&&s.feedback);
   const [editPriorities,setEditPriorities]=useState(false);
-  const [draftPrio,setDraftPrio]=useState(eng.summary360Priorities||''‌);
+  const [draftPrio,setDraftPrio]=useState(eng.summary360Priorities||'');
 
   // Has structured data from stakeholders
   const hasStructuredData = feedbacks.length > 0;
@@ -2261,14 +2261,14 @@ function Tab360Summary({eng,onUpdate}){
       {eng.report?.content&&(
         <div style={{background:'#fff',border:'1px solid #E4E6EF',borderRadius:10,padding:'14px 16px',marginBottom:16,maxHeight:200,overflowY:'auto'}}>
           <div style={{fontSize:11,fontWeight:600,color:'#A0A3B1',letterSpacing:'1px',textTransform:'uppercase',marginBottom:8}}>Conteúdo do relatório</div>
-          <div style={{fontSize:13,color:'#3A3D58',lineHeight:1.6,whiteSpace:'pre-wrap'}}>{eng.report.content.slice(0,800)}{eng.report.content.length>800?'...':''}‌</div>
+          <div style={{fontSize:13,color:'#3A3D58',lineHeight:1.6,whiteSpace:'pre-wrap'}}>{eng.report.content.slice(0,800)}{eng.report.content.length>800?'...':''}</div>
         </div>
       )}
       <div style={{background:'#EEF1FF',border:'1px solid #D0D8F8',borderRadius:10,padding:'16px 18px'}}>
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
           <div style={{fontSize:11,fontWeight:700,letterSpacing:'1.2px',textTransform:'uppercase',color:'#4169FF'}}>Pontos Prioritários Recomendados (editável pelo coach)</div>
           {!editPriorities
-            ?<button className="btn btn-g btn-xs" onClick={()=>{setDraftPrio(eng.summary360Priorities||''‌);setEditPriorities(true);}}>Editar</button>
+            ?<button className="btn btn-g btn-xs" onClick={()=>{setDraftPrio(eng.summary360Priorities||'');setEditPriorities(true);}}>Editar</button>
             :<div style={{display:'flex',gap:6}}>
               <button className="btn btn-g btn-xs" onClick={()=>setEditPriorities(false)}>Cancelar</button>
               <button className="btn btn-p btn-xs" onClick={()=>{onUpdate({summary360Priorities:draftPrio});setEditPriorities(false);}}>Salvar</button>
