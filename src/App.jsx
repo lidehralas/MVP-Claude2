@@ -306,6 +306,45 @@ function generatePDF(content, filename) {
   win.document.close();
 }
 
+// ─── SAFE CONFIRM ────────────────────────────────────────────────────────────
+function safeConfirm(msg, detail='Esta ação não pode ser desfeita.'){
+  return window.confirm(msg + '\n\n⚠ ' + detail);
+}
+
+// ─── GENERATE DOCX (HTML-based, opens in Word) ───────────────────────────────
+function generateDOCX(content, filename){
+  const html = `<html xmlns:o='urn:schemas-microsoft-com:office:office'
+    xmlns:w='urn:schemas-microsoft-com:office:word'
+    xmlns='http://www.w3.org/TR/REC-html40'>
+    <head><meta charset='utf-8'>
+    <style>
+      body{font-family:Calibri,sans-serif;font-size:11pt;color:#1A1D2E;line-height:1.6;margin:2cm}
+      h1{font-size:16pt;color:#1A1D2E;border-bottom:1pt solid #E4E6EF;padding-bottom:6pt;margin-bottom:12pt}
+      h2{font-size:13pt;color:#1A1D2E;margin-top:18pt;margin-bottom:8pt}
+      h3{font-size:11pt;color:#4169FF;margin-top:14pt;margin-bottom:6pt}
+      p{margin:6pt 0}strong{font-weight:bold}
+      .header{color:#6B6E8E;font-size:9pt;margin-bottom:24pt;padding-bottom:12pt;border-bottom:2pt solid #4169FF}
+    </style></head>
+    <body>
+    <div class="header"><strong>Lidehra · Plataforma de Desenvolvimento de Liderança</strong><br/>
+    Documento gerado em ${new Date().toLocaleDateString('pt-BR')}</div>
+    <pre style="white-space:pre-wrap;font-family:Calibri,sans-serif;font-size:11pt;line-height:1.6">${content.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</pre>
+    </body></html>`;
+  const blob = new Blob([html], {type:'application/msword'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename.endsWith('.doc')||filename.endsWith('.docx') ? filename : filename+'.doc';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ─── DELETE STORAGE FILE ──────────────────────────────────────────────────────
+async function deleteStorageFile(path){
+  if(!path) return;
+  try{ await deleteFile(path); }catch(e){ console.warn('Could not delete file:', e); }
+}
+
 // ─── INITIAL DATA ─────────────────────────────────────────────────────────────
 const INIT_ENGS = [
   {
@@ -636,7 +675,7 @@ function CompEditor({competencias,onChange}){
   };
 
   const startEdit=(c)=>{setNome(c.nome);setDetalhe(c.detalhe);setEditId(c.id);setShowAdd(true);};
-  const remove=(id)=>onChange(competencias.filter(c=>c.id!==id));
+  const remove=(id)=>{if(safeConfirm('Remover esta competência?','A competência será removida do processo.')) onChange(competencias.filter(c=>c.id!==id));};
 
   return (
     <div className="comp-editor">
@@ -1459,7 +1498,7 @@ Tom: profissional, orientado ao desenvolvimento.`;
                 </span>
                 {s.status==='done'&&s.feedback&&<button className="btn btn-g btn-xs" style={{marginRight:6}} onClick={()=>setViewSh(s)}>Ver</button>}
                 <button className="btn btn-g btn-xs" style={{marginRight:6}} onClick={()=>setEditSh({sh:s,tipo:'360'})}>Editar</button>
-                <button className="btn btn-d btn-xs" onClick={()=>onUpdate({stakeholders360:eng.stakeholders360.filter(x=>x.id!==s.id)})}>×</button>
+                <button className="btn btn-d btn-xs" onClick={()=>{if(safeConfirm('Remover '+s.name+' da lista 360°?','O stakeholder será removido e suas respostas serão perdidas.')) onUpdate({stakeholders360:eng.stakeholders360.filter(x=>x.id!==s.id)});}}>×</button>
               </div>
             ))}
           </div>
@@ -1498,7 +1537,7 @@ Tom: profissional, orientado ao desenvolvimento.`;
                 </div>
                 <span className={`badge ${s.status==='done'?'b-done':'b-pend'}`} style={{marginRight:8}}>{s.status==='done'?'Respondido':'Pendente'}</span>
                 <button className="btn btn-g btn-xs" style={{marginRight:6}} onClick={()=>setEditSh({sh:s,tipo:'ms'})}>Editar</button>
-                <button className="btn btn-d btn-xs" onClick={()=>onUpdate({stakeholdersMS:eng.stakeholdersMS.filter(x=>x.id!==s.id)})}>×</button>
+                <button className="btn btn-d btn-xs" onClick={()=>{if(safeConfirm('Remover '+s.name+' da lista mini-survey?','O stakeholder será removido.')) onUpdate({stakeholdersMS:eng.stakeholdersMS.filter(x=>x.id!==s.id)});}}>×</button>
               </div>
             ))}
           </div>
@@ -1531,6 +1570,88 @@ Tom: profissional, orientado ao desenvolvimento.`;
 }
 
 // ─── TAB RELATÓRIOS ───────────────────────────────────────────────────────────
+// Reusable file action bar for reports
+function ReportFileBar({storagePath,fileName,filePath,onFileUploaded,onFileDeleted,label}){
+  const [uploading,setUploading]=useState(false);
+  return (
+    <div style={{background:'#F9FAFB',border:'1px solid #E4E6EF',borderRadius:9,padding:'12px 16px',marginBottom:12}}>
+      <div style={{fontSize:11,fontWeight:600,letterSpacing:'1px',textTransform:'uppercase',color:'#A0A3B1',marginBottom:10}}>{label||'Arquivo do relatório'}</div>
+      {filePath&&fileName?(
+        <div style={{display:'flex',alignItems:'center',gap:10}}>
+          <span style={{fontSize:13,color:'#059669'}}>📎 {fileName}</span>
+          <button className="btn btn-g btn-xs" onClick={async()=>{
+            const url=await getFileUrl(filePath);
+            if(url) window.open(url,'_blank'); else alert('Arquivo não encontrado.');
+          }}>↓ Baixar</button>
+          <button className="btn btn-d btn-xs" onClick={async()=>{
+            if(!safeConfirm('Remover o arquivo "'+fileName+'"?','O arquivo será excluído do storage e não poderá ser recuperado.')) return;
+            await deleteStorageFile(filePath);
+            onFileDeleted();
+          }}>Remover</button>
+        </div>
+      ):(
+        <label style={{cursor:'pointer',display:'block'}}>
+          <input type="file" style={{display:'none'}} accept=".pdf,.docx,.doc,.pptx,.xlsx,.xls"
+            onChange={async(e)=>{
+              const file=e.target.files[0];if(!file)return;
+              setUploading(true);
+              try{
+                const path=await uploadFile(file,`${storagePath}_${Date.now()}_${file.name}`);
+                onFileUploaded(path,file.name);
+              }catch(err){alert('Erro ao enviar: '+err.message);}
+              setUploading(false);
+            }}/>
+          <div style={{background:'#fff',border:'1px dashed #D8DAE8',borderRadius:7,padding:'10px 14px',display:'flex',alignItems:'center',gap:10}}>
+            {uploading?<><Dots/><span style={{fontSize:13,color:'#A0A3B1'}}>Enviando...</span></>
+            :<><span style={{fontSize:13,color:'#A0A3B1'}}>📎 Clique para enviar o arquivo final</span>
+              <span style={{fontSize:11,color:'#C8CAD6',marginLeft:'auto'}}>.pdf · .docx · .pptx · .xlsx</span></>}
+          </div>
+        </label>
+      )}
+    </div>
+  );
+}
+
+// CSV column mapper for external mini-survey data
+function CSVMapperModal({headers,competencias,onConfirm,onClose}){
+  const fields=[
+    {id:'name',label:'Nome do respondente'},
+    {id:'role',label:'Tipo de interação'},
+    {id:'objetivos',label:'Objetivos compartilhados (Sim/Não)'},
+    ...competencias.flatMap((c,i)=>[
+      {id:`freq_${i}`,label:`Frequência — ${c}`},
+      {id:`score_${i}`,label:`Score (-3 a +3) — ${c}`},
+    ]),
+    {id:'overall',label:'Efetividade geral (-3 a +3)'},
+    {id:'mudancas',label:'O que melhorou'},
+    {id:'sugestoes',label:'Próximos desafios / Sugestões'},
+  ];
+  const [map,setMap]=useState({});
+  return (
+    <Overlay onClose={onClose}>
+      <div className="modal modal-lg">
+        <div className="modal-title">Mapear colunas do arquivo</div>
+        <div className="modal-sub">Indique qual coluna da planilha corresponde a cada campo do mini-survey</div>
+        <div style={{maxHeight:400,overflowY:'auto'}}>
+          {fields.map(f=>(
+            <div key={f.id} className="frow" style={{marginBottom:8,alignItems:'center'}}>
+              <div style={{fontSize:13,color:'#1A1D2E',flex:1}}>{f.label}</div>
+              <select className="fsel" style={{flex:1}} value={map[f.id]||''} onChange={e=>setMap(p=>({...p,[f.id]:e.target.value}))}>
+                <option value="">— não importar —</option>
+                {headers.map(h=><option key={h} value={h}>{h}</option>)}
+              </select>
+            </div>
+          ))}
+        </div>
+        <div className="modal-foot">
+          <button className="btn btn-g" onClick={onClose}>Cancelar</button>
+          <button className="btn btn-p" onClick={()=>onConfirm(map)}>Importar dados</button>
+        </div>
+      </div>
+    </Overlay>
+  );
+}
+
 function TabRelatorios({eng,onUpdate}){
   const [section,setSection]=useState('360');
   const [editing360,setEditing360]=useState(false);
@@ -1538,25 +1659,40 @@ function TabRelatorios({eng,onUpdate}){
   const [selMS,setSelMS]=useState(eng.miniSurveys[0]||null);
   const [editingMS,setEditingMS]=useState(false);
   const [draftMS,setDraftMS]=useState('');
+  const [csvHeaders,setCsvHeaders]=useState(null);
+  const [csvRows,setCsvRows]=useState([]);
+  const [showMapper,setShowMapper]=useState(false);
 
-  const approve360=()=>onUpdate({report:{...eng.report,approved:true,sharedAt:new Date().toISOString().split('T')[0]}});
+  const approve360=()=>{
+    if(!safeConfirm('Aprovar e compartilhar o relatório 360° com o coachee?','Após a aprovação, o relatório ficará visível no portal do coachee.')) return;
+    onUpdate({report:{...eng.report,approved:true,sharedAt:new Date().toISOString().split('T')[0]}});
+  };
   const save360=()=>{onUpdate({report:{...eng.report,content:draft360}});setEditing360(false);};
+  const cancel360=()=>{
+    if(draft360!==eng.report?.content&&!safeConfirm('Descartar as alterações?','As edições não salvas serão perdidas.')) return;
+    setEditing360(false);
+  };
 
   const updateMS=(patch)=>{
     const updated=eng.miniSurveys.map(ms=>ms.id===selMS.id?{...ms,...patch}:ms);
     onUpdate({miniSurveys:updated});
     setSelMS(prev=>({...prev,...patch}));
   };
-  const approveMS=()=>updateMS({reportApproved:true,reportSharedAt:new Date().toISOString().split('T')[0]});
+  const approveMS=()=>{
+    if(!safeConfirm('Aprovar e compartilhar este relatório de mini-survey?','Após a aprovação, ficará visível no portal do coachee.')) return;
+    updateMS({reportApproved:true,reportSharedAt:new Date().toISOString().split('T')[0]});
+  };
   const saveMS=()=>{updateMS({reportContent:draftMS});setEditingMS(false);};
+  const cancelMS=()=>{
+    if(draftMS!==(selMS?.reportContent||'')&&!safeConfirm('Descartar as alterações?','As edições não salvas serão perdidas.')) return;
+    setEditingMS(false);
+  };
 
-  const handleUpload=(onContent)=>{
+  const handleTextUpload=(onContent)=>{
     const input=document.createElement('input');
-    input.type='file';
-    input.accept='.txt,.md';
+    input.type='file'; input.accept='.txt,.md';
     input.onchange=e=>{
-      const file=e.target.files[0];
-      if(!file)return;
+      const file=e.target.files[0];if(!file)return;
       const reader=new FileReader();
       reader.onload=ev=>onContent(ev.target.result);
       reader.readAsText(file,'utf-8');
@@ -1564,121 +1700,238 @@ function TabRelatorios({eng,onUpdate}){
     input.click();
   };
 
+  const handleCSVUpload=()=>{
+    const input=document.createElement('input');
+    input.type='file'; input.accept='.csv,.xlsx,.xls';
+    input.onchange=e=>{
+      const file=e.target.files[0];if(!file)return;
+      const reader=new FileReader();
+      reader.onload=ev=>{
+        const text=ev.target.result;
+        const lines=text.split('\n').filter(l=>l.trim());
+        if(lines.length<2){alert('Arquivo vazio ou inválido.');return;}
+        // Handle BOM
+        const cleanFirst=lines[0].replace(/^\uFEFF/,'');
+        const sep=cleanFirst.includes(';')?';':',';
+        const parseRow=row=>row.split(sep).map(c=>c.replace(/^"|"$/g,'').trim());
+        const headers=parseRow(cleanFirst);
+        const rows=lines.slice(1).map(parseRow);
+        setCsvHeaders(headers);
+        setCsvRows(rows);
+        setShowMapper(true);
+      };
+      reader.readAsText(file,'utf-8');
+    };
+    input.click();
+  };
+
+  const importCSV=(map)=>{
+    if(!selMS){alert('Selecione um mini-survey primeiro.');return;}
+    const compCount=selMS.competencias.length;
+    const imported=csvRows.filter(r=>r.length>1).map((r,i)=>{
+      const get=col=>col&&map[col]!==undefined?r[csvHeaders.indexOf(map[col])]||'':'';
+      const scores=[];
+      for(let ci=0;ci<compCount;ci++){
+        const v=parseFloat(get(`score_${ci}`));
+        scores.push(isNaN(v)?0:Math.max(-3,Math.min(3,v)));
+      }
+      const overall=parseFloat(get('overall'));
+      const freq=[];
+      for(let ci=0;ci<compCount;ci++) freq.push(get(`freq_${ci}`)||'');
+      return {
+        shId:Date.now()+i,
+        name:get('name')||`Respondente ${i+1}`,
+        role:get('role')||'',
+        objetivos:get('objetivos')||'',
+        scores,overall:isNaN(overall)?0:Math.max(-3,Math.min(3,overall)),
+        freq,
+        mudancas:get('mudancas')||'',
+        sugestoes:get('sugestoes')||'',
+      };
+    });
+    if(imported.length===0){alert('Nenhuma linha válida encontrada.');return;}
+    updateMS({responses:[...selMS.responses,...imported]});
+    setShowMapper(false);
+    alert(`${imported.length} resposta(s) importada(s) com sucesso!`);
+  };
+
+  const Report360Section=()=>(
+    <>
+      {!eng.report?(
+        <div className="empty">
+          <div className="ei">◌</div>
+          Nenhum relatório 360° ainda.<br/>
+          <button className="btn btn-p btn-sm" style={{marginTop:12}}
+            onClick={()=>{onUpdate({report:{content:'',approved:false,sharedAt:null,reportFile:'',reportFileName:''}});setEditing360(true);}}>
+            + Criar relatório
+          </button>
+        </div>
+      ):(
+        <div>
+          {eng.report.approved&&(
+            <div className="approved-banner">✓ Aprovado e compartilhado em {eng.report.sharedAt} — visível para o coachee</div>
+          )}
+
+          {/* Content editor */}
+          <div style={{background:'#fff',border:'1px solid #E4E6EF',borderRadius:10,padding:'16px 18px',marginBottom:12}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+              <div style={{fontSize:11,fontWeight:600,letterSpacing:'1px',textTransform:'uppercase',color:'#A0A3B1'}}>
+                {editing360?'Editando conteúdo':'Conteúdo do relatório'}
+              </div>
+              <div style={{display:'flex',gap:6}}>
+                {!editing360&&!eng.report.approved&&(
+                  <button className="btn btn-g btn-sm" onClick={()=>handleTextUpload(txt=>{
+                    if(eng.report.content&&!safeConfirm('Substituir o conteúdo atual pelo arquivo?','O texto atual será substituído.')) return;
+                    onUpdate({report:{...eng.report,content:txt}});
+                  })}>↑ Importar .txt/.md</button>
+                )}
+                {!editing360&&(
+                  <button className="btn btn-g btn-sm" onClick={()=>{setDraft360(eng.report.content);setEditing360(true);}}>
+                    {eng.report.approved?'Ver texto':'Editar'}
+                  </button>
+                )}
+                {!editing360&&eng.report.content&&(
+                  <button className="btn btn-g btn-sm" onClick={()=>generateDOCX(eng.report.content,`Relatório 360° - ${eng.coachee.name}`)}>↓ Baixar .doc</button>
+                )}
+                {editing360&&<>
+                  <button className="btn btn-g btn-sm" onClick={cancel360}>Cancelar</button>
+                  {!eng.report.approved&&<button className="btn btn-p btn-sm" onClick={save360}>Salvar</button>}
+                </>}
+              </div>
+            </div>
+            {editing360
+              ?<textarea className="report-editor" value={draft360} onChange={e=>setDraft360(e.target.value)} readOnly={eng.report.approved}/>
+              :<div className="report-view" style={{maxHeight:300,overflowY:'auto'}}>
+                <div className="report-text" style={{fontSize:13}}>{eng.report.content||'Sem conteúdo — clique em Editar ou Importar para adicionar.'}</div>
+              </div>
+            }
+          </div>
+
+          {/* File upload */}
+          <ReportFileBar
+            label="Arquivo final (relatório completo para download)"
+            storagePath={`reports/${eng.id}/360`}
+            fileName={eng.report.reportFileName}
+            filePath={eng.report.reportFile}
+            onFileUploaded={(path,name)=>onUpdate({report:{...eng.report,reportFile:path,reportFileName:name}})}
+            onFileDeleted={()=>onUpdate({report:{...eng.report,reportFile:'',reportFileName:''}})}
+          />
+
+          {/* Approve */}
+          {!eng.report.approved&&(
+            <div style={{display:'flex',justifyContent:'flex-end',marginTop:8}}>
+              <button className="btn btn-p" onClick={approve360}>✓ Aprovar e Compartilhar com coachee</button>
+            </div>
+          )}
+        </div>
+      )}
+    </>
+  );
+
+  const MSSection=()=>(
+    <>
+      {eng.miniSurveys.length===0?(
+        <div className="empty"><div className="ei">◌</div>Nenhum mini-survey criado.<br/>Crie na aba Stakeholders.</div>
+      ):(
+        <>
+          <div style={{display:'flex',gap:8,marginBottom:20,flexWrap:'wrap'}}>
+            {eng.miniSurveys.map(ms=>(
+              <button key={ms.id} className={`btn btn-sm ${selMS?.id===ms.id?'btn-p':'btn-g'}`}
+                onClick={()=>{setSelMS(ms);setEditingMS(false);setDraftMS(ms.reportContent||'');}}>
+                {ms.label}
+              </button>
+            ))}
+          </div>
+
+          {selMS&&(
+            <div>
+              {/* Data + Excel */}
+              <div style={{background:'#fff',border:'1px solid #E4E6EF',borderRadius:10,padding:'16px 18px',marginBottom:12}}>
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+                  <div style={{fontSize:11,fontWeight:600,letterSpacing:'1px',textTransform:'uppercase',color:'#A0A3B1'}}>
+                    Dados — {selMS.label} · {selMS.responses.length} resposta{selMS.responses.length!==1?'s':''}
+                  </div>
+                  <div style={{display:'flex',gap:6}}>
+                    <button className="btn btn-g btn-sm" onClick={handleCSVUpload}>↑ Importar CSV/Excel externo</button>
+                    {selMS.responses.length>0&&<button className="btn btn-g btn-sm" onClick={()=>exportMiniSurveyExcel(selMS,eng)}>↓ Planilha Excel</button>}
+                  </div>
+                </div>
+                {selMS.responses.length>0
+                  ?<ProgressChart miniSurveys={[selMS]}/>
+                  :<div style={{fontSize:13,color:'#A0A3B1',textAlign:'center',padding:'16px 0'}}>Sem respostas ainda. Importe dados externos ou aguarde os stakeholders responderem.</div>
+                }
+              </div>
+
+              {/* Narrative report */}
+              <div style={{background:'#fff',border:'1px solid #E4E6EF',borderRadius:10,padding:'16px 18px',marginBottom:12}}>
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+                  <div style={{fontSize:11,fontWeight:600,letterSpacing:'1px',textTransform:'uppercase',color:'#A0A3B1'}}>
+                    {editingMS?'Editando relatório':'Relatório narrativo'}
+                  </div>
+                  <div style={{display:'flex',gap:6}}>
+                    {!editingMS&&!selMS.reportApproved&&(
+                      <button className="btn btn-g btn-sm" onClick={()=>handleTextUpload(txt=>{
+                        if(selMS.reportContent&&!safeConfirm('Substituir conteúdo atual?','O texto atual será substituído.')) return;
+                        updateMS({reportContent:txt});
+                      })}>↑ Importar .txt/.md</button>
+                    )}
+                    {!editingMS&&<button className="btn btn-g btn-sm" onClick={()=>{setDraftMS(selMS.reportContent||'');setEditingMS(true);}}>
+                      {selMS.reportApproved?'Ver texto':'Editar'}
+                    </button>}
+                    {!editingMS&&selMS.reportContent&&<button className="btn btn-g btn-sm" onClick={()=>generateDOCX(selMS.reportContent,`${selMS.label} - ${eng.coachee.name}`)}>↓ Baixar .doc</button>}
+                    {editingMS&&<>
+                      <button className="btn btn-g btn-sm" onClick={cancelMS}>Cancelar</button>
+                      {!selMS.reportApproved&&<button className="btn btn-p btn-sm" onClick={saveMS}>Salvar</button>}
+                    </>}
+                  </div>
+                </div>
+                {selMS.reportApproved&&<div className="approved-banner" style={{margin:'0 0 12px'}}>✓ Aprovado em {selMS.reportSharedAt}</div>}
+                {editingMS
+                  ?<textarea className="report-editor" value={draftMS} onChange={e=>setDraftMS(e.target.value)} readOnly={selMS.reportApproved}/>
+                  :<div className="report-view" style={{maxHeight:280,overflowY:'auto'}}>
+                    <div className="report-text" style={{fontSize:13}}>{selMS.reportContent||'Sem conteúdo — edite ou importe para adicionar.'}</div>
+                  </div>
+                }
+              </div>
+
+              {/* File + approve */}
+              <ReportFileBar
+                label="Arquivo final (relatório completo para download)"
+                storagePath={`reports/${eng.id}/ms_${selMS.id}`}
+                fileName={selMS.reportFileName}
+                filePath={selMS.reportFile}
+                onFileUploaded={(path,name)=>updateMS({reportFile:path,reportFileName:name})}
+                onFileDeleted={()=>updateMS({reportFile:'',reportFileName:''})}
+              />
+              {!selMS.reportApproved&&(
+                <div style={{display:'flex',justifyContent:'flex-end',marginTop:8}}>
+                  <button className="btn btn-p" onClick={approveMS}>✓ Aprovar e Compartilhar com coachee</button>
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </>
+  );
+
   return (
     <div style={{marginTop:20}}>
-      {/* Section switcher */}
+      {showMapper&&csvHeaders&&selMS&&(
+        <CSVMapperModal
+          headers={csvHeaders}
+          competencias={selMS.competencias}
+          onConfirm={importCSV}
+          onClose={()=>setShowMapper(false)}
+        />
+      )}
       <div style={{display:'flex',gap:3,background:'#F4F5F7',borderRadius:9,padding:3,marginBottom:20,width:'fit-content'}}>
-        {[{id:'360',l:'Relatório 360°'},{id:'ms',l:`Relatórios Mini-Survey (${eng.miniSurveys.length})`}].map(s=>(
+        {[{id:'360',l:'Relatório 360°'},{id:'ms',l:`Mini-Surveys (${eng.miniSurveys.length})`}].map(s=>(
           <button key={s.id} className={`btn btn-sm ${section===s.id?'btn-p':'btn-g'}`} style={{border:'none'}} onClick={()=>setSection(s.id)}>{s.l}</button>
         ))}
       </div>
-
-      {section==='360'&&(
-        <>
-          {!eng.report?(
-            <div className="empty"><div className="ei">◌</div>Nenhum relatório 360° ainda.<br/>Gere na aba Stakeholders ou cole o conteúdo abaixo.<br/>
-              <button className="btn btn-p btn-sm" style={{marginTop:12}} onClick={()=>{onUpdate({report:{content:'',approved:false,sharedAt:null}});setEditing360(true);}}>+ Criar relatório manualmente</button>
-            </div>
-          ):(
-            <>
-              {eng.report.approved&&<div className="approved-banner">✓ Aprovado e compartilhado em {eng.report.sharedAt} — coachee pode visualizar</div>}
-              <div className="sec">
-                <span className="sec-lbl">Relatório de Desenvolvimento — 360°</span>
-                <div style={{display:'flex',gap:8}}>
-                  {!eng.report.approved&&!editing360&&<button className="btn btn-p btn-sm" onClick={approve360}>✓ Aprovar e Compartilhar</button>}
-                  {!editing360&&<button className="btn btn-g btn-sm" onClick={()=>{setDraft360(eng.report.content);setEditing360(true);}}>Editar</button>}
-                  {!editing360&&<button className="btn btn-g btn-sm" onClick={()=>handleUpload(txt=>{onUpdate({report:{...eng.report,content:txt}});})}>↑ Upload .txt/.md</button>}
-                  {!editing360&&<label className="btn btn-g btn-sm" style={{cursor:'pointer'}}>
-                    ↑ Upload PDF/DOCX
-                    <input type="file" style={{display:'none'}} accept=".pdf,.docx,.doc" onChange={async(e)=>{
-                      const file=e.target.files[0];if(!file)return;
-                      try{
-                        const path=await uploadFile(file,`reports/${eng.id}/360_${Date.now()}_${file.name}`);
-                        onUpdate({report:{...eng.report,reportFile:path,reportFileName:file.name}});
-                        alert('Arquivo enviado: '+file.name);
-                      }catch(err){alert('Erro ao enviar: '+err.message);}
-                    }}/>
-                  </label>}
-                  {!editing360&&eng.report.content&&<button className="btn btn-g btn-sm" onClick={()=>generatePDF(eng.report.content,`Relatório 360° - ${eng.coachee.name}`)}>↓ Baixar PDF</button>}
-                  {!editing360&&eng.report.reportFileName&&<button className="btn btn-g btn-sm" onClick={async()=>{
-                    const url=await getFileUrl(eng.report.reportFile);
-                    if(url) window.open(url,'_blank'); else alert('Arquivo não encontrado.');
-                  }}>📎 {eng.report.reportFileName}</button>}
-                  {editing360&&<><button className="btn btn-g btn-sm" onClick={()=>setEditing360(false)}>Cancelar</button><button className="btn btn-p btn-sm" onClick={save360}>Salvar</button></>}
-                </div>
-              </div>
-              {editing360
-                ?<textarea className="report-editor" value={draft360} onChange={e=>setDraft360(e.target.value)}/>
-                :<div className="report-view"><div className="report-text">{eng.report.content||'Relatório vazio — clique em Editar ou Upload para adicionar conteúdo.'}</div></div>
-              }
-            </>
-          )}
-        </>
-      )}
-
-      {section==='ms'&&(
-        <>
-          {eng.miniSurveys.length===0?(
-            <div className="empty"><div className="ei">◌</div>Nenhum mini-survey criado ainda.<br/>Crie na aba Stakeholders.</div>
-          ):(
-            <>
-              <div style={{display:'flex',gap:8,marginBottom:20,flexWrap:'wrap'}}>
-                {eng.miniSurveys.map(ms=>(
-                  <button key={ms.id} className={`btn btn-sm ${selMS?.id===ms.id?'btn-p':'btn-g'}`} onClick={()=>{setSelMS(ms);setEditingMS(false);setDraftMS(ms.reportContent||'');}}>
-                    {ms.label}
-                  </button>
-                ))}
-              </div>
-
-              {selMS&&(
-                <>
-                  {/* Data view */}
-                  <div style={{marginBottom:20}}>
-                    <ProgressChart miniSurveys={[selMS]}/>
-                    {selMS.responses.length>0&&(
-                      <button className="btn btn-g btn-sm" style={{marginTop:10}} onClick={()=>exportMiniSurveyExcel(selMS,eng)}>↓ Baixar planilha Excel</button>
-                    )}
-                  </div>
-
-                  <div className="divider"/>
-
-                  {/* Narrative report */}
-                  {selMS.reportApproved&&<div className="approved-banner">✓ Relatório aprovado em {selMS.reportSharedAt} — coachee pode visualizar</div>}
-                  <div className="sec">
-                    <span className="sec-lbl">Relatório narrativo — {selMS.label}</span>
-                    <div style={{display:'flex',gap:8}}>
-                      {!selMS.reportApproved&&!editingMS&&<button className="btn btn-p btn-sm" onClick={approveMS}>✓ Aprovar e Compartilhar</button>}
-                      {!editingMS&&<button className="btn btn-g btn-sm" onClick={()=>{setDraftMS(selMS.reportContent||'');setEditingMS(true);}}>Editar</button>}
-                      {!editingMS&&<button className="btn btn-g btn-sm" onClick={()=>handleUpload(txt=>{updateMS({reportContent:txt});})}>↑ Upload .txt/.md</button>}
-                      {!editingMS&&<label className="btn btn-g btn-sm" style={{cursor:'pointer'}}>
-                        ↑ Upload PDF/DOCX
-                        <input type="file" style={{display:'none'}} accept=".pdf,.docx,.doc" onChange={async(e)=>{
-                          const file=e.target.files[0];if(!file)return;
-                          try{
-                            const path=await uploadFile(file,`reports/${eng.id}/ms_${selMS.id}_${Date.now()}_${file.name}`);
-                            updateMS({reportFile:path,reportFileName:file.name});
-                            alert('Arquivo enviado: '+file.name);
-                          }catch(err){alert('Erro ao enviar: '+err.message);}
-                        }}/>
-                      </label>}
-                      {!editingMS&&selMS.reportContent&&<button className="btn btn-g btn-sm" onClick={()=>generatePDF(selMS.reportContent,`${selMS.label} - ${eng.coachee.name}`)}>↓ Baixar PDF</button>}
-                      {!editingMS&&selMS.reportFileName&&<button className="btn btn-g btn-sm" onClick={async()=>{
-                        const url=await getFileUrl(selMS.reportFile);
-                        if(url) window.open(url,'_blank'); else alert('Arquivo não encontrado.');
-                      }}>📎 {selMS.reportFileName}</button>}
-                      {editingMS&&<><button className="btn btn-g btn-sm" onClick={()=>setEditingMS(false)}>Cancelar</button><button className="btn btn-p btn-sm" onClick={saveMS}>Salvar</button></>}
-                    </div>
-                  </div>
-                  {editingMS
-                    ?<textarea className="report-editor" value={draftMS} onChange={e=>setDraftMS(e.target.value)}/>
-                    :<div className="report-view"><div className="report-text">{selMS.reportContent||'Relatório narrativo ainda não adicionado. Clique em Editar ou Upload para adicionar.'}</div></div>
-                  }
-                </>
-              )}
-            </>
-          )}
-        </>
-      )}
+      {section==='360'&&<Report360Section/>}
+      {section==='ms'&&<MSSection/>}
     </div>
   );
 }
@@ -1818,7 +2071,7 @@ function TabSessions({eng,onUpdate}){
                     )}
                     <div style={{display:'flex',gap:8}}>
                       <button className="btn btn-g btn-sm" onClick={()=>{setEditIdx(i);setEditNotes(s.notes);}}>Editar anotação</button>
-                      <button className="btn btn-d btn-sm" onClick={()=>{if(window.confirm('Apagar esta sessão?')){onUpdate({sessions:eng.sessions.filter((_,idx)=>idx!==i)});}}}>Apagar</button>
+                      <button className="btn btn-d btn-sm" onClick={()=>{if(safeConfirm('Apagar esta sessão?','As anotações e arquivos desta sessão serão perdidos.')){onUpdate({sessions:eng.sessions.filter((_,idx)=>idx!==i)});}}}>Apagar</button>
                     </div>
                   </div>
                 )}
@@ -1861,7 +2114,7 @@ function EngDetail({id,engs,onBack,onUpdate,onDelete}){
             <span style={{fontSize:12,color:'#A0A3B1'}}>{STAGES[eng.phase-1]} · {eng.cadence}</span>
             <button className="btn btn-d btn-xs" onClick={()=>{
               if(!window.confirm('Tem certeza que deseja apagar este processo?')) return;
-              if(!window.confirm('Esta ação é irreversível. Confirma a exclusão de "'+eng.coachee.name+'"?')) return;
+              if(!safeConfirm('Confirma a exclusão de "'+eng.coachee.name+'"?','TODOS os dados deste processo serão permanentemente excluídos.')) return;
               const nome=window.prompt('Digite o nome do coachee para confirmar:');
               if(nome?.trim()===eng.coachee.name.trim()){onDelete(eng.id);onBack();}
               else alert('Nome incorreto. Processo não apagado.');
@@ -1995,6 +2248,83 @@ function FormMiniSurvey({eng,sh,ms,onSubmit}){
         <div className="q-block"><div className="q-label">Sugestões para os próximos meses<span className="q-req">*</span></div><textarea className="q-area" placeholder="Suas sugestões..." value={sugestoes} onChange={e=>setSugestoes(e.target.value)}/></div>
         <button className="login-btn" onClick={()=>{if(valid){onSubmit({shId:sh.id,name:sh.name,role:tipo,scores,overall,mudancas,sugestoes,freq,objetivos});setDone(true);}}} disabled={!valid} style={{opacity:valid?1:.5,marginBottom:32}}>Enviar Pesquisa</button>
       </div>
+    </div>
+  );
+}
+
+// ─── COACHEE RELATORIOS COMPONENT ────────────────────────────────────────────
+function CoacheeRelatorios({eng}){
+  const [sub,setSub]=useState('360');
+  const [selMS,setSelMS]=useState(eng.miniSurveys[0]||null);
+
+  const approvedMS=eng.miniSurveys.filter(ms=>ms.reportApproved);
+
+  return (
+    <div>
+      <div style={{display:'flex',gap:3,background:'#F4F5F7',borderRadius:9,padding:3,marginBottom:20,width:'fit-content'}}>
+        {[{id:'360',l:'Relatório 360°'},{id:'ms',l:`Mini-Surveys (${approvedMS.length} disponível${approvedMS.length!==1?'is':''})`}].map(s=>(
+          <button key={s.id} className={`btn btn-sm ${sub===s.id?'btn-p':'btn-g'}`} style={{border:'none'}} onClick={()=>setSub(s.id)}>{s.l}</button>
+        ))}
+      </div>
+
+      {sub==='360'&&(
+        <>
+          {!eng.report?.approved
+            ?<div className="warn-box">Seu relatório 360° está sendo preparado pelo coach.</div>
+            :<div>
+              <div style={{background:'#F0FDF4',border:'1px solid #BBF7D0',borderRadius:9,padding:'14px 16px',marginBottom:12,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                <div>
+                  <div style={{fontSize:13,fontWeight:600,color:'#059669'}}>✓ Relatório de Desenvolvimento disponível</div>
+                  <div style={{fontSize:12,color:'#6B6E8E',marginTop:2}}>Aprovado em {eng.report.sharedAt}</div>
+                </div>
+                <div style={{display:'flex',gap:8}}>
+                  {eng.report.reportFile&&<button className="btn btn-p btn-sm" onClick={async()=>{
+                    const url=await getFileUrl(eng.report.reportFile);
+                    if(url) window.open(url,'_blank'); else alert('Arquivo não encontrado.');
+                  }}>↓ Baixar relatório completo</button>}
+                  {eng.report.content&&<button className="btn btn-g btn-sm" onClick={()=>generateDOCX(eng.report.content,`Relatório 360° - ${eng.coachee?.name||''}`)}>↓ Baixar .doc</button>}
+                </div>
+              </div>
+              {eng.report.content&&<div className="report-view"><div className="report-text" style={{fontSize:13}}>{eng.report.content}</div></div>}
+            </div>
+          }
+        </>
+      )}
+
+      {sub==='ms'&&(
+        <>
+          {approvedMS.length===0
+            ?<div className="warn-box">Nenhum relatório de mini-survey disponível ainda.</div>
+            :<>
+              <div style={{display:'flex',gap:8,marginBottom:16,flexWrap:'wrap'}}>
+                {approvedMS.map(ms=>(
+                  <button key={ms.id} className={`btn btn-sm ${selMS?.id===ms.id?'btn-p':'btn-g'}`} onClick={()=>setSelMS(ms)}>
+                    {ms.label}
+                  </button>
+                ))}
+              </div>
+              {selMS&&selMS.reportApproved&&(
+                <div>
+                  <div style={{background:'#F0FDF4',border:'1px solid #BBF7D0',borderRadius:9,padding:'14px 16px',marginBottom:12,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                    <div>
+                      <div style={{fontSize:13,fontWeight:600,color:'#059669'}}>✓ {selMS.label} — disponível</div>
+                      <div style={{fontSize:12,color:'#6B6E8E',marginTop:2}}>Aprovado em {selMS.reportSharedAt}</div>
+                    </div>
+                    <div style={{display:'flex',gap:8}}>
+                      {selMS.reportFile&&<button className="btn btn-p btn-sm" onClick={async()=>{
+                        const url=await getFileUrl(selMS.reportFile);
+                        if(url) window.open(url,'_blank'); else alert('Arquivo não encontrado.');
+                      }}>↓ Baixar relatório completo</button>}
+                      {selMS.reportContent&&<button className="btn btn-g btn-sm" onClick={()=>generateDOCX(selMS.reportContent,`${selMS.label}`)}>↓ Baixar .doc</button>}
+                    </div>
+                  </div>
+                  {selMS.reportContent&&<div className="report-view"><div className="report-text" style={{fontSize:13}}>{selMS.reportContent}</div></div>}
+                </div>
+              )}
+            </>
+          }
+        </>
+      )}
     </div>
   );
 }
@@ -2148,57 +2478,7 @@ function CoacheePortal({eng,onLogout,onUpdate,isCoachView,onBackToCoach}){
           )}
 
           {tab==='relatorios'&&(
-            <>
-              {/* Relatório 360° */}
-              <div style={{fontSize:11,fontWeight:700,letterSpacing:'1.5px',textTransform:'uppercase',color:'#4169FF',marginBottom:12}}>Relatório de Desenvolvimento — 360°</div>
-              {!eng.report?.approved
-                ?<div className="warn-box" style={{marginBottom:20}}>Seu relatório 360° está sendo preparado pelo coach. Ficará disponível aqui após a aprovação.</div>
-                :<div style={{marginBottom:24}}>
-                  <div style={{background:'#F0FDF4',border:'1px solid #BBF7D0',borderRadius:9,padding:'12px 16px',marginBottom:12,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-                    <div>
-                      <div style={{fontSize:13,fontWeight:600,color:'#059669'}}>✓ Relatório disponível</div>
-                      <div style={{fontSize:12,color:'#6B6E8E',marginTop:2}}>Aprovado em {eng.report.sharedAt}</div>
-                    </div>
-                    <div style={{display:'flex',gap:8}}>
-                      <button className="btn btn-g btn-sm" onClick={()=>window.print()}>Imprimir</button>
-                      <button className="btn btn-g btn-sm" onClick={()=>{navigator.clipboard?.writeText(eng.report.content);alert('Conteúdo copiado!');}}>Copiar</button>
-                      <span style={{fontSize:11,color:'#A0A3B1',padding:'5px 8px',border:'1px dashed #D8DAE8',borderRadius:6}}>Download PDF — em breve</span>
-                    </div>
-                  </div>
-                  <div className="report-view"><div className="report-text">{eng.report.content}</div></div>
-                </div>
-              }
-
-              {/* Relatórios Mini-Survey */}
-              {eng.miniSurveys.length>0&&(
-                <>
-                  <div style={{fontSize:11,fontWeight:700,letterSpacing:'1.5px',textTransform:'uppercase',color:'#8B5CF6',marginBottom:12,marginTop:8}}>Relatórios de Mini-Survey</div>
-                  {eng.miniSurveys.map((ms,i)=>(
-                    <div key={ms.id} style={{marginBottom:16}}>
-                      {ms.reportApproved?(
-                        <>
-                          <div style={{background:'#F0FDF4',border:'1px solid #BBF7D0',borderRadius:9,padding:'12px 16px',marginBottom:8,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-                            <div>
-                              <div style={{fontSize:13,fontWeight:600,color:'#059669'}}>✓ {ms.label} — relatório disponível</div>
-                              <div style={{fontSize:12,color:'#6B6E8E',marginTop:2}}>Aprovado em {ms.reportSharedAt}</div>
-                            </div>
-                            <div style={{display:'flex',gap:8}}>
-                              <button className="btn btn-g btn-sm" onClick={()=>{navigator.clipboard?.writeText(ms.reportContent||'');alert('Conteúdo copiado!');}}>Copiar</button>
-                              <span style={{fontSize:11,color:'#A0A3B1',padding:'5px 8px',border:'1px dashed #D8DAE8',borderRadius:6}}>Download PDF — em breve</span>
-                            </div>
-                          </div>
-                          <div className="report-view"><div className="report-text">{ms.reportContent}</div></div>
-                        </>
-                      ):(
-                        <div className="warn-box">
-                          <strong>{ms.label}</strong> — relatório narrativo sendo preparado pelo coach.
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </>
-              )}
-            </>
+            <CoacheeRelatorios eng={eng}/>
           )}
 
           {tab==='progresso'&&(
@@ -2325,7 +2605,7 @@ function LeaderPortal({engId,liderId,engs,onLogout,onUpdate}){
                       <span className={`badge ${s.invalid?'b-invalid':s.validatedByLeader?'b-done':'b-pend'}`} style={{marginRight:8}}>
                         {s.invalid?'Invalidado':s.validatedByLeader?'Validado':'Pendente'}
                       </span>
-                      {!s.invalid&&<button className="btn btn-d btn-xs" onClick={()=>setInvalidModal({sh:s,tipo:listType})}>Invalidar</button>}
+                      {!s.invalid&&<button className="btn btn-d btn-xs" onClick={()=>{if(safeConfirm('Invalidar '+s.name+'?','Uma mensagem será enviada ao coachee solicitando revisão.')) setInvalidModal({sh:s,tipo:listType});}}>Invalidar</button>}
                     </div>
                   ))}
                 </div>
