@@ -1,40 +1,3528 @@
-Running build in Washington, D.C., USA (East) – iad1
-Build machine configuration: 2 cores, 8 GB
-Cloning github.com/lidehralas/MVP-Claude2 (Branch: main, Commit: 584c282)
-Cloning completed: 430.000ms
-Restored build cache from previous deployment (AX8PZERncAV53WfYpHYbCLr8JzTm)
-Running "vercel build"
-Vercel CLI 50.37.1
-Installing dependencies...
-up to date in 6s
-7 packages are looking for funding
-  run `npm fund` for details
-Running "npm run build"
-> lidehra-mvp@0.2.0 build
-> vite build
-vite v5.4.21 building for production...
-transforming...
-✓ 4 modules transformed.
-x Build failed in 117ms
-error during build:
-[vite:esbuild] Transform failed with 1 error:
-/vercel/path0/src/App.jsx:2235:70: ERROR: Expected ")" but found "\u200c"
-file: /vercel/path0/src/App.jsx:2235:70
-Expected ")" but found "\u200c"
-2233|    const feedbacks = eng.stakeholders360.filter(s=>s.status==='done'&&s.feedback);
-2234|    const [editPriorities,setEditPriorities]=useState(false);
-2235|    const [draftPrio,setDraftPrio]=useState(eng.summary360Priorities||''‌);
-   |                                                                        ^
-2236|  
-2237|    // Has structured data from stakeholders
-    at failureErrorWithLog (/vercel/path0/node_modules/esbuild/lib/main.js:1472:15)
-    at /vercel/path0/node_modules/esbuild/lib/main.js:755:50
-    at responseCallbacks.<computed> (/vercel/path0/node_modules/esbuild/lib/main.js:622:9)
-    at handleIncomingPacket (/vercel/path0/node_modules/esbuild/lib/main.js:677:12)
-    at Socket.readFromStdout (/vercel/path0/node_modules/esbuild/lib/main.js:600:7)
-    at Socket.emit (node:events:508:28)
-    at addChunk (node:internal/streams/readable:563:12)
-    at readableAddChunkPushByteMode (node:internal/streams/readable:514:3)
-    at Readable.push (node:internal/streams/readable:394:5)
-    at Pipe.onStreamRead (node:internal/stream_base_commons:189:23)
-Error: Command "npm run build" exited with 1
+import { useState, useEffect, useCallback } from "react";
+import { supabase } from './supabase.js';
+
+const CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:#F4F5F7;font-family:'Poppins',sans-serif;color:#1A1D2E;}
+input,textarea,select,button{font-family:'Poppins',sans-serif;}
+
+.shell{display:flex;height:100vh;background:#F4F5F7;overflow:hidden;font-size:14px;}
+.sb{width:224px;min-width:224px;background:#fff;border-right:1px solid #E4E6EF;display:flex;flex-direction:column;}
+.sb-logo{padding:22px 20px 16px;border-bottom:1px solid #E4E6EF;}
+.sb-title{font-size:18px;font-weight:700;color:#1A1D2E;}
+.sb-sub{font-size:10px;color:#A0A3B1;letter-spacing:2px;text-transform:uppercase;margin-top:3px;}
+.sb-nav{flex:1;padding:10px;overflow-y:auto;}
+.sb-sect{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#C8CAD6;padding:10px 8px 5px;font-weight:600;}
+.sb-item{display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:8px;cursor:pointer;transition:all .12s;font-size:14px;color:#6B6E8E;margin-bottom:2px;}
+.sb-item:hover{background:#F4F5F7;color:#1A1D2E;}
+.sb-item.on{background:#EEF1FF;color:#3358E0;font-weight:600;}
+.sb-item.on .sb-dot{background:#4169FF;}
+.sb-dot{width:6px;height:6px;border-radius:50%;background:#D8DAE8;flex-shrink:0;}
+.sb-badge{margin-left:auto;background:rgba(65,105,255,.1);color:#4169FF;font-size:11px;font-weight:700;padding:1px 7px;border-radius:8px;}
+.sb-foot{padding:14px;border-top:1px solid #E4E6EF;}
+.sb-user{display:flex;align-items:center;gap:10px;margin-bottom:6px;}
+.sb-av{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#4169FF,#7C3AED);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0;}
+.sb-uname{font-size:13px;font-weight:600;color:#1A1D2E;}
+.sb-urole{font-size:11px;color:#A0A3B1;}
+.sb-out{font-size:12px;color:#A0A3B1;cursor:pointer;padding:4px 0;border:none;background:none;text-align:left;transition:color .12s;width:100%;}
+.sb-out:hover{color:#EF4444;}
+
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+.topbar{padding:20px 32px 0;background:#F4F5F7;}
+.pg-title{font-size:24px;font-weight:600;color:#1A1D2E;margin-bottom:3px;}
+.pg-sub{font-size:13px;color:#A0A3B1;margin-bottom:20px;}
+.divline{height:1px;background:#E4E6EF;}
+.scroll{flex:1;overflow-y:auto;padding:24px 32px;}
+.scroll::-webkit-scrollbar{width:4px;}
+.scroll::-webkit-scrollbar-thumb{background:#D8DAE8;border-radius:2px;}
+
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:28px;}
+.stat{background:#fff;border:1px solid #E4E6EF;border-radius:10px;padding:16px 18px;}
+.stat-lbl{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#A0A3B1;font-weight:600;margin-bottom:8px;}
+.stat-val{font-size:28px;font-weight:600;line-height:1;color:#1A1D2E;}
+.stat-sub{font-size:12px;color:#A0A3B1;margin-top:5px;}
+
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;}
+.eng-card{background:#fff;border:1px solid #E4E6EF;border-radius:12px;padding:18px 20px;cursor:pointer;transition:all .15s;}
+.eng-card:hover{border-color:#BCC4F0;transform:translateY(-1px);box-shadow:0 6px 20px rgba(65,105,255,.08);}
+.ec-top{display:flex;align-items:flex-start;gap:12px;margin-bottom:12px;}
+.ec-av{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;flex-shrink:0;}
+.ec-name{font-size:15px;font-weight:600;color:#1A1D2E;margin-bottom:2px;}
+.ec-role{font-size:12px;color:#A0A3B1;}
+.ec-stages{display:flex;gap:3px;margin-bottom:10px;}
+.ec-seg{height:4px;flex:1;border-radius:3px;}
+.ec-comps{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;}
+.ec-comp{font-size:11px;color:#6B6E8E;background:#F4F5F7;border:1px solid #E4E6EF;border-radius:4px;padding:2px 8px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.ec-meta{display:flex;align-items:center;justify-content:space-between;}
+.ec-status{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:500;}
+.ec-info{font-size:11px;color:#A0A3B1;}
+
+.sdot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+.s-done{background:#10B981;}.s-active{background:#4169FF;}.s-pending{background:#F59E0B;}.s-idle{background:#D8DAE8;}
+.s-done-txt{color:#059669;}.s-active-txt{color:#3358E0;}.s-pending-txt{color:#D97706;}.s-idle-txt{color:#A0A3B1;}
+
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;transition:all .12s;border:none;}
+.btn-p{background:#4169FF;color:#fff;}.btn-p:hover{background:#3358E0;}.btn-p:disabled{opacity:.4;cursor:not-allowed;}
+.btn-g{background:#fff;color:#6B6E8E;border:1px solid #E4E6EF;}.btn-g:hover{background:#F4F5F7;color:#1A1D2E;}
+.btn-d{background:#fff;color:#EF4444;border:1px solid #FCD4D4;}.btn-d:hover{background:#FEF2F2;}
+.btn-y{background:#fff;color:#D97706;border:1px solid #FDE68A;}.btn-y:hover{background:#FFFBEB;}
+.btn-sm{padding:5px 11px;font-size:12px;}.btn-xs{padding:3px 8px;font-size:11px;}
+
+.sec{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+.sec-lbl{font-size:10px;letter-spacing:1.8px;text-transform:uppercase;color:#A0A3B1;font-weight:600;}
+
+.tabs{display:flex;border-bottom:1px solid #E4E6EF;margin-top:16px;}
+.tab{padding:11px 18px;font-size:14px;font-weight:500;color:#A0A3B1;cursor:pointer;border-bottom:2px solid transparent;transition:all .12s;margin-bottom:-1px;}
+.tab:hover{color:#6B6E8E;}.tab.on{color:#1A1D2E;border-bottom-color:#4169FF;font-weight:600;}
+
+.back{display:inline-flex;align-items:center;gap:5px;font-size:13px;color:#A0A3B1;cursor:pointer;background:none;border:none;padding:0;margin-bottom:14px;transition:color .12s;}
+.back:hover{color:#6B6E8E;}
+
+.det-hd{display:flex;align-items:center;gap:14px;}
+.det-av{width:50px;height:50px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:700;flex-shrink:0;}
+.det-name{font-size:22px;font-weight:600;color:#1A1D2E;}
+.det-sub{font-size:13px;color:#A0A3B1;margin-top:2px;}
+
+.roadmap{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:20px 0;}
+.rm-box{background:#fff;border:1px solid #E4E6EF;border-radius:10px;padding:16px;cursor:pointer;transition:all .15s;}
+.rm-box:hover{border-color:#BCC4F0;}
+.rm-box.rm-active{border-color:#4169FF;box-shadow:0 0 0 3px rgba(65,105,255,.07);}
+.rm-num{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#C8CAD6;font-weight:600;margin-bottom:6px;}
+.rm-title{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px;}
+.rm-status{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;margin-bottom:10px;}
+.rm-items{list-style:none;}
+.rm-li{display:flex;align-items:flex-start;gap:7px;font-size:12px;color:#6B6E8E;margin-bottom:5px;line-height:1.4;}
+.rm-idot{width:4px;height:4px;border-radius:50%;flex-shrink:0;margin-top:5px;}
+
+.stage-panel{background:#fff;border:1px solid #E4E6EF;border-radius:12px;padding:20px 24px;}
+.action-list{display:flex;flex-direction:column;gap:8px;}
+.action-item{display:flex;align-items:center;gap:12px;padding:12px 14px;background:#F9FAFB;border:1px solid #E4E6EF;border-radius:9px;}
+.action-item.ai-pending{background:#FFFBEB;border-color:#FDE68A;}
+.action-item.ai-done{background:#F0FDF4;border-color:#BBF7D0;}
+.ai-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;}
+.ai-label{flex:1;}
+.ai-title{font-size:13px;font-weight:500;color:#1A1D2E;margin-bottom:2px;}
+.ai-meta{font-size:11px;color:#A0A3B1;}
+.ai-badge{font-size:11px;font-weight:600;padding:3px 8px;border-radius:5px;}
+.ai-b-done{background:rgba(16,185,129,.1);color:#059669;}
+.ai-b-pending{background:rgba(245,158,11,.1);color:#D97706;}
+.ai-b-todo{background:#F4F5F7;color:#A0A3B1;}
+.ai-b-active{background:rgba(65,105,255,.1);color:#3358E0;}
+
+.igrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px;}
+.icard{background:#fff;border:1px solid #E4E6EF;border-radius:9px;padding:12px 14px;}
+.ilbl{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#C8CAD6;font-weight:600;margin-bottom:5px;}
+.ival{font-size:13px;font-weight:500;color:#1A1D2E;}
+
+.sh-list{display:flex;flex-direction:column;gap:7px;}
+.sh-item{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid #E4E6EF;border-radius:9px;padding:10px 14px;}
+.sh-item.sh-invalid{background:#FEF2F2;border-color:#FCD4D4;}
+.sh-av{width:32px;height:32px;border-radius:8px;background:#EEF1FF;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#4169FF;flex-shrink:0;}
+.sh-name{font-size:14px;font-weight:500;color:#1A1D2E;}
+.sh-role{font-size:12px;color:#A0A3B1;}
+.badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:4px;}
+.b-done{background:rgba(16,185,129,.1);color:#059669;}
+.b-pend{background:rgba(245,158,11,.1);color:#D97706;}
+.b-new{background:rgba(65,105,255,.1);color:#3358E0;}
+.b-invalid{background:rgba(239,68,68,.1);color:#DC2626;}
+
+.code-box{background:#F4F5F7;border:1px solid #E4E6EF;border-radius:8px;padding:14px 16px;margin-top:16px;}
+.code-title{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#A0A3B1;font-weight:600;margin-bottom:10px;}
+.code-row{display:flex;align-items:center;gap:10px;margin-bottom:6px;}
+.code-lbl{font-size:12px;color:#6B6E8E;min-width:180px;}
+.code-val{font-size:12px;font-weight:700;color:#3358E0;background:#EEF1FF;padding:3px 10px;border-radius:5px;letter-spacing:.5px;}
+
+.overlay{position:fixed;inset:0;background:rgba(30,35,60,.45);display:flex;align-items:center;justify-content:center;z-index:200;backdrop-filter:blur(4px);}
+.modal{background:#fff;border:1px solid #E4E6EF;border-radius:14px;padding:28px 30px;width:500px;max-width:95vw;max-height:88vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.12);}
+.modal-lg{width:680px;}.modal-sm{width:400px;}
+.modal-title{font-size:20px;font-weight:600;color:#1A1D2E;margin-bottom:4px;}
+.modal-sub{font-size:13px;color:#A0A3B1;margin-bottom:22px;}
+.modal-foot{display:flex;justify-content:flex-end;gap:8px;margin-top:22px;padding-top:16px;border-top:1px solid #E4E6EF;}
+.field{margin-bottom:15px;}
+.flbl{font-size:11px;color:#6B6E8E;font-weight:600;letter-spacing:.8px;text-transform:uppercase;margin-bottom:6px;}
+.flbl-hint{font-size:10px;color:#A0A3B1;font-weight:400;margin-left:6px;letter-spacing:0;text-transform:none;}
+.finp{width:100%;background:#F4F5F7;border:1px solid #E4E6EF;border-radius:8px;padding:11px 14px;font-size:14px;color:#1A1D2E;outline:none;transition:border-color .12s;resize:vertical;}
+.finp:focus{border-color:#4169FF;background:#fff;}
+.finp::placeholder{color:#C8CAD6;}
+.fchar{font-size:11px;color:#A0A3B1;text-align:right;margin-top:3px;}
+.fsel{width:100%;background:#F4F5F7;border:1px solid #E4E6EF;border-radius:8px;padding:11px 14px;font-size:14px;color:#1A1D2E;outline:none;appearance:none;}
+.frow{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.fcheck{display:flex;align-items:center;gap:8px;font-size:13px;color:#1A1D2E;cursor:pointer;}
+.fcheck input{width:16px;height:16px;accent-color:#4169FF;}
+
+/* Competencias editor */
+.comp-editor{background:#F9FAFB;border:1px solid #E4E6EF;border-radius:10px;padding:16px 18px;margin-bottom:16px;}
+.comp-item{background:#fff;border:1px solid #E4E6EF;border-radius:9px;padding:14px 16px;margin-bottom:8px;}
+.comp-name{font-size:14px;font-weight:600;color:#1A1D2E;margin-bottom:2px;}
+.comp-detail{font-size:12px;color:#6B6E8E;}
+.comp-num{font-size:10px;color:#4169FF;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;}
+
+/* Progress chart */
+.prog-table{width:100%;border-collapse:collapse;margin-bottom:20px;}
+.prog-table th{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:#A0A3B1;font-weight:600;padding:8px 12px;border-bottom:2px solid #E4E6EF;text-align:left;}
+.prog-table td{padding:12px;border-bottom:1px solid #F4F5F7;vertical-align:middle;}
+.prog-comp-name{font-size:13px;font-weight:500;color:#1A1D2E;}
+.prog-bar-wrap{display:flex;gap:2px;height:24px;border-radius:6px;overflow:hidden;min-width:200px;}
+.prog-seg{display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;transition:width .3s;min-width:0;overflow:hidden;}
+.prog-pct{font-size:10px;white-space:nowrap;}
+
+/* 360 form */
+.form-page{min-height:100vh;background:#F4F5F7;}
+.form-header{background:#fff;border-bottom:1px solid #E4E6EF;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;}
+.form-body{max-width:640px;margin:0 auto;padding:32px 16px;}
+.form-hero{text-align:center;margin-bottom:32px;}
+.form-hero-title{font-size:22px;font-weight:600;color:#1A1D2E;margin-bottom:8px;}
+.form-hero-sub{font-size:14px;color:#6B6E8E;line-height:1.7;}
+.q-sect-lbl{font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#4169FF;padding:14px 0 8px;}
+.q-block{background:#fff;border:1px solid #E4E6EF;border-radius:10px;padding:18px 20px;margin-bottom:8px;}
+.q-label{font-size:14px;font-weight:500;color:#1A1D2E;margin-bottom:10px;line-height:1.5;}
+.q-req{color:#EF4444;margin-left:2px;}
+.q-area{width:100%;min-height:80px;background:#F4F5F7;border:1px solid #E4E6EF;border-radius:8px;padding:12px;font-size:14px;color:#1A1D2E;outline:none;resize:vertical;line-height:1.6;transition:border-color .12s;}
+.q-area:focus{border-color:#4169FF;background:#fff;}
+.q-area::placeholder{color:#C8CAD6;}
+.q-sel{width:100%;background:#F4F5F7;border:1px solid #E4E6EF;border-radius:8px;padding:11px 14px;font-size:14px;color:#1A1D2E;outline:none;appearance:none;}
+
+/* Mini survey form */
+.scale-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #F4F5F7;}
+.scale-row:last-child{border-bottom:none;}
+.scale-lbl{font-size:14px;color:#1A1D2E;flex:1;line-height:1.4;}
+.scale-btns{display:flex;gap:3px;}
+.scale-btn{width:34px;height:30px;border-radius:6px;border:1px solid #E4E6EF;background:#F4F5F7;color:#6B6E8E;font-size:12px;font-weight:600;cursor:pointer;transition:all .12s;}
+.scale-btn:hover{background:#EEF1FF;border-color:#BCC4F0;color:#3358E0;}
+.scale-btn.sp{background:rgba(16,185,129,.1);border-color:#10B981;color:#059669;}
+.scale-btn.sn{background:rgba(239,68,68,.1);border-color:#EF4444;color:#DC2626;}
+.scale-btn.sz{background:rgba(65,105,255,.1);border-color:#4169FF;color:#3358E0;}
+.freq-sel{background:#F4F5F7;border:1px solid #E4E6EF;border-radius:7px;padding:6px 10px;font-size:12px;color:#1A1D2E;outline:none;appearance:none;font-family:'Poppins',sans-serif;}
+
+/* Report */
+.report-editor{width:100%;min-height:380px;background:#F4F5F7;border:1px solid #E4E6EF;border-radius:10px;padding:18px;font-size:14px;color:#1A1D2E;outline:none;line-height:1.9;resize:vertical;transition:border-color .12s;}
+.report-editor:focus{border-color:#4169FF;background:#fff;}
+.report-view{background:#fff;border:1px solid #E4E6EF;border-radius:10px;padding:22px;}
+.report-text{font-size:14px;line-height:1.9;color:#3A3D58;white-space:pre-wrap;}
+.approved-banner{background:rgba(16,185,129,.07);border:1px solid rgba(16,185,129,.2);border-radius:8px;padding:10px 16px;display:flex;align-items:center;gap:8px;margin-bottom:16px;font-size:13px;color:#059669;font-weight:500;}
+
+/* Portal */
+.portal-page{min-height:100vh;background:#F4F5F7;}
+.portal-header{background:#fff;border-bottom:1px solid #E4E6EF;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;}
+.portal-body{max-width:820px;margin:0 auto;padding:28px 20px;}
+.portal-hero{background:linear-gradient(135deg,#EEF1FF,#F0F4FF);border:1px solid #D0D8F8;border-radius:14px;padding:26px 28px;margin-bottom:24px;}
+.portal-name{font-size:22px;font-weight:600;color:#1A1D2E;margin-bottom:4px;}
+
+/* Notifications */
+.notif{background:#FFFBEB;border:1px solid #FDE68A;border-radius:9px;padding:12px 16px;margin-bottom:8px;display:flex;gap:10px;align-items:flex-start;}
+.notif-icon{font-size:16px;flex-shrink:0;margin-top:1px;}
+.notif-text{font-size:13px;color:#92400E;line-height:1.5;}
+.notif-time{font-size:11px;color:#D97706;margin-top:3px;}
+
+/* Login */
+.login-page{min-height:100vh;background:#F4F5F7;display:flex;align-items:center;justify-content:center;}
+.login-box{width:420px;padding:40px;background:#fff;border:1px solid #E4E6EF;border-radius:16px;box-shadow:0 8px 32px rgba(65,105,255,.07);}
+.login-logo{font-size:26px;font-weight:700;color:#1A1D2E;margin-bottom:4px;}
+.login-tagline{font-size:10px;color:#A0A3B1;letter-spacing:2px;text-transform:uppercase;margin-bottom:28px;}
+.role-cards{display:flex;flex-direction:column;gap:7px;margin-bottom:22px;}
+.role-card{background:#F4F5F7;border:1px solid #E4E6EF;border-radius:10px;padding:13px 15px;cursor:pointer;transition:all .12s;}
+.role-card:hover,.role-card.sel{border-color:#4169FF;background:#EEF1FF;}
+.role-name{font-size:14px;font-weight:600;color:#1A1D2E;}
+.role-desc{font-size:12px;color:#6B6E8E;margin-top:2px;}
+.login-inp{width:100%;background:#F4F5F7;border:1px solid #E4E6EF;border-radius:8px;padding:12px 14px;font-size:14px;color:#1A1D2E;outline:none;transition:border-color .12s;margin-bottom:10px;}
+.login-inp:focus{border-color:#4169FF;background:#fff;}
+.login-inp::placeholder{color:#C8CAD6;}
+.login-btn{width:100%;background:#4169FF;color:#fff;border:none;border-radius:8px;padding:13px;font-size:15px;font-weight:600;cursor:pointer;transition:background .12s;margin-top:4px;}
+.login-btn:hover{background:#3358E0;}
+.login-err{font-size:12px;color:#EF4444;margin-top:8px;text-align:center;}
+.login-hint{font-size:11px;color:#C8CAD6;margin-top:14px;text-align:center;line-height:1.7;}
+
+.empty{text-align:center;padding:48px 20px;color:#A0A3B1;font-size:14px;}
+.ei{font-size:30px;margin-bottom:10px;opacity:.35;}
+.divider{height:1px;background:#E4E6EF;margin:20px 0;}
+.tag{font-size:11px;font-weight:600;padding:3px 9px;border-radius:5px;}
+.ldots{display:flex;gap:3px;align-items:center;}
+.ldot{width:5px;height:5px;border-radius:50%;background:#4169FF;animation:ld 1.2s ease-in-out infinite;}
+.ldot:nth-child(2){animation-delay:.2s;}.ldot:nth-child(3){animation-delay:.4s;}
+@keyframes ld{0%,100%{opacity:.2;transform:scale(.8);}50%{opacity:1;transform:scale(1.1);}}
+.done-page{min-height:100vh;background:#F4F5F7;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;}
+.done-icon{font-size:48px;}
+.done-title{font-size:24px;font-weight:600;color:#1A1D2E;}
+.done-sub{font-size:14px;color:#6B6E8E;max-width:340px;text-align:center;line-height:1.7;}
+.info-box{background:#EEF1FF;border:1px solid #D0D8F8;border-radius:8px;padding:12px 16px;font-size:13px;color:#3358E0;margin-bottom:16px;}
+.warn-box{background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;padding:12px 16px;font-size:13px;color:#D97706;margin-bottom:16px;}
+.char-count{font-size:11px;color:#A0A3B1;text-align:right;margin-top:3px;}
+.action-plan-item{background:#fff;border:1px solid #E4E6EF;border-radius:10px;padding:16px 18px;margin-bottom:10px;}
+.action-plan-item.ap-done{border-color:#BBF7D0;background:#F0FDF4;}
+.action-plan-item.ap-active{border-color:#BCC4F0;background:#EEF1FF;}
+.portal-dropdown{position:relative;display:inline-block;}
+.portal-menu{position:absolute;right:0;top:36px;background:#fff;border:1px solid #E4E6EF;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.1);z-index:100;min-width:200px;overflow:hidden;}
+.portal-menu-item{padding:10px 16px;font-size:13px;color:#1A1D2E;cursor:pointer;display:block;width:100%;text-align:left;border:none;background:none;transition:background .1s;}
+.portal-menu-item:hover{background:#F4F5F7;}
+`;
+
+// ─── CONSTANTS ────────────────────────────────────────────────────────────────
+const STAGES = ["Diagnóstico","Setup","Processo","Encerramento"];
+const SC = ["#4169FF","#8B5CF6","#F59E0B","#10B981"];
+const SH_ROLES_360 = ["Sou a pessoa avaliada (autoavaliação)","Sou líder da pessoa","Sou / já fui liderado/a da pessoa (direto ou indireto)","Sou par da pessoa","Sou de outra área ou fora da empresa","Outro"];
+const SH_ROLES_MS = ["Sou a pessoa avaliada (autoavaliação)","Sou líder da pessoa / já liderei no passado","Sou / já fui liderado/a da pessoa (direto ou indireto)","Sou / já fui par da pessoa","Sou cliente / fornecedor interno ou externo"];
+const SCALE = ["-3","-2","-1","0","+1","+2","+3"];
+const SCALE_COLORS = {"−3":"#DC2626","−2":"#EF4444","-3":"#DC2626","-2":"#EF4444","-1":"#F97316","0":"#A0A3B1","+1":"#4169FF","+2":"#10B981","+3":"#059669"};
+const FREQ_OPTS = ["Nenhuma","Um pouco (ao menos 1x/mês)","Moderado (2x/mês)","Frequente (acima de 3x/mês)"];
+const STATUS = {
+  done:{label:"Concluída",dot:"s-done",txt:"s-done-txt"},
+  active:{label:"Em andamento",dot:"s-active",txt:"s-active-txt"},
+  pending:{label:"Pendência(s)",dot:"s-pending",txt:"s-pending-txt"},
+  idle:{label:"Não iniciada",dot:"s-idle",txt:"s-idle-txt"},
+};
+
+// ─── STORAGE UTILITIES ───────────────────────────────────────────────────────
+function sanitizeFileName(name) {
+  return name
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // remove accents
+    .replace(/[^a-zA-Z0-9._-]/g, '_')                  // replace special chars
+    .replace(/_+/g, '_');                                // collapse multiple underscores
+}
+
+async function uploadFile(file, path) {
+  // Sanitize the filename portion of the path
+  const parts = path.split('/');
+  const lastPart = parts[parts.length - 1];
+  const safeLast = sanitizeFileName(lastPart);
+  parts[parts.length - 1] = safeLast;
+  const safePath = parts.join('/');
+  const { data, error } = await supabase.storage.from('lidehra-files').upload(safePath, file, { upsert: true });
+  if (error) throw error;
+  return data.path;
+}
+
+async function getFileUrl(path) {
+  const { data } = await supabase.storage.from('lidehra-files').createSignedUrl(path, 3600);
+  return data?.signedUrl || null;
+}
+
+async function deleteFile(path) {
+  await supabase.storage.from('lidehra-files').remove([path]);
+}
+
+function generatePDF(content, filename) {
+  // Simple HTML-to-print PDF generation
+  const win = window.open('', '_blank');
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${filename}</title>
+    <style>body{font-family:Georgia,serif;max-width:800px;margin:40px auto;padding:0 24px;color:#1A1D2E;line-height:1.8}
+    h1,h2,h3{color:#1A1D2E}h2{border-bottom:1px solid #E4E6EF;padding-bottom:8px;margin-top:32px}
+    p{margin:8px 0}strong{font-weight:700}@media print{body{margin:0}}</style>
+    </head><body><pre style="white-space:pre-wrap;font-family:Georgia,serif;font-size:14px">${content}</pre>
+    <script>window.onload=()=>{window.print();}<\/script></body></html>`);
+  win.document.close();
+}
+
+// ─── SAFE CONFIRM ────────────────────────────────────────────────────────────
+function safeConfirm(msg, detail='Esta ação não pode ser desfeita.'){
+  return window.confirm(msg + '\n\n⚠ ' + detail);
+}
+
+// ─── GENERATE DOCX (HTML-based, opens in Word) ───────────────────────────────
+function generateDOCX(content, filename){
+  const html = `<html xmlns:o='urn:schemas-microsoft-com:office:office'
+    xmlns:w='urn:schemas-microsoft-com:office:word'
+    xmlns='http://www.w3.org/TR/REC-html40'>
+    <head><meta charset='utf-8'>
+    <style>
+      body{font-family:Calibri,sans-serif;font-size:11pt;color:#1A1D2E;line-height:1.6;margin:2cm}
+      h1{font-size:16pt;color:#1A1D2E;border-bottom:1pt solid #E4E6EF;padding-bottom:6pt;margin-bottom:12pt}
+      h2{font-size:13pt;color:#1A1D2E;margin-top:18pt;margin-bottom:8pt}
+      h3{font-size:11pt;color:#4169FF;margin-top:14pt;margin-bottom:6pt}
+      p{margin:6pt 0}strong{font-weight:bold}
+      .header{color:#6B6E8E;font-size:9pt;margin-bottom:24pt;padding-bottom:12pt;border-bottom:2pt solid #4169FF}
+    </style></head>
+    <body>
+    <div class="header"><strong>Lidehra · Plataforma de Desenvolvimento de Liderança</strong><br/>
+    Documento gerado em ${new Date().toLocaleDateString('pt-BR')}</div>
+    <pre style="white-space:pre-wrap;font-family:Calibri,sans-serif;font-size:11pt;line-height:1.6">${content.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</pre>
+    </body></html>`;
+  const blob = new Blob([html], {type:'application/msword'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename.endsWith('.doc')||filename.endsWith('.docx') ? filename : filename+'.doc';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ─── DELETE STORAGE FILE ──────────────────────────────────────────────────────
+async function deleteStorageFile(path){
+  if(!path) return;
+  try{ await deleteFile(path); }catch(e){ console.warn('Could not delete file:', e); }
+}
+
+// ─── INITIAL DATA ─────────────────────────────────────────────────────────────
+const INIT_ENGS = [
+  {
+    id:1,title:"Desenvolvimento de Liderança",
+    coachee:{name:"Vagner Moreira",initials:"VM",color:"#4169FF",role:"Diretor de Operações",company:"Dimas Construções",email:"vagner@dimas.com.br"},
+    leaders:[{id:1,name:"Roberto Fonseca",email:"roberto@dimas.com.br",initials:"RF"}],
+    rh:[{id:1,name:"Carla Mendes",email:"carla.rh@dimas.com.br",initials:"CM"}],
+    goal:"Transição de especialista técnico para líder de visão estratégica com maior presença executiva",
+    startDate:"2024-10-01",endDate:"2025-04-01",cadence:"quinzenal",totalSessions:10,phase:3,
+    competencias:[
+      {id:1,nome:"Posicionamento estratégico e presença executiva",detalhe:"Comunicação assertiva, visão de farol alto, presença em reuniões"},
+      {id:2,nome:"Delegação e gestão de pessoas",detalhe:"Matriz A/B/C, desenvolvimento de sucessores, autonomia do time"},
+    ],
+    hasAssessment:true,assessmentType:"DISC",assessmentFile:"DISC_Vagner_Moreira.pdf",
+    stakeholders360:[
+      {id:1,name:"Valerio Costa",email:"valerio@dimas.com.br",role:"Líder direto",initials:"VC",status:"done",validatedByLeader:true,invalid:false,leaderMsg:"",
+       feedback:{tipo:"Sou líder da pessoa",pos1:"Conhecimento técnico elevado",pos1ex:"Adapta linguagem para públicos diferentes com facilidade.",pos2:"Proatividade e agilidade",pos2ex:"Não procrastina quando algo é prioritário.",pos3:"Integridade e ética",pos3ex:"Reconhecido por ser justo nas decisões.",cont1:"Manter comprometimento",cont1ex:"Acompanha indicadores com afinco.",cont2:"Ser referência técnica",cont2ex:"Time recorre a ele para dúvidas complexas.",cont3:"",cont3ex:"",par1:"Posturas defensivas",par1ex:"Reage mal a feedbacks mesmo sem provocação.",par2:"Conclusões rápidas",par2ex:"Toma decisões com informações parciais.",par3:"",par3ex:"",inic1:"Comunicação assertiva",inic1ex:"Praticar posicionamentos mais diretos em reuniões.",inic2:"Delegação estruturada",inic2ex:"Usar matriz A/B/C para delegar tarefas ao time.",inic3:"",inic3ex:"",prior:"Posicionamento estratégico e presença executiva"}},
+      {id:2,name:"João Silva",email:"joao@dimas.com.br",role:"Liderado",initials:"JS",status:"done",validatedByLeader:true,invalid:false,leaderMsg:"",
+       feedback:{tipo:"Sou / já fui liderado/a da pessoa (direto ou indireto)",pos1:"Determinado",pos1ex:"Cumpre com o que fala.",pos2:"Acessível",pos2ex:"Sempre cordial com a equipe.",pos3:"",pos3ex:"",cont1:"Ser referência técnica",cont1ex:"Time confia no seu julgamento.",cont2:"Manter acessibilidade",cont2ex:"Porta sempre aberta.",cont3:"",cont3ex:"",par1:"Microgerenciamento",par1ex:"Quer dizer como as pessoas devem fazer as coisas.",par2:"Interromper",par2ex:"Corta a fala antes de ouvir o ponto completo.",par3:"",par3ex:"",inic1:"Treinar o time",inic1ex:"Desenvolver sucessores e dar mais autonomia.",inic2:"Delegar com clareza",inic2ex:"Dizer o que e deixar o time decidir o como.",inic3:"",inic3ex:"",prior:"Delegação eficaz"}},
+      {id:3,name:"Camila Reis",email:"camila@dimas.com.br",role:"Par",initials:"CR",status:"done",validatedByLeader:true,invalid:false,leaderMsg:"",
+       feedback:{tipo:"Sou / já fui par da pessoa",pos1:"Bom relacionamento",pos1ex:"Mantém clima positivo.",pos2:"Proativo",pos2ex:"Age rapidamente quando há prioridade.",pos3:"",pos3ex:"",cont1:"Manter relacionamento",cont1ex:"Colabora bem com os pares.",cont2:"",cont2ex:"",cont3:"",cont3ex:"",par1:"Excesso técnico em apresentações",par1ex:"Perde o fio estratégico.",par2:"",par2ex:"",par3:"",par3ex:"",inic1:"Pensar em impacto financeiro",inic1ex:"Priorizar assuntos pelo retorno em R$.",inic2:"",inic2ex:"",inic3:"",inic3ex:"",prior:"Comunicação estratégica"}},
+    ],
+    report:{content:`## Relatório de Desenvolvimento de Liderança\n**Coachee:** Vagner Moreira | Diretor de Operações | Dimas Construções\n\n### Síntese do Perfil de Liderança\nVagner é reconhecido como referência técnica de alto valor, com comprometimento genuíno e integridade que constroem confiança em múltiplos níveis da organização. O desafio central está na transição para um perfil mais estratégico — ocupar o espaço executivo com mais presença e assertividade.\n\n### Pontos Fortes Consolidados\n1. **Conhecimento técnico elevado** — referência reconhecida, adapta linguagem para diferentes públicos\n2. **Comprometimento e proatividade** — não procrastina, acompanha indicadores com afinco\n3. **Integridade e relacionamento** — percebido como justo, ético e acessível\n\n### Prioridades de Desenvolvimento\n1. **Posicionamento estratégico** — comunicação mais assertiva e presença executiva\n2. **Delegação estruturada** — matriz A/B/C, treinar sucessores, criar autonomia no time\n3. **Processo de decisão** — ouvir todas as partes antes de concluir\n\n### Plano de Ação\n**Parar de fazer:**\n- Posturas defensivas em reuniões estratégicas\n- Conclusões rápidas com informações parciais\n- Microgerenciamento de tarefas operacionais\n\n**Começar a fazer:**\n- Comunicação assertiva e objetiva em reuniões\n- Delegar usando matriz: A (eu faço), B (delego), C (quando der)\n- Silêncio de 5-10s após a fala do outro antes de responder\n\n### Checklist Diário de Comportamentos\n☐ Antes de responder, ouvi completamente?\n☐ Tomei alguma decisão baseada em dados, não em percepção?\n☐ Deleguei pelo menos uma tarefa que poderia ter feito eu mesmo?\n☐ Fiz pelo menos uma interação proativa com meu time hoje?\n☐ Minha comunicação em reuniões foi objetiva e estratégica?`,approved:true,sharedAt:"2024-11-15"},
+    miniSurveys:[{
+      id:1,label:"Mini-Survey 1",period:"1° trim 2025",sentAt:"2025-01-15",
+      competencias:["Posicionamento estratégico e presença executiva","Delegação e gestão de pessoas"],
+      responses:[
+        {shId:1,name:"Valerio Costa",role:"Líder direto",scores:[2,1],overall:2,mudancas:"Evolução clara na assertividade.",sugestoes:"Continuar avançando na delegação.",freq:["Moderado (2x/mês)","Moderado (2x/mês)"],objetivos:"Sim"},
+        {shId:2,name:"João Silva",role:"Liderado",scores:[1,1],overall:1,mudancas:"Começou a dar mais espaço ao time.",sugestoes:"Manter a agenda regular.",freq:["Um pouco (ao menos 1x/mês)","Um pouco (ao menos 1x/mês)"],objetivos:"Sim"},
+        {shId:3,name:"Camila Reis",role:"Par",scores:[1,2],overall:1,mudancas:"Apresentações mais objetivas.",sugestoes:"Delegação em progresso.",freq:["Nenhuma","Nenhuma"],objetivos:"Não"},
+        {shId:4,name:"André Lima",role:"Cliente interno",scores:[2,1],overall:2,mudancas:"Mais escuta ativa.",sugestoes:"Agenda propositiva com o time.",freq:["Um pouco (ao menos 1x/mês)","Nenhuma"],objetivos:"Sim"},
+      ]
+    }],
+    stakeholdersMS:[
+      {id:1,name:"Valerio Costa",email:"valerio@dimas.com.br",role:"Líder direto",initials:"VC",status:"done",validatedByLeader:true,invalid:false,leaderMsg:""},
+      {id:2,name:"João Silva",email:"joao@dimas.com.br",role:"Liderado",initials:"JS",status:"done",validatedByLeader:true,invalid:false,leaderMsg:""},
+      {id:3,name:"Camila Reis",email:"camila@dimas.com.br",role:"Par",initials:"CR",status:"done",validatedByLeader:true,invalid:false,leaderMsg:""},
+      {id:4,name:"André Lima",email:"andre@dimas.com.br",role:"Cliente interno",initials:"AL",status:"done",validatedByLeader:true,invalid:false,leaderMsg:""},
+    ],
+    sessions:[
+      {num:8,date:"21 Fev 2025",notes:"Revisão do plano de ação. Foco em comunicação assertiva."},
+      {num:7,date:"07 Fev 2025",notes:"Delegação via matriz A/B/C."},
+    ],
+    notifications:[],
+    actionStatuses:{
+      onboarding:'done',cronograma:'done',assessment:'done',
+      comuni360:'done',dispara360:'done',devolutiva:'done',
+      alinhamento:'done',planoacao:'done',engajamento:'done',agenda:'done',
+      comunims:'done',disparams:'done',
+      sessoes1a5:'done',sessoes6a10:'active',
+    },
+  },
+  {
+    id:2,title:"Desenvolvimento de Liderança",
+    coachee:{name:"Gabriel Freire",initials:"GF",color:"#8B5CF6",role:"Gerente Geral",company:"Dimas Construções",email:"gabriel@dimas.com.br"},
+    leaders:[{id:1,name:"Roberto Fonseca",email:"roberto@dimas.com.br",initials:"RF"}],
+    rh:[{id:1,name:"Carla Mendes",email:"carla.rh@dimas.com.br",initials:"CM"}],
+    goal:"Fortalecer colaboração com pares e qualidade do acompanhamento da equipe",
+    startDate:"2024-09-01",endDate:"2025-03-01",cadence:"semanal",totalSessions:10,phase:2,
+    competencias:[
+      {id:1,nome:"Colaboração com pares",detalhe:"Cumprir combinados, alinhamento direto, confiabilidade"},
+      {id:2,nome:"Delegação e acompanhamento da equipe",detalhe:"Presença consistente, acompanhar processo e não só resultado"},
+    ],
+    hasAssessment:false,assessmentType:"",assessmentFile:"",
+    stakeholders360:[
+      {id:1,name:"Nathan Duarte",email:"nathan@dimas.com.br",role:"Liderado",initials:"ND",status:"done",validatedByLeader:true,invalid:false,leaderMsg:"",
+       feedback:{tipo:"Sou / já fui liderado/a da pessoa (direto ou indireto)",pos1:"Comprometimento",pos1ex:"Quer melhorar e tem abertura.",pos2:"Relacionamento",pos2ex:"Boa comunicação interpessoal.",pos3:"",pos3ex:"",cont1:"Abertura para conversa",cont1ex:"Receptivo a feedbacks.",cont2:"",cont2ex:"",cont3:"",cont3ex:"",par1:"Distância do time",par1ex:"Pontos de contato escassos.",par2:"",par2ex:"",par3:"",par3ex:"",inic1:"Mais presença",inic1ex:"Criar agenda regular com liderados.",inic2:"",inic2ex:"",inic3:"",inic3ex:"",prior:"Proximidade e acompanhamento"}},
+      {id:2,name:"Tania Nogueira",email:"tania@dimas.com.br",role:"Par",initials:"TN",status:"pending",validatedByLeader:false,invalid:false,leaderMsg:"",feedback:null},
+    ],
+    report:null,miniSurveys:[],
+    stakeholdersMS:[],sessions:[
+      {num:4,date:"20 Fev 2025",notes:"Engajamento dos stakeholders. Plano de ações em construção."},
+    ],
+    notifications:[],
+    actionStatuses:{
+      onboarding:'done',cronograma:'done',
+      comuni360:'done',dispara360:'done',
+      alinhamento:'active',planoacao:'idle',engajamento:'idle',agenda:'idle',
+      comunims:'idle',disparams:'idle',
+    },
+  },
+];
+
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
+const ini = n => n.split(' ').filter(Boolean).slice(0,2).map(w=>w[0].toUpperCase()).join('');
+function Dots(){ return <div className="ldots"><div className="ldot"/><div className="ldot"/><div className="ldot"/></div>; }
+function Overlay({children,onClose}){ return <div className="overlay" onClick={e=>e.target===e.currentTarget&&onClose()}>{children}</div>; }
+
+function stageStatus(eng, phase){
+  const as = eng.actionStatuses || {};
+  const m = (id) => as[id] || 'idle';
+  if(phase === 1){
+    const hasAny = eng.stakeholders360.length>0 || eng.report || eng.competencias.length>0 || m('onboarding')!=='idle';
+    if(!hasAny) return 'idle';
+    if(eng.report?.approved && m('devolutiva')==='done') return 'done';
+    if(eng.stakeholders360.some(s=>s.status==='pending'&&!s.invalid)) return 'pending';
+    if(eng.report&&!eng.report.approved) return 'pending';
+    return 'active';
+  }
+  if(phase === 2){
+    const hasAny = eng.competencias.length>0 || eng.stakeholdersMS.length>0 || m('alinhamento')!=='idle';
+    if(!hasAny) return 'idle';
+    const allDone=['alinhamento','planoacao','engajamento','agenda'].every(id=>m(id)==='done') && eng.competencias.length>0;
+    if(allDone) return 'done';
+    return 'active';
+  }
+  if(phase === 3){
+    if(eng.sessions.length===0 && eng.miniSurveys.length===0 && m('sessoes1a5')==='idle') return 'idle';
+    if(m('sessoes6a10')==='done' && eng.miniSurveys.length>0) return 'done';
+    return 'active';
+  }
+  if(phase === 4){
+    if(m('msf')==='idle') return 'idle';
+    if(['msf','resultado','apresentacao','depoimentos'].every(id=>m(id)==='done')) return 'done';
+    return 'active';
+  }
+  return 'idle';
+}
+
+function currentStatus(eng){ return stageStatus(eng, eng.phase); }
+
+function StageBar({eng}){
+  return (
+    <div className="ec-stages">
+      {[1,2,3,4].map(p=>{
+        const s=stageStatus(eng,p);
+        return <div key={p} className="ec-seg" style={{background:s==='done'?SC[p-1]:s==='active'?SC[p-1]+'88':s==='pending'?'#FDE68A':'#E4E6EF'}}/>;
+      })}
+    </div>
+  );
+}
+
+function StatusBadge({status}){
+  const s=STATUS[status];
+  return <div className="ec-status"><span className={`sdot ${s.dot}`}/><span className={s.txt}>{s.label}</span></div>;
+}
+
+// ─── PROGRESS CHART ───────────────────────────────────────────────────────────
+function ProgressChart({miniSurveys}){
+  if(!miniSurveys||miniSurveys.length===0) return <div className="empty"><div className="ei">◌</div>O progresso será exibido após o primeiro mini-survey.</div>;
+  const ms = miniSurveys[miniSurveys.length-1];
+  const n = ms.responses.length;
+  if(n===0) return <div className="warn-box">Nenhuma resposta coletada ainda.</div>;
+
+  const segColors = {"-3":"#DC2626","-2":"#F87171","-1":"#FCA5A5","0":"#D1D5DB","+1":"#93C5FD","+2":"#3B82F6","+3":"#1D4ED8"};
+
+  const buildDist = (scores) => {
+    const dist = {};
+    SCALE.forEach(k=>dist[k]=0);
+    scores.forEach(v=>{const k=(v>=0?'+':'')+v;if(dist[k]!==undefined)dist[k]++;});
+    return dist;
+  };
+
+  // Compile qualitative responses — mudancas = "O que melhorou", sugestoes = "Próximos desafios"
+  // These are global (not per-competência in the form), so we show once for Efetividade geral row
+  const mudancasTexts = ms.responses.map(r=>r.mudancas).filter(Boolean);
+  const sugestoesTexts = ms.responses.map(r=>r.sugestoes).filter(Boolean);
+
+  const allRows = [
+    ...ms.competencias.map((c,ci)=>({label:c,scores:ms.responses.map(r=>r.scores[ci]||0),isGeral:false,ci})),
+    {label:"Efetividade como líder (geral)",scores:ms.responses.map(r=>r.overall||0),isGeral:true},
+  ];
+
+  const QualBlock = ({texts,title,color,bg})=>(
+    <div style={{background:bg,border:`1px solid ${color}30`,borderRadius:7,padding:'10px 12px',marginBottom:8}}>
+      <div style={{fontSize:10,fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',color,marginBottom:6}}>{title}</div>
+      {texts.length===0
+        ?<div style={{fontSize:12,color:'#A0A3B1'}}>Sem respostas.</div>
+        :texts.map((t,i)=><div key={i} style={{fontSize:12,color:'#3A3D58',lineHeight:1.5,marginBottom:i<texts.length-1?5:0}}>— {t}</div>)
+      }
+    </div>
+  );
+
+  return (
+    <div>
+      <div style={{fontSize:13,color:'#A0A3B1',marginBottom:16}}>{ms.label} · {ms.period||ms.sentAt} · {n} respondente{n!==1?'s':''}</div>
+
+      {/* Quantitative table */}
+      <div style={{overflowX:'auto'}}>
+        <table className="prog-table">
+          <thead>
+            <tr>
+              <th style={{width:'28%'}}>Temas trabalhados</th>
+              <th style={{width:'38%',textAlign:'center'}}>Percepção de evolução (stakeholders)</th>
+              <th style={{width:'34%'}}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {allRows.map((row,ri)=>{
+              const dist = buildDist(row.scores);
+              return (
+                <tr key={ri}>
+                  <td><div className="prog-comp-name" style={{fontWeight:row.isGeral?700:500}}>{row.isGeral?<strong>{row.label}</strong>:row.label}</div></td>
+                  <td>
+                    <div style={{display:'flex',alignItems:'center',gap:2,marginBottom:4}}>
+                      {SCALE.map(k=><span key={k} style={{fontSize:9,color:'#A0A3B1',width:32,textAlign:'center'}}>{k}</span>)}
+                    </div>
+                    <div className="prog-bar-wrap">
+                      {SCALE.map(k=>{
+                        const cnt=dist[k]||0;
+                        const pct=n>0?Math.round(cnt/n*100):0;
+                        if(cnt===0) return <div key={k} style={{width:32,background:'#F4F5F7',borderRight:'1px solid #fff',height:24}}/>;
+                        return (
+                          <div key={k} className="prog-seg" style={{width:32,background:segColors[k]}}>
+                            {pct>0?`${pct}%`:''}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </td>
+                  <td>
+                    <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
+                      {SCALE.filter(k=>(dist[k]||0)>0).map(k=>{
+                        const pct=Math.round((dist[k]/n)*100);
+                        const nv=parseInt(k);
+                        const col=nv>0?'#059669':nv<0?'#DC2626':'#6B6E8E';
+                        return <span key={k} style={{fontSize:11,fontWeight:700,color:col,background:nv>0?'rgba(16,185,129,.1)':nv<0?'rgba(220,38,38,.1)':'#F4F5F7',padding:'2px 6px',borderRadius:4}}>{k}: {pct}%</span>;
+                      })}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Qualitative section */}
+      {(mudancasTexts.length>0||sugestoesTexts.length>0)&&(
+        <div style={{marginTop:20}}>
+          <div className="sec-lbl" style={{marginBottom:14}}>Respostas qualitativas — compilação das percepções</div>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
+            <div>
+              <QualBlock texts={mudancasTexts} title="O que melhorou (stakeholders e autopercepção)" color="#059669" bg="rgba(16,185,129,.04)"/>
+            </div>
+            <div>
+              <QualBlock texts={sugestoesTexts} title="Próximos desafios (stakeholders e autopercepção)" color="#3358E0" bg="rgba(65,105,255,.04)"/>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {miniSurveys.length>1&&(
+        <div style={{fontSize:12,color:'#A0A3B1',marginTop:12}}>Mostrando o mini-survey mais recente. Total aplicado: {miniSurveys.length}.</div>
+      )}
+    </div>
+  );
+}
+
+// ─── LOGIN ────────────────────────────────────────────────────────────────────
+function Login({onLogin}){
+  const [role,setRole]=useState('coach');
+  const [email,setEmail]=useState('');
+  const [pass,setPass]=useState('');
+  const [code,setCode]=useState('');
+  const [err,setErr]=useState('');
+
+  const ROLES=[
+    {id:'coach',name:'Sou Coach',desc:'Acesso completo — gerenciar todos os processos'},
+    {id:'coachee',name:'Sou Coachee',desc:'Acompanhar minha jornada e plano de desenvolvimento'},
+    {id:'lider',name:'Sou Líder',desc:'Validar listas e acompanhar progresso do meu liderado'},
+    {id:'rh',name:'Sou RH',desc:'Visão geral dos processos da empresa'},
+    {id:'stk',name:'Sou Stakeholder',desc:'Responder avaliação ou pesquisa de progresso'},
+  ];
+
+  const submit=async()=>{
+    if(role==='coach'){
+      setErr('');
+      const{data,error}=await supabase.auth.signInWithPassword({email,password:pass});
+      if(error){setErr('E-mail ou senha incorretos.');setTimeout(()=>setErr(''),4000);}
+      else{
+        const u=data.user;
+        const nm=u.user_metadata?.name||u.email;
+        onLogin({role:'coach',name:nm,initials:nm.split(' ').slice(0,2).map(w=>w[0].toUpperCase()).join('')});
+      }
+    } else {
+      const c=code.trim().toUpperCase();
+      const patterns={coachee:/^CE-(\d+)$/,lider:/^LD-(\d+)-(\d+)$/,rh:/^RH-(.+)$/,stk:/^ST-(\d+)-(\d+)$/};
+      const m=c.match(patterns[role]);
+      if(!m){setErr('Código inválido.');setTimeout(()=>setErr(''),3000);return;}
+      if(role==='coachee') onLogin({role:'coachee',engId:parseInt(m[1])});
+      else if(role==='lider') onLogin({role:'lider',engId:parseInt(m[1]),liderId:parseInt(m[2])});
+      else if(role==='rh') onLogin({role:'rh',company:m[1]});
+      else onLogin({role:'stk',engId:parseInt(m[1]),shId:parseInt(m[2])});
+    }
+  };
+
+  const hints={coach:'Use o e-mail e senha cadastrados no Supabase',coachee:'CE-1 (Vagner) · CE-2 (Gabriel)',lider:'LD-1-1 · LD-2-1',rh:'RH-dimas',stk:'ST-1-1 · ST-1-2 · ST-1-3'};
+
+  return (
+    <div className="login-page">
+      <div className="login-box">
+        <div className="login-logo">Lidehra</div>
+        <div className="login-tagline">Coach Platform Lidehra</div>
+        <div className="role-cards">
+          {ROLES.map(r=><div key={r.id} className={`role-card${role===r.id?' sel':''}`} onClick={()=>{setRole(r.id);setErr('');}}>
+            <div className="role-name">{r.name}</div><div className="role-desc">{r.desc}</div>
+          </div>)}
+        </div>
+        {role==='coach'?<>
+          <input className="login-inp" type="email" placeholder="E-mail" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==='Enter'&&submit()}/>
+          <input className="login-inp" type="password" placeholder="Senha" value={pass} onChange={e=>setPass(e.target.value)} onKeyDown={e=>e.key==='Enter'&&submit()}/>
+        </>:<input className="login-inp" placeholder={`Código (ex: ${hints[role]?.split('·')[0]?.trim()})`} value={code} onChange={e=>setCode(e.target.value)} onKeyDown={e=>e.key==='Enter'&&submit()}/>}
+        <button className="login-btn" onClick={submit}>Entrar</button>
+        {err&&<div className="login-err">{err}</div>}
+        <div className="login-hint">{hints[role]}</div>
+      </div>
+    </div>
+  );
+}
+
+// ─── COMPETENCIAS EDITOR ─────────────────────────────────────────────────────
+function CompEditor({competencias,onChange}){
+  const [showAdd,setShowAdd]=useState(false);
+  const [nome,setNome]=useState('');
+  const [detalhe,setDetalhe]=useState('');
+  const [editId,setEditId]=useState(null);
+
+  const save=()=>{
+    if(!nome.trim())return;
+    if(editId!==null){
+      onChange(competencias.map(c=>c.id===editId?{...c,nome:nome.slice(0,40),detalhe:detalhe.slice(0,80)}:c));
+      setEditId(null);
+    } else {
+      onChange([...competencias,{id:Date.now(),nome:nome.slice(0,40),detalhe:detalhe.slice(0,80)}]);
+    }
+    setNome('');setDetalhe('');setShowAdd(false);
+  };
+
+  const startEdit=(c)=>{setNome(c.nome);setDetalhe(c.detalhe);setEditId(c.id);setShowAdd(true);};
+  const remove=(id)=>{if(safeConfirm('Remover esta competência?','A competência será removida do processo.')) onChange(competencias.filter(c=>c.id!==id));};
+
+  return (
+    <div className="comp-editor">
+      <div className="sec" style={{marginBottom:12}}>
+        <span className="sec-lbl">Competências em desenvolvimento ({competencias.length})</span>
+        {competencias.length<3&&<button className="btn btn-p btn-sm" onClick={()=>{setShowAdd(true);setEditId(null);setNome('');setDetalhe('');}}>+ Adicionar</button>}
+      </div>
+      {competencias.length===0&&<div style={{fontSize:13,color:'#A0A3B1',marginBottom:8}}>Nenhuma competência definida. Adicione ao menos uma para avançar.</div>}
+      {competencias.map((c,i)=>(
+        <div key={c.id} className="comp-item">
+          <div className="comp-num">Competência {i+1}</div>
+          <div className="comp-name">{c.nome}</div>
+          {c.detalhe&&<div className="comp-detail">{c.detalhe}</div>}
+          <div style={{display:'flex',gap:6,marginTop:8}}>
+            <button className="btn btn-g btn-xs" onClick={()=>startEdit(c)}>Editar</button>
+            <button className="btn btn-d btn-xs" onClick={()=>remove(c.id)}>Remover</button>
+          </div>
+        </div>
+      ))}
+      {showAdd&&(
+        <div style={{background:'#fff',border:'1px solid #BCC4F0',borderRadius:9,padding:16,marginTop:8}}>
+          <div className="field">
+            <div className="flbl">Nome da competência<span className="flbl-hint">(máx. 40 caracteres — aparece no formulário)</span></div>
+            <input className="finp" maxLength={40} placeholder="Ex: Comunicação estratégica" value={nome} onChange={e=>setNome(e.target.value)}/>
+            <div className="char-count">{nome.length}/40</div>
+          </div>
+          <div className="field">
+            <div className="flbl">Mais informações<span className="flbl-hint">(máx. 80 caracteres)</span></div>
+            <input className="finp" maxLength={80} placeholder="Ex: Assertividade, presença executiva, visão de farol alto" value={detalhe} onChange={e=>setDetalhe(e.target.value)}/>
+            <div className="char-count">{detalhe.length}/80</div>
+          </div>
+          <div style={{display:'flex',gap:8}}>
+            <button className="btn btn-g btn-sm" onClick={()=>{setShowAdd(false);setEditId(null);}}>Cancelar</button>
+            <button className="btn btn-p btn-sm" onClick={save} disabled={!nome.trim()}>Salvar</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── NEW ENGAGEMENT MODAL ─────────────────────────────────────────────────────
+function NewEngModal({onSave,onClose}){
+  const [f,setF]=useState({name:'',email:'',role:'',company:'',goal:'',start:'',end:'',cadence:'quinzenal',assessment:false,assessmentType:''});
+  const set=(k,v)=>setF(p=>({...p,[k]:v}));
+  const valid=f.name&&f.company&&f.start&&f.end;
+  const colors=['#4169FF','#8B5CF6','#F59E0B','#10B981','#EC4899'];
+  const save=()=>{
+    if(!valid)return;
+    const color=colors[Math.floor(Math.random()*colors.length)];
+    onSave({id:Date.now(),title:"Desenvolvimento de Liderança",
+      coachee:{name:f.name,initials:ini(f.name),color,role:f.role,company:f.company,email:f.email},
+      leaders:[],rh:[],goal:f.goal,startDate:f.start,endDate:f.end,cadence:f.cadence,totalSessions:10,phase:1,
+      competencias:[],hasAssessment:f.assessment,assessmentType:f.assessmentType,assessmentFile:'',
+      stakeholders360:[],report:null,miniSurveys:[],stakeholdersMS:[],sessions:[],notifications:[],actionStatuses:{},
+    });
+  };
+  return (
+    <Overlay onClose={onClose}>
+      <div className="modal modal-lg">
+        <div className="modal-title">Novo Processo de Coaching</div>
+        <div className="modal-sub">Preencha os dados para iniciar o engajamento</div>
+        <div className="frow">
+          <div className="field"><div className="flbl">Nome do coachee</div><input className="finp" placeholder="Nome completo" value={f.name} onChange={e=>set('name',e.target.value)}/></div>
+          <div className="field"><div className="flbl">E-mail</div><input className="finp" type="email" placeholder="email@empresa.com" value={f.email} onChange={e=>set('email',e.target.value)}/></div>
+        </div>
+        <div className="frow">
+          <div className="field"><div className="flbl">Cargo</div><input className="finp" placeholder="Ex: Diretor de Operações" value={f.role} onChange={e=>set('role',e.target.value)}/></div>
+          <div className="field"><div className="flbl">Empresa</div><input className="finp" placeholder="Nome da empresa" value={f.company} onChange={e=>set('company',e.target.value)}/></div>
+        </div>
+        <div className="field"><div className="flbl">Objetivo do processo</div><textarea className="finp" rows={2} placeholder="O que este processo busca alcançar?" value={f.goal} onChange={e=>set('goal',e.target.value)}/></div>
+        <div className="frow">
+          <div className="field"><div className="flbl">Início</div><input className="finp" type="date" value={f.start} onChange={e=>set('start',e.target.value)}/></div>
+          <div className="field"><div className="flbl">Encerramento</div><input className="finp" type="date" value={f.end} onChange={e=>set('end',e.target.value)}/></div>
+        </div>
+        <div className="field"><div className="flbl">Cadência das sessões</div>
+          <select className="fsel" value={f.cadence} onChange={e=>set('cadence',e.target.value)}>
+            <option value="semanal">Semanal</option><option value="quinzenal">Quinzenal</option>
+          </select>
+        </div>
+        <label className="fcheck" style={{marginBottom:10}}><input type="checkbox" checked={f.assessment} onChange={e=>set('assessment',e.target.checked)}/> Incluir assessment de perfil</label>
+        {f.assessment&&<div className="field" style={{marginTop:8}}><div className="flbl">Tipo</div>
+          <select className="fsel" value={f.assessmentType} onChange={e=>set('assessmentType',e.target.value)}>
+            <option value="">Selecione...</option>
+            <option value="DISC / Thomas PPA">DISC / Thomas PPA</option>
+            <option value="Gallup CliftonStrengths">Gallup CliftonStrengths</option>
+            <option value="Outro">Outro</option>
+          </select>
+        </div>}
+        <div className="modal-foot">
+          <button className="btn btn-g" onClick={onClose}>Cancelar</button>
+          <button className="btn btn-p" onClick={save} disabled={!valid}>Criar Processo</button>
+        </div>
+      </div>
+    </Overlay>
+  );
+}
+
+// ─── ADD STAKEHOLDER MODAL ────────────────────────────────────────────────────
+function AddShModal({tipo,currentCount,onSave,onClose}){
+  const [name,setName]=useState('');
+  const [email,setEmail]=useState('');
+  const [role,setRole]=useState(tipo==='360'?SH_ROLES_360[2]:SH_ROLES_MS[2]);
+  const roles=tipo==='360'?SH_ROLES_360:SH_ROLES_MS;
+  const atLimit=currentCount>=15;
+  const save=()=>{
+    if(!name.trim()||atLimit)return;
+    onSave({id:Date.now(),name:name.trim(),email:email.trim(),role,initials:ini(name),status:'pending',validatedByLeader:false,invalid:false,leaderMsg:'',feedback:null});
+  };
+  return (
+    <Overlay onClose={onClose}>
+      <div className="modal modal-sm">
+        <div className="modal-title">Novo Stakeholder</div>
+        <div className="modal-sub">{tipo==='360'?'Avaliação 360°':'Mini-survey'} · {currentCount}/15 cadastrados</div>
+        {atLimit?<div className="warn-box">Limite de 15 stakeholders atingido.</div>:<>
+          <div className="field"><div className="flbl">Nome completo</div><input className="finp" placeholder="Nome" value={name} onChange={e=>setName(e.target.value)}/></div>
+          <div className="field"><div className="flbl">E-mail</div><input className="finp" type="email" placeholder="email@empresa.com" value={email} onChange={e=>setEmail(e.target.value)}/></div>
+          <div className="field"><div className="flbl">Tipo de relacionamento</div>
+            <select className="fsel" value={role} onChange={e=>setRole(e.target.value)}>
+              {roles.map(r=><option key={r}>{r}</option>)}
+            </select>
+          </div>
+        </>}
+        <div className="modal-foot">
+          <button className="btn btn-g" onClick={onClose}>{atLimit?'Fechar':'Cancelar'}</button>
+          {!atLimit&&<button className="btn btn-p" onClick={save} disabled={!name.trim()}>Adicionar</button>}
+        </div>
+      </div>
+    </Overlay>
+  );
+}
+
+// ─── INVALIDATE MODAL (LEADER) ────────────────────────────────────────────────
+function InvalidateModal({sh,onConfirm,onClose}){
+  const [msg,setMsg]=useState('');
+  return (
+    <Overlay onClose={onClose}>
+      <div className="modal modal-sm">
+        <div className="modal-title">Invalidar stakeholder</div>
+        <div className="modal-sub">Envie uma mensagem ao coachee explicando a solicitação.</div>
+        <div style={{background:'#FEF2F2',border:'1px solid #FCD4D4',borderRadius:8,padding:'10px 14px',marginBottom:16,fontSize:13,color:'#DC2626'}}>
+          Stakeholder: <strong>{sh.name}</strong> ({sh.role})
+        </div>
+        <div className="field">
+          <div className="flbl">Mensagem para o coachee</div>
+          <textarea className="finp" rows={3} placeholder="Ex: Sugiro substituir por alguém com mais interação recente..." value={msg} onChange={e=>setMsg(e.target.value)}/>
+        </div>
+        <div className="modal-foot">
+          <button className="btn btn-g" onClick={onClose}>Cancelar</button>
+          <button className="btn btn-d" onClick={()=>onConfirm(msg)} disabled={!msg.trim()}>Invalidar e notificar</button>
+        </div>
+      </div>
+    </Overlay>
+  );
+}
+
+// ─── SUGGEST MODAL (LEADER) ───────────────────────────────────────────────────
+function SuggestModal({onConfirm,onClose}){
+  const [name,setName]=useState('');
+  const [email,setEmail]=useState('');
+  const [role,setRole]=useState(SH_ROLES_360[2]);
+  const [msg,setMsg]=useState('');
+  return (
+    <Overlay onClose={onClose}>
+      <div className="modal modal-sm">
+        <div className="modal-title">Sugerir novo nome</div>
+        <div className="modal-sub">O coachee receberá a sugestão como notificação.</div>
+        <div className="field"><div className="flbl">Nome</div><input className="finp" placeholder="Nome completo" value={name} onChange={e=>setName(e.target.value)}/></div>
+        <div className="field"><div className="flbl">E-mail</div><input className="finp" type="email" placeholder="email@empresa.com" value={email} onChange={e=>setEmail(e.target.value)}/></div>
+        <div className="field"><div className="flbl">Tipo de relacionamento</div>
+          <select className="fsel" value={role} onChange={e=>setRole(e.target.value)}>
+            {SH_ROLES_360.map(r=><option key={r}>{r}</option>)}
+          </select>
+        </div>
+        <div className="field"><div className="flbl">Motivo da sugestão</div>
+          <textarea className="finp" rows={2} placeholder="Por que esta pessoa seria relevante?" value={msg} onChange={e=>setMsg(e.target.value)}/>
+        </div>
+        <div className="modal-foot">
+          <button className="btn btn-g" onClick={onClose}>Cancelar</button>
+          <button className="btn btn-p" onClick={()=>onConfirm({name,email,role,msg})} disabled={!name.trim()}>Enviar sugestão</button>
+        </div>
+      </div>
+    </Overlay>
+  );
+}
+
+// ─── VIEW FEEDBACK MODAL ──────────────────────────────────────────────────────
+function ViewFeedbackModal({sh,onClose}){
+  const f=sh.feedback;
+  if(!f)return null;
+  const secs=[
+    {label:"Pontos positivos",items:[[f.pos1,f.pos1ex],[f.pos2,f.pos2ex],[f.pos3,f.pos3ex]]},
+    {label:"Continuar fazendo",items:[[f.cont1,f.cont1ex],[f.cont2,f.cont2ex],[f.cont3,f.cont3ex]]},
+    {label:"Parar de fazer",items:[[f.par1,f.par1ex],[f.par2,f.par2ex],[f.par3,f.par3ex]]},
+    {label:"Começar a fazer",items:[[f.inic1,f.inic1ex],[f.inic2,f.inic2ex],[f.inic3,f.inic3ex]]},
+  ];
+  return (
+    <Overlay onClose={onClose}>
+      <div className="modal modal-lg">
+        <div className="modal-title">{sh.name}</div>
+        <div className="modal-sub">{sh.role} · {f.tipo}</div>
+        {secs.map(sec=>(
+          <div key={sec.label} style={{marginBottom:16}}>
+            <div style={{fontSize:11,fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',color:'#4169FF',marginBottom:8}}>{sec.label}</div>
+            {sec.items.filter(([v])=>v).map(([v,ex],i)=>(
+              <div key={i} style={{background:'#F9FAFB',border:'1px solid #E4E6EF',borderRadius:8,padding:'10px 12px',marginBottom:6}}>
+                <div style={{fontSize:14,fontWeight:500,color:'#1A1D2E',marginBottom:4}}>{v}</div>
+                {ex&&<div style={{fontSize:12,color:'#6B6E8E'}}>Exemplo: {ex}</div>}
+              </div>
+            ))}
+          </div>
+        ))}
+        {f.prior&&<div className="info-box">Prioridade indicada: {f.prior}</div>}
+        <div className="modal-foot"><button className="btn btn-g" onClick={onClose}>Fechar</button></div>
+      </div>
+    </Overlay>
+  );
+}
+
+// ─── COACH DASHBOARD ──────────────────────────────────────────────────────────
+function Dashboard({engs,onSelect,onCreate,onOpenCoachee}){
+  const [showNew,setShowNew]=useState(false);
+  return (
+    <>
+      {showNew&&<NewEngModal onSave={e=>{onCreate(e);setShowNew(false);}} onClose={()=>setShowNew(false)}/>}
+      <div className="stats">
+        <div className="stat"><div className="stat-lbl">Processos Ativos</div><div className="stat-val" style={{color:'#4169FF'}}>{engs.length}</div><div className="stat-sub">em andamento</div></div>
+        <div className="stat"><div className="stat-lbl">Sessões Registradas</div><div className="stat-val">{engs.reduce((s,e)=>s+e.sessions.length,0)}</div><div className="stat-sub">histórico total</div></div>
+        <div className="stat"><div className="stat-lbl">Com Pendências</div><div className="stat-val" style={{color:'#D97706'}}>{engs.filter(e=>currentStatus(e)==='pending').length}</div><div className="stat-sub">requerem atenção</div></div>
+        <div className="stat"><div className="stat-lbl">Mini-Surveys</div><div className="stat-val" style={{color:'#10B981'}}>{engs.reduce((s,e)=>s+e.miniSurveys.length,0)}</div><div className="stat-sub">aplicados</div></div>
+      </div>
+      <div className="sec"><span className="sec-lbl">Processos ({engs.length})</span><button className="btn btn-p" onClick={()=>setShowNew(true)}>+ Novo Processo</button></div>
+      <div className="grid">
+        {engs.map(e=>(
+          <div key={e.id} className="eng-card" onClick={()=>onSelect(e.id)}>
+            <div className="ec-top">
+              <div className="ec-av" style={{background:e.coachee.color+'18',border:`1px solid ${e.coachee.color}35`}}>
+                <span style={{color:e.coachee.color}}>{e.coachee.initials}</span>
+              </div>
+              <div style={{flex:1}}>
+                <div className="ec-name">{e.coachee.name}</div>
+                <div className="ec-role">{e.coachee.role} · {e.coachee.company}</div>
+              </div>
+              <button className="btn btn-g btn-xs" style={{flexShrink:0}} onClick={ev=>{ev.stopPropagation();onOpenCoachee(e.id);}}>Portal coachee ↗</button>
+            </div>
+            <StageBar eng={e}/>
+            {e.competencias.length>0&&<div className="ec-comps">{e.competencias.map((c,i)=><span key={i} className="ec-comp">{c.nome}</span>)}</div>}
+            <div className="ec-meta"><StatusBadge status={currentStatus(e)}/><span className="ec-info">{STAGES[e.phase-1]} · {e.cadence}</span></div>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+// ─── ROADMAP TAB ──────────────────────────────────────────────────────────────
+// Manual action IDs — coach can toggle these
+const MANUAL_ACTIONS = new Set([
+  'onboarding','cronograma','assessment','comuni360','dispara360',
+  'comunims','disparams','alinhamento','planoacao','engajamento','agenda',
+  'sessoes1a5','sessoes6a10','msf','resultado','apresentacao','depoimentos','devolutiva'
+]);
+
+// Compute auto status for data-driven actions
+function autoStatus(id, eng){
+  switch(id){
+    case 'cronograma': return 'done'; // always done when engagement exists
+    case 'lista360': return eng.stakeholders360.length>0?'done':'idle';
+    case 'valida360': return eng.stakeholders360.length>0&&eng.stakeholders360.every(s=>s.validatedByLeader||s.invalid)?'done':eng.stakeholders360.length>0?'pending':'idle';
+    case 'coleta360': {
+      const valid=eng.stakeholders360.filter(s=>!s.invalid);
+      if(!valid.length) return 'idle';
+      return valid.every(s=>s.status==='done')?'done':valid.some(s=>s.status==='done')?'active':'pending';
+    }
+    case 'relatorio360': return eng.report?.approved?'done':eng.report?'pending':'idle';
+    case 'listams': return eng.stakeholdersMS.length>0?'done':'idle';
+    case 'validams': return eng.stakeholdersMS.length>0&&eng.stakeholdersMS.every(s=>s.validatedByLeader||s.invalid)?'done':eng.stakeholdersMS.length>0?'pending':'idle';
+    case 'competencias': return eng.competencias.length>0?'done':'idle';
+    case 'minisurvey1': return eng.miniSurveys.length>0?'done':'idle';
+    default: return null;
+  }
+}
+
+function RoadmapTab({eng,onUpdate}){
+  const [selStage,setSelStage]=useState(0);
+  const [showEditProfile,setShowEditProfile]=useState(false);
+  const [profileDraft,setProfileDraft]=useState({});
+
+  // actionStatuses stored in eng — manual overrides
+  const as = eng.actionStatuses || {};
+
+  // Get final status for an action: auto-computed OR manual override
+  const getStatus = (id) => {
+    const auto = autoStatus(id, eng);
+    if(auto !== null) return auto; // data-driven: always auto
+    return as[id] || 'idle'; // manual: use stored value
+  };
+
+  // Toggle manual action through cycle: idle → active → done → idle
+  const toggleAction = (id) => {
+    if(!MANUAL_ACTIONS.has(id)) return;
+    // Use current as from closure (re-evaluated each render)
+    const cur = (eng.actionStatuses||{})[id] || 'idle';
+    const next = cur==='idle'?'active':cur==='active'?'done':'idle';
+    onUpdate({actionStatuses:{...(eng.actionStatuses||{}),[id]:next}});
+  };
+
+  const stages=[
+    {id:'diagnostico',label:'Diagnóstico',phase:1,actions:[
+      {id:'onboarding',     label:'Onboarding do coachee',                          who:'coach'},
+      {id:'cronograma',     label:'Cronograma gerado e compartilhado',               who:'app'},
+      {id:'assessment',     label:`Assessment de perfil${eng.hasAssessment?' ('+eng.assessmentType+')':' (não aplicável)'}`, who:'coach'},
+      {id:'lista360',       label:'Coachee cadastra lista de stakeholders 360°',     who:'coachee'},
+      {id:'valida360',      label:'Líder(es) validam a lista 360°',                  who:'lider'},
+      {id:'comuni360',      label:'Coachee comunica stakeholders sobre o processo',  who:'coachee'},
+      {id:'dispara360',     label:'Coach dispara formulário 360° aos stakeholders',  who:'coach'},
+      {id:'coleta360',      label:'Stakeholders respondem o 360°',                   who:'stk'},
+      {id:'relatorio360',   label:'Coach aprova relatório 360°',                     who:'coach'},
+      {id:'devolutiva',     label:'Devolutiva do relatório ao coachee',              who:'coach'},
+    ]},
+    {id:'setup',label:'Setup',phase:2,actions:[
+      {id:'competencias',   label:'Competências prioritárias definidas',             who:'coachee'},
+      {id:'listams',        label:'Coachee cadastra lista de stakeholders mini-survey', who:'coachee'},
+      {id:'validams',       label:'Líder(es) validam a lista mini-survey',           who:'lider'},
+      {id:'comunims',       label:'Coachee comunica stakeholders sobre o mini-survey', who:'coachee'},
+      {id:'disparams',      label:'Coach dispara formulário mini-survey aos stakeholders', who:'coach'},
+      {id:'alinhamento',    label:'Alinhamento com liderança (coach + coachee + líder)', who:'coach'},
+      {id:'planoacao',      label:'Plano de ação elaborado',                         who:'coachee'},
+      {id:'engajamento',    label:'Reunião de engajamento com stakeholders',         who:'coachee'},
+      {id:'agenda',         label:'Agenda fixa e periodicidade definidas',           who:'coach'},
+    ]},
+    {id:'processo',label:'Processo',phase:3,actions:[
+      {id:'sessoes1a5',     label:'Sessões 1 a 5 + reuniões mensais com stakeholders', who:'coach'},
+      {id:'minisurvey1',    label:'Mini-survey de meio de processo aplicado',        who:'coach'},
+      {id:'sessoes6a10',    label:'Sessões 6 a 10 + reuniões mensais com stakeholders', who:'coach'},
+    ]},
+    {id:'encerramento',label:'Encerramento',phase:4,actions:[
+      {id:'msf',            label:'Mini-survey final aplicado',                      who:'coach'},
+      {id:'resultado',      label:'Coach compila e apresenta resultado ao coachee',  who:'coach'},
+      {id:'apresentacao',   label:'Coachee apresenta síntese ao líder',              who:'coachee'},
+      {id:'depoimentos',    label:'Líder(es) e RH registram depoimentos',            who:'lider'},
+    ]},
+  ];
+
+  const whoLabel={coach:'Coach',app:'App',coachee:'Coachee',lider:'Líder',stk:'Stakeholder'};
+  const sel=stages[selStage];
+
+  return (
+    <div style={{marginTop:20}}>
+      {showEditProfile&&(
+        <Overlay onClose={()=>setShowEditProfile(false)}>
+          <div className="modal">
+            <div className="modal-title">Editar Perfil do Cliente</div>
+            <div className="modal-sub">Atualize as informações do coachee e do processo</div>
+            <div className="frow">
+              <div className="field"><div className="flbl">Nome</div><input className="finp" value={profileDraft.name} onChange={e=>setProfileDraft(p=>({...p,name:e.target.value}))}/></div>
+              <div className="field"><div className="flbl">E-mail</div><input className="finp" type="email" value={profileDraft.email} onChange={e=>setProfileDraft(p=>({...p,email:e.target.value}))}/></div>
+            </div>
+            <div className="frow">
+              <div className="field"><div className="flbl">Cargo</div><input className="finp" value={profileDraft.role} onChange={e=>setProfileDraft(p=>({...p,role:e.target.value}))}/></div>
+              <div className="field"><div className="flbl">Empresa</div><input className="finp" value={profileDraft.company} onChange={e=>setProfileDraft(p=>({...p,company:e.target.value}))}/></div>
+            </div>
+            <div className="field"><div className="flbl">Objetivo do processo</div><textarea className="finp" rows={2} value={profileDraft.goal} onChange={e=>setProfileDraft(p=>({...p,goal:e.target.value}))}/></div>
+            <div className="frow">
+              <div className="field"><div className="flbl">Início</div><input className="finp" type="date" value={profileDraft.startDate} onChange={e=>setProfileDraft(p=>({...p,startDate:e.target.value}))}/></div>
+              <div className="field"><div className="flbl">Encerramento (previsto)</div><input className="finp" type="date" value={profileDraft.endDate} onChange={e=>setProfileDraft(p=>({...p,endDate:e.target.value}))}/></div>
+            </div>
+            <div className="field"><div className="flbl">Cadência</div>
+              <select className="fsel" value={profileDraft.cadence} onChange={e=>setProfileDraft(p=>({...p,cadence:e.target.value}))}>
+                <option value="semanal">Semanal</option><option value="quinzenal">Quinzenal</option>
+              </select>
+            </div>
+            <div className="modal-foot">
+              <button className="btn btn-g" onClick={()=>setShowEditProfile(false)}>Cancelar</button>
+              <button className="btn btn-p" onClick={()=>{
+                onUpdate({coachee:{...eng.coachee,name:profileDraft.name,email:profileDraft.email,role:profileDraft.role,company:profileDraft.company,initials:ini(profileDraft.name)},goal:profileDraft.goal,startDate:profileDraft.startDate,endDate:profileDraft.endDate,cadence:profileDraft.cadence});
+                setShowEditProfile(false);
+              }}>Salvar</button>
+            </div>
+          </div>
+        </Overlay>
+      )}
+      <div style={{display:'flex',justifyContent:'flex-end',marginBottom:10}}>
+        <button className="btn btn-g btn-sm" onClick={()=>{setProfileDraft({name:eng.coachee.name,email:eng.coachee.email||'',role:eng.coachee.role,company:eng.coachee.company,goal:eng.goal,startDate:eng.startDate,endDate:eng.endDate,cadence:eng.cadence});setShowEditProfile(true);}}>Editar perfil do cliente</button>
+      </div>
+      <div className="igrid">
+        {[{l:'Início',v:eng.startDate},{l:'Encerramento (previsto)',v:eng.endDate},{l:'Cadência',v:eng.cadence},
+          {l:'Assessment',v:eng.hasAssessment?eng.assessmentType:'Não aplicável'},
+          {l:'Competências',v:eng.competencias.length>0?eng.competencias.length+' definida(s)':'A definir'},
+          {l:'Mini-surveys',v:eng.miniSurveys.length+' aplicado(s)'}
+        ].map(it=><div key={it.l} className="icard"><div className="ilbl">{it.l}</div><div className="ival">{it.v}</div></div>)}
+      <div style={{background:'#F9FAFB',border:'1px dashed #D8DAE8',borderRadius:9,padding:'12px 16px',marginBottom:12,display:'flex',alignItems:'center',gap:10}}>
+        <span style={{fontSize:13,color:'#A0A3B1'}}>📅 Cronograma automático do processo</span>
+        <span style={{fontSize:11,fontWeight:600,color:'#BCC4F0',background:'#EEF1FF',padding:'3px 8px',borderRadius:4,marginLeft:'auto'}}>Em breve</span>
+      </div>
+      </div>
+
+      {eng.hasAssessment&&(
+        <div style={{background:'#fff',border:'1px solid #E4E6EF',borderRadius:9,padding:'12px 16px',marginBottom:16,display:'flex',alignItems:'center',gap:12}}>
+          <span style={{fontSize:13,color:'#6B6E8E'}}>Assessment: <strong style={{color:'#1A1D2E'}}>{eng.assessmentType}</strong></span>
+          {eng.assessmentFile
+            ?<div style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:8}}>
+                <span style={{fontSize:12,color:'#059669'}}>✓ {eng.assessmentFile}</span>
+                {eng.assessmentFilePath&&<button className="btn btn-g btn-xs" onClick={async()=>{
+                  const url=await getFileUrl(eng.assessmentFilePath);
+                  if(url) window.open(url,'_blank'); else alert('Arquivo não encontrado.');
+                }}>Baixar</button>}
+                <button className="btn btn-d btn-xs" onClick={()=>onUpdate({assessmentFile:'',assessmentFilePath:''})}>Remover</button>
+              </div>
+            :<div style={{marginLeft:'auto'}}>
+                <UploadZone
+                  accept=".pdf,.docx,.doc,.txt"
+                  storagePath={`assessments/${eng.id}/assessment`}
+                  onUploaded={(path,name)=>onUpdate({assessmentFile:name,assessmentFilePath:path})}
+                  currentFile={null}
+                  onRemove={()=>{}}
+                />
+              </div>
+          }
+        </div>
+      )}
+
+      <CompEditor competencias={eng.competencias} onChange={comps=>onUpdate({competencias:comps})}/>
+
+      <div className="sec-lbl" style={{marginBottom:12}}>Mapa da Jornada</div>
+      <div className="roadmap">
+        {stages.map((s,i)=>{
+          const ss=stageStatus(eng,s.phase);
+          return (
+            <div key={s.id} className={`rm-box${selStage===i?' rm-active':''}`} onClick={()=>setSelStage(i)}>
+              <div className="rm-num">Etapa {s.phase}</div>
+              <div className="rm-title" style={{color:SC[s.phase-1]}}>{s.label}</div>
+              <div className="rm-status"><span className={`sdot ${STATUS[ss].dot}`}/><span className={STATUS[ss].txt} style={{fontSize:11}}>{STATUS[ss].label}</span></div>
+              <ul className="rm-items">
+                {s.actions.slice(0,3).map((a,ai)=>{
+                  const st=getStatus(a.id);
+                  return (
+                    <li key={ai} className="rm-li">
+                      <span className="rm-idot" style={{background:st==='done'?'#10B981':st==='pending'?'#F59E0B':st==='active'?'#4169FF':'#D8DAE8'}}/>
+                      <span>{a.label}</span>
+                    </li>
+                  );
+                })}
+                {s.actions.length>3&&<li className="rm-li" style={{color:'#C8CAD6'}}>+{s.actions.length-3} mais...</li>}
+              </ul>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="stage-panel">
+        <div style={{fontSize:16,fontWeight:600,color:'#1A1D2E',marginBottom:4}}>{sel.phase}. {sel.label}</div>
+        <div style={{fontSize:13,color:'#6B6E8E',marginBottom:16}}>Clique no status para avançar as ações manuais</div>
+        <div className="action-list">
+          {sel.actions.map(a=>{
+            const st=getStatus(a.id);
+            const isManual=MANUAL_ACTIONS.has(a.id);
+            return (
+              <div key={a.id} className={`action-item ${st==='pending'?'ai-pending':st==='done'?'ai-done':''}`}>
+                <div className="ai-icon" style={{background:st==='done'?'rgba(16,185,129,.1)':st==='pending'?'rgba(245,158,11,.1)':st==='active'?'rgba(65,105,255,.1)':'#F4F5F7'}}>
+                  {st==='done'?'✓':st==='pending'?'⏳':st==='active'?'→':'○'}
+                </div>
+                <div className="ai-label">
+                  <div className="ai-title">{a.label}</div>
+                  <div className="ai-meta">Responsável: {whoLabel[a.who]} {isManual&&<span style={{color:'#BCC4F0',fontSize:10}}>· manual</span>}</div>
+                </div>
+                {isManual?(
+                  <button className={`ai-badge ${st==='done'?'ai-b-done':st==='active'?'ai-b-active':'ai-b-todo'}`}
+                    style={{cursor:'pointer',border:'none'}}
+                    title="Clique para avançar o status"
+                    onClick={()=>toggleAction(a.id)}>
+                    {st==='done'?'Concluído ✓':st==='active'?'Em andamento →':'A fazer ○'}
+                  </button>
+                ):(
+                  <span className={`ai-badge ${st==='done'?'ai-b-done':st==='pending'?'ai-b-pending':st==='active'?'ai-b-active':'ai-b-todo'}`}>
+                    {st==='done'?'Concluído':st==='pending'?'Pendente':st==='active'?'Em andamento':'A fazer'}
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        {selStage===0&&(
+          <div className="code-box">
+            <div className="code-title">Códigos de acesso — compartilhe com cada pessoa</div>
+            <div className="code-row"><span className="code-lbl">Coachee ({eng.coachee.name})</span><span className="code-val">CE-{eng.id}</span></div>
+            {eng.leaders.map(l=><div key={l.id} className="code-row"><span className="code-lbl">{l.name} (Líder)</span><span className="code-val">LD-{eng.id}-{l.id}</span></div>)}
+            {eng.stakeholders360.map(s=><div key={s.id} className="code-row"><span className="code-lbl">{s.name} (Stk 360°)</span><span className="code-val">ST-{eng.id}-{s.id}</span></div>)}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── EXCEL EXPORT ────────────────────────────────────────────────────────────
+function exportMiniSurveyExcel(ms, eng) {
+  const SCALE = ['-3','-2','-1','0','+1','+2','+3'];
+  const rows = [];
+  // Header
+  rows.push(['Respondente','Tipo de Interação','Objetivos Compartilhados',
+    ...ms.competencias.flatMap(c=>[`Frequência: ${c}`, `Score: ${c}`]),
+    'Efetividade Geral','O que melhorou','Sugestões'
+  ]);
+  // Data rows
+  ms.responses.forEach(r => {
+    rows.push([
+      r.name, r.role, r.objetivos||'',
+      ...ms.competencias.flatMap((c,ci)=>[r.freq?.[ci]||'', r.scores[ci]??'']),
+      r.overall??'', r.mudancas||'', r.sugestoes||''
+    ]);
+  });
+  // Build CSV
+  const csv = rows.map(row =>
+    row.map(cell => '"'+String(cell).replace(/"/g,'""')+'"').join(',')
+  ).join('\n');
+  const bom = '\uFEFF';
+  const blob = new Blob([bom+csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${eng.coachee.name} - ${ms.label}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ─── EDIT STAKEHOLDER FORM ───────────────────────────────────────────────────
+function EditShForm({sh,tipo,onSave,onClose}){
+  const [name,setName]=useState(sh.name);
+  const [email,setEmail]=useState(sh.email||'');
+  const [role,setRole]=useState(sh.role);
+  const roles=tipo==='360'?SH_ROLES_360:SH_ROLES_MS;
+  const save=()=>{
+    if(!name.trim())return;
+    onSave({...sh,name:name.trim(),email:email.trim(),role,initials:ini(name.trim())});
+  };
+  return (
+    <>
+      <div className="field"><div className="flbl">Nome completo</div><input className="finp" value={name} onChange={e=>setName(e.target.value)}/></div>
+      <div className="field"><div className="flbl">E-mail</div><input className="finp" type="email" placeholder="email@empresa.com" value={email} onChange={e=>setEmail(e.target.value)}/></div>
+      <div className="field"><div className="flbl">Tipo de relacionamento</div>
+        <select className="fsel" value={role} onChange={e=>setRole(e.target.value)}>
+          {roles.map(r=><option key={r}>{r}</option>)}
+        </select>
+      </div>
+      <div className="modal-foot">
+        <button className="btn btn-g" onClick={onClose}>Cancelar</button>
+        <button className="btn btn-p" onClick={save} disabled={!name.trim()}>Salvar</button>
+      </div>
+    </>
+  );
+}
+
+// ─── TAB STAKEHOLDERS (360° + Mini-Survey) ────────────────────────────────────
+function TabStakeholders({eng,onUpdate}){
+  const [section,setSection]=useState('360');
+  const [showAdd360,setShowAdd360]=useState(false);
+  const [showAddMS,setShowAddMS]=useState(false);
+  const [showSend360,setShowSend360]=useState(false);
+  const [showSendMS,setShowSendMS]=useState(false);
+  const [sending,setSending]=useState(false);
+  const [sendLog,setSendLog]=useState([]);
+  const [viewSh,setViewSh]=useState(null);
+  const [editSh,setEditSh]=useState(null); // {sh, tipo:'360'|'ms'}
+  const [loading,setLoading]=useState(false);
+
+  const done360=eng.stakeholders360.filter(s=>s.status==='done'&&s.feedback);
+
+  const generateReport=async()=>{
+    if(!done360.length)return;
+    setLoading(true);
+    const feedbacks=done360.map(s=>{
+      const f=s.feedback;
+      return `--- ${s.name} (${s.role}) ---
+Pontos positivos: ${[f.pos1&&`${f.pos1} (ex: ${f.pos1ex})`,f.pos2&&`${f.pos2} (ex: ${f.pos2ex})`,f.pos3&&`${f.pos3} (ex: ${f.pos3ex})`].filter(Boolean).join('; ')}
+Continuar: ${[f.cont1&&`${f.cont1} (ex: ${f.cont1ex})`,f.cont2&&`${f.cont2} (ex: ${f.cont2ex})`].filter(Boolean).join('; ')}
+Parar: ${[f.par1&&`${f.par1} (ex: ${f.par1ex})`,f.par2&&`${f.par2} (ex: ${f.par2ex})`].filter(Boolean).join('; ')}
+Começar: ${[f.inic1&&`${f.inic1} (ex: ${f.inic1ex})`,f.inic2&&`${f.inic2} (ex: ${f.inic2ex})`].filter(Boolean).join('; ')}
+Prioridade: ${f.prior}`;
+    }).join('\n\n');
+    const prompt=`Especialista em coaching executivo MGSCC. Gere relatório de desenvolvimento em português brasileiro.
+COACHEE: ${eng.coachee.name} | ${eng.coachee.role} | ${eng.coachee.company}
+OBJETIVO: ${eng.goal}
+COMPETÊNCIAS: ${eng.competencias.map(c=>c.nome).join(' / ')||'a definir'}
+FEEDBACKS (${done360.length} respondentes):
+${feedbacks}
+ESTRUTURA (use ## para seções):
+## Síntese do Perfil de Liderança
+(2 parágrafos)
+## Pontos Fortes Consolidados
+(top 3, numerados, com evidências)
+## Prioridades de Desenvolvimento
+(top 3, numeradas)
+## Plano de Ação
+**Parar de fazer:**
+**Começar a fazer:**
+## Checklist Diário de Comportamentos
+(5-7 itens com ☐)
+Tom: profissional, orientado ao desenvolvimento.`;
+    try{
+      const res=await fetch("/api/ai",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt,max_tokens:1500})});
+      const data=await res.json();
+      if(data.error) throw new Error(data.error);
+      const text=data.content?.[0]?.text;
+      if(!text) throw new Error('Resposta vazia');
+      onUpdate({report:{...eng.report,content:text,approved:false,sharedAt:null}});
+      alert('Relatório 360° gerado! Acesse a aba Relatórios para revisar e aprovar.');
+    }catch(e){alert("Erro ao gerar: "+e.message);}
+    setLoading(false);
+  };
+
+  const createMiniSurvey=()=>{
+    if(!eng.competencias.length){alert('Defina as competências na aba Jornada primeiro.');return;}
+    const ms={id:Date.now(),label:`Mini-Survey ${eng.miniSurveys.length+1}`,period:'',sentAt:new Date().toISOString().split('T')[0],competencias:eng.competencias.map(c=>c.nome),responses:[],reportContent:'',reportApproved:false,reportFile:''};
+    onUpdate({miniSurveys:[...eng.miniSurveys,ms]});
+  };
+
+  const baseUrl = window.location.origin;
+
+  const sendEmails = async(recipients, subjectFn, htmlFn, onDone) => {
+    setSending(true);setSendLog([]);
+    const log = [];
+    for(const sh of recipients){
+      if(!sh.email){log.push({name:sh.name,ok:false,msg:'Sem e-mail cadastrado'});continue;}
+      try{
+        const res=await fetch('/api/send-email',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({to:sh.email,subject:subjectFn(sh),html:htmlFn(sh),from_name:'Lidehra'})});
+        const data=await res.json();
+        if(data.success) log.push({name:sh.name,ok:true,msg:'Enviado'});
+        else log.push({name:sh.name,ok:false,msg:data.error||'Erro'});
+      }catch(e){log.push({name:sh.name,ok:false,msg:e.message});}
+    }
+    setSendLog(log);setSending(false);
+    if(onDone) onDone(log);
+  };
+
+  const doSend360 = () => {
+    const recipients = eng.stakeholders360.filter(s=>s.email&&!s.invalid);
+    const link = (sh) => `${baseUrl}?code=ST-${eng.id}-${sh.id}`;
+    sendEmails(
+      recipients,
+      sh => `Convite para Avaliação 360° — ${eng.coachee.name}`,
+      sh => `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:32px 24px">
+        <h2 style="color:#1A1D2E;margin-bottom:8px">Convite para Avaliação 360°</h2>
+        <p style="color:#6B6E8E;margin-bottom:20px">Olá, ${sh.name}!</p>
+        <p style="color:#3A3D58;line-height:1.7">Você foi convidado(a) a contribuir com o desenvolvimento de <strong>${eng.coachee.name}</strong> através de uma avaliação de feedback 360°.</p>
+        <p style="color:#3A3D58;line-height:1.7;margin-bottom:24px">Sua participação é confidencial e muito importante. O preenchimento leva entre 15 e 20 minutos.</p>
+        <a href="${link(sh)}" style="display:inline-block;background:#4169FF;color:#fff;text-decoration:none;padding:14px 28px;border-radius:8px;font-weight:600;margin-bottom:24px">Acessar Formulário 360°</a>
+        <p style="color:#A0A3B1;font-size:12px">Ou acesse: ${link(sh)}</p>
+        <hr style="border:none;border-top:1px solid #E4E6EF;margin:24px 0"/>
+        <p style="color:#A0A3B1;font-size:12px">Lidehra · Plataforma de Desenvolvimento de Liderança</p>
+      </div>`,
+      (log) => {
+        const ok = log.filter(l=>l.ok).length;
+        if(ok>0) alert(`${ok} e-mail(s) enviado(s) com sucesso!`);
+      }
+    );
+  };
+
+  const doSendMS = () => {
+    const lastMS = eng.miniSurveys[eng.miniSurveys.length-1];
+    if(!lastMS) return;
+    const recipients = eng.stakeholdersMS.filter(s=>s.email&&!s.invalid);
+    const link = (sh) => `${baseUrl}?code=ST-${eng.id}-${sh.id}`;
+    sendEmails(
+      recipients,
+      sh => `Pesquisa de Progresso — ${eng.coachee.name}`,
+      sh => `<div style="font-family:sans-serif;max-width:560px;margin:0 auto;padding:32px 24px">
+        <h2 style="color:#1A1D2E;margin-bottom:8px">Pesquisa de Acompanhamento</h2>
+        <p style="color:#6B6E8E;margin-bottom:20px">Olá, ${sh.name}!</p>
+        <p style="color:#3A3D58;line-height:1.7">Você está sendo convidado(a) a avaliar o progresso de <strong>${eng.coachee.name}</strong> no processo de desenvolvimento de liderança.</p>
+        <p style="color:#3A3D58;line-height:1.7;margin-bottom:24px">A pesquisa é confidencial, leva entre 10 e 15 minutos e sua contribuição é fundamental para o desenvolvimento do(a) líder.</p>
+        <a href="${link(sh)}" style="display:inline-block;background:#4169FF;color:#fff;text-decoration:none;padding:14px 28px;border-radius:8px;font-weight:600;margin-bottom:24px">Acessar Pesquisa de Progresso</a>
+        <p style="color:#A0A3B1;font-size:12px">Ou acesse: ${link(sh)}</p>
+        <hr style="border:none;border-top:1px solid #E4E6EF;margin:24px 0"/>
+        <p style="color:#A0A3B1;font-size:12px">Lidehra · Plataforma de Desenvolvimento de Liderança</p>
+      </div>`,
+      (log) => {
+        const ok = log.filter(l=>l.ok).length;
+        if(ok>0) alert(`${ok} e-mail(s) enviado(s) com sucesso!`);
+      }
+    );
+  };
+
+  return (
+    <div style={{marginTop:20}}>
+      {showAdd360&&<AddShModal tipo="360" currentCount={eng.stakeholders360.length} onSave={sh=>{onUpdate({stakeholders360:[...eng.stakeholders360,sh]});setShowAdd360(false);}} onClose={()=>setShowAdd360(false)}/>}
+      {showAddMS&&<AddShModal tipo="ms" currentCount={eng.stakeholdersMS.length} onSave={sh=>{onUpdate({stakeholdersMS:[...eng.stakeholdersMS,sh]});setShowAddMS(false);}} onClose={()=>setShowAddMS(false)}/>}
+      {viewSh&&<ViewFeedbackModal sh={viewSh} onClose={()=>setViewSh(null)}/>}
+
+      {/* Edit stakeholder modal */}
+      {editSh&&(
+        <Overlay onClose={()=>setEditSh(null)}>
+          <div className="modal modal-sm">
+            <div className="modal-title">Editar Stakeholder</div>
+            <div className="modal-sub">{editSh.tipo==='360'?'Avaliação 360°':'Mini-survey'}</div>
+            <EditShForm
+              sh={editSh.sh}
+              tipo={editSh.tipo}
+              onSave={(updated)=>{
+                if(editSh.tipo==='360'){
+                  onUpdate({stakeholders360:eng.stakeholders360.map(s=>s.id===updated.id?updated:s)});
+                } else {
+                  onUpdate({stakeholdersMS:eng.stakeholdersMS.map(s=>s.id===updated.id?updated:s)});
+                }
+                setEditSh(null);
+              }}
+              onClose={()=>setEditSh(null)}
+            />
+          </div>
+        </Overlay>
+      )}
+
+      {/* Send 360 confirmation modal */}
+      {showSend360&&(
+        <Overlay onClose={()=>{setShowSend360(false);setSendLog([]);}}>
+          <div className="modal">
+            <div className="modal-title">Enviar Formulário 360°</div>
+            <div className="modal-sub">Confirme os destinatários antes de enviar</div>
+            {!sending&&sendLog.length===0&&(
+              <>
+                <div className="sh-list" style={{marginBottom:16}}>
+                  {eng.stakeholders360.filter(s=>!s.invalid).map(s=>(
+                    <div key={s.id} className="sh-item">
+                      <div className="sh-av">{s.initials}</div>
+                      <div style={{flex:1}}><div className="sh-name">{s.name}</div><div className="sh-role">{s.email||<span style={{color:'#EF4444'}}>sem e-mail</span>}</div></div>
+                      <span className={`badge ${s.email?'b-new':'b-invalid'}`}>{s.email?'Receberá':'Sem e-mail'}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="info-box">O e-mail incluirá um link personalizado de acesso ao formulário 360°.</div>
+              </>
+            )}
+            {sending&&<div style={{textAlign:'center',padding:'24px 0'}}><Dots/><div style={{fontSize:13,color:'#A0A3B1',marginTop:12}}>Enviando e-mails...</div></div>}
+            {sendLog.length>0&&(
+              <div className="sh-list">
+                {sendLog.map((l,i)=>(
+                  <div key={i} className="sh-item">
+                    <span style={{fontSize:16}}>{l.ok?'✓':'✗'}</span>
+                    <div style={{flex:1}}><div className="sh-name">{l.name}</div><div className="sh-role" style={{color:l.ok?'#059669':'#DC2626'}}>{l.msg}</div></div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="modal-foot">
+              <button className="btn btn-g" onClick={()=>{setShowSend360(false);setSendLog([]);}}>Fechar</button>
+              {sendLog.length===0&&!sending&&<button className="btn btn-p" onClick={doSend360} disabled={sending}>Confirmar e Enviar</button>}
+            </div>
+          </div>
+        </Overlay>
+      )}
+
+      {/* Send MS confirmation modal */}
+      {showSendMS&&(
+        <Overlay onClose={()=>{setShowSendMS(false);setSendLog([]);}}>
+          <div className="modal">
+            <div className="modal-title">Enviar Mini-Survey</div>
+            <div className="modal-sub">{eng.miniSurveys.length>0?`Será enviado: ${eng.miniSurveys[eng.miniSurveys.length-1].label}`:'Crie um mini-survey primeiro'}</div>
+            {!sending&&sendLog.length===0&&(
+              <>
+                <div className="sh-list" style={{marginBottom:16}}>
+                  {eng.stakeholdersMS.filter(s=>!s.invalid).map(s=>(
+                    <div key={s.id} className="sh-item">
+                      <div className="sh-av">{s.initials}</div>
+                      <div style={{flex:1}}><div className="sh-name">{s.name}</div><div className="sh-role">{s.email||<span style={{color:'#EF4444'}}>sem e-mail</span>}</div></div>
+                      <span className={`badge ${s.email?'b-new':'b-invalid'}`}>{s.email?'Receberá':'Sem e-mail'}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="info-box">O e-mail incluirá um link personalizado de acesso ao mini-survey mais recente.</div>
+              </>
+            )}
+            {sending&&<div style={{textAlign:'center',padding:'24px 0'}}><Dots/><div style={{fontSize:13,color:'#A0A3B1',marginTop:12}}>Enviando e-mails...</div></div>}
+            {sendLog.length>0&&(
+              <div className="sh-list">
+                {sendLog.map((l,i)=>(
+                  <div key={i} className="sh-item">
+                    <span style={{fontSize:16}}>{l.ok?'✓':'✗'}</span>
+                    <div style={{flex:1}}><div className="sh-name">{l.name}</div><div className="sh-role" style={{color:l.ok?'#059669':'#DC2626'}}>{l.msg}</div></div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="modal-foot">
+              <button className="btn btn-g" onClick={()=>{setShowSendMS(false);setSendLog([]);}}>Fechar</button>
+              {sendLog.length===0&&!sending&&<button className="btn btn-p" onClick={doSendMS} disabled={sending}>Confirmar e Enviar</button>}
+            </div>
+          </div>
+        </Overlay>
+      )}
+
+      {/* Section switcher */}
+      <div style={{display:'flex',gap:3,background:'#F4F5F7',borderRadius:9,padding:3,marginBottom:20,width:'fit-content'}}>
+        {[{id:'360',l:'Avaliação 360°'},{id:'ms',l:'Mini-Surveys'}].map(s=>(
+          <button key={s.id} className={`btn btn-sm ${section===s.id?'btn-p':'btn-g'}`} style={{border:'none'}} onClick={()=>setSection(s.id)}>{s.l}</button>
+        ))}
+      </div>
+
+      {section==='360'&&(
+        <>
+          <div className="sec">
+            <span className="sec-lbl">Stakeholders 360° ({eng.stakeholders360.filter(s=>s.status==='done').length}/{eng.stakeholders360.length} responderam)</span>
+            <div style={{display:'flex',gap:8}}>
+              <button className="btn btn-p btn-sm" onClick={()=>setShowSend360(true)} disabled={eng.stakeholders360.filter(s=>s.email&&!s.invalid).length===0}>📧 Enviar formulários</button>
+              <button className="btn btn-g btn-sm" onClick={()=>setShowAdd360(true)}>+ Adicionar</button>
+            </div>
+          </div>
+          {eng.stakeholders360.length===0&&<div className="empty"><div className="ei">◌</div>Nenhum stakeholder cadastrado.</div>}
+          <div className="sh-list" style={{marginBottom:16}}>
+            {eng.stakeholders360.map(s=>(
+              <div key={s.id} className={`sh-item ${s.invalid?'sh-invalid':''}`}>
+                <div className="sh-av">{s.initials}</div>
+                <div style={{flex:1}}>
+                  <div className="sh-name" style={{textDecoration:s.invalid?'line-through':''}}>{s.name}</div>
+                  <div className="sh-role">{s.role}{s.email?` · ${s.email}`:''}</div>
+                  {s.invalid&&<div style={{fontSize:11,color:'#DC2626',marginTop:2}}>Invalidado: {s.leaderMsg}</div>}
+                </div>
+                <span className={`badge ${s.invalid?'b-invalid':s.status==='done'?'b-done':'b-pend'}`} style={{marginRight:8}}>
+                  {s.invalid?'Invalidado':s.status==='done'?'Respondido':'Pendente'}
+                </span>
+                {s.status==='done'&&s.feedback&&<button className="btn btn-g btn-xs" style={{marginRight:6}} onClick={()=>setViewSh(s)}>Ver</button>}
+                <button className="btn btn-g btn-xs" style={{marginRight:6}} onClick={()=>setEditSh({sh:s,tipo:'360'})}>Editar</button>
+                <button className="btn btn-d btn-xs" onClick={()=>{if(safeConfirm('Remover '+s.name+' da lista 360°?','O stakeholder será removido e suas respostas serão perdidas.')) onUpdate({stakeholders360:eng.stakeholders360.filter(x=>x.id!==s.id)});}}>×</button>
+              </div>
+            ))}
+          </div>
+          <div style={{background:'#F9FAFB',border:'1px solid #E4E6EF',borderRadius:9,padding:'14px 16px',marginBottom:8}}>
+            <div style={{fontSize:11,fontWeight:600,letterSpacing:'1px',textTransform:'uppercase',color:'#A0A3B1',marginBottom:10}}>Upload de dados brutos</div>
+            <div style={{fontSize:12,color:'#6B6E8E',marginBottom:10}}>Suba a planilha gerada pelo Google Forms, Typeform ou outra fonte para gerar o relatório pela IA</div>
+            <label style={{cursor:'pointer',display:'inline-block'}}>
+              <input type="file" style={{display:'none'}} accept=".pdf,.docx,.doc,.xlsx,.xls,.csv,.txt"
+                onChange={async(e)=>{
+                  const file=e.target.files[0];if(!file)return;
+                  try{
+                    const path=await uploadFile(file,`raw360/${eng.id}/${Date.now()}_${file.name}`);
+                    onUpdate({raw360File:path,raw360FileName:file.name});
+                    alert('Arquivo enviado: '+file.name+'. Vá em Relatórios para gerar o relatório.');
+                  }catch(err){alert('Erro ao enviar: '+err.message);}
+                }}/>
+              <span className="btn btn-g btn-sm">↑ Upload dados brutos 360°</span>
+            </label>
+            {eng.raw360FileName&&(
+              <span style={{fontSize:12,color:'#059669',marginLeft:12}}>✓ {eng.raw360FileName}</span>
+            )}
+          </div>
+          {/* Upload dados brutos 360 */}
+          <div style={{marginBottom:10}}>
+            <UploadZone
+              accept=".xlsx,.xls,.csv,.docx,.doc,.pdf"
+              storagePath={`raw360/${eng.id}/dados_360`}
+              onUploaded={(path,name)=>onUpdate({raw360File:path,raw360FileName:name})}
+              currentFile={eng.raw360FileName||null}
+              onRemove={()=>onUpdate({raw360File:'',raw360FileName:''})}
+            />
+            {!eng.raw360FileName&&<div style={{fontSize:11,color:'#A0A3B1',marginTop:4}}>Opcional: suba a planilha bruta do 360° (Google Forms, TypeForm etc.) para uso pela IA</div>}
+          </div>
+          {done360.length>0&&(
+            <div style={{background:'#F9FAFB',border:'1px solid #E4E6EF',borderRadius:9,padding:'14px 16px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+              <div style={{fontSize:13,color:'#6B6E8E'}}>{done360.length} resposta{done360.length!==1?'s':''} coletada{done360.length!==1?'s':''} — pronto para gerar relatório</div>
+              <button className="btn btn-p btn-sm" onClick={generateReport} disabled={loading}>{loading?<Dots/>:'✦ Gerar Relatório 360°'}</button>
+            </div>
+          )}
+          {eng.stakeholders360.length>0&&(
+            <div className="code-box" style={{marginTop:12}}>
+              <div className="code-title">Códigos de acesso — compartilhe com cada stakeholder</div>
+              {eng.stakeholders360.map(s=><div key={s.id} className="code-row"><span className="code-lbl">{s.name} ({s.role})</span><span className="code-val">ST-{eng.id}-{s.id}</span></div>)}
+            </div>
+          )}
+        </>
+      )}
+
+      {section==='ms'&&(
+        <>
+          {/* Step 1: Create mini-survey — always at top */}
+          <div style={{background:'#EEF1FF',border:'1px solid #D0D8F8',borderRadius:10,padding:'14px 16px',marginBottom:20}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+              <div>
+                <div style={{fontSize:13,fontWeight:600,color:'#1A1D2E'}}>Mini-Surveys ({eng.miniSurveys.length} criado{eng.miniSurveys.length!==1?'s':''})</div>
+                <div style={{fontSize:11,color:'#6B6E8E',marginTop:2}}>Cada mini-survey é uma rodada de coleta de percepções dos stakeholders</div>
+              </div>
+              <button className="btn btn-p btn-sm" onClick={createMiniSurvey}>+ Criar novo Mini-Survey</button>
+            </div>
+            {eng.miniSurveys.length>0&&(
+              <div style={{display:'flex',gap:8,marginTop:12,flexWrap:'wrap'}}>
+                {eng.miniSurveys.map((ms)=>(
+                  <div key={ms.id} style={{background:'#fff',border:'1px solid #D0D8F8',borderRadius:8,padding:'8px 12px',minWidth:160}}>
+                    <div style={{fontSize:13,fontWeight:600,color:'#1A1D2E'}}>{ms.label}</div>
+                    <div style={{fontSize:11,color:'#A0A3B1',marginTop:2}}>{ms.sentAt} · {ms.responses.length} resposta{ms.responses.length!==1?'s':''}</div>
+                    <span className={`badge ${ms.responses.length>0?'b-done':'b-pend'}`} style={{marginTop:6,display:'inline-block'}}>{ms.responses.length>0?'Com respostas':'Aguardando'}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Step 2: Stakeholders */}
+          <div className="sec">
+            <span className="sec-lbl">Stakeholders ({eng.stakeholdersMS.length}/15)</span>
+            <div style={{display:'flex',gap:8}}>
+              <button className="btn btn-p btn-sm" onClick={()=>setShowSendMS(true)} disabled={eng.stakeholdersMS.filter(s=>s.email&&!s.invalid).length===0||eng.miniSurveys.length===0}>📧 Enviar</button>
+              <button className="btn btn-g btn-sm" onClick={()=>setShowAddMS(true)}>+ Adicionar</button>
+            </div>
+          </div>
+          {eng.stakeholdersMS.length===0
+            ?<div className="warn-box">Cadastre os stakeholders que avaliarão o progresso do coachee.</div>
+            :<div className="sh-list" style={{marginBottom:12}}>
+              {eng.stakeholdersMS.map(s=>(
+                <div key={s.id} className="sh-item">
+                  <div className="sh-av">{s.initials}</div>
+                  <div style={{flex:1}}>
+                    <div className="sh-name">{s.name}</div>
+                    <div className="sh-role">{s.role}{s.email?` · ${s.email}`:''}</div>
+                  </div>
+                  <span className={`badge ${s.status==='done'?'b-done':'b-pend'}`} style={{marginRight:6}}>{s.status==='done'?'Respondido':'Pendente'}</span>
+                  <button className="btn btn-g btn-xs" style={{marginRight:4}} onClick={()=>setEditSh({sh:s,tipo:'ms'})}>Editar</button>
+                  <button className="btn btn-d btn-xs" onClick={()=>{if(safeConfirm('Remover '+s.name+'?','O stakeholder será removido.')) onUpdate({stakeholdersMS:eng.stakeholdersMS.filter(x=>x.id!==s.id)});}}>×</button>
+                </div>
+              ))}
+            </div>
+          }
+          {eng.stakeholdersMS.length>0&&(
+            <div className="code-box" style={{marginBottom:16}}>
+              <div className="code-title">Códigos de acesso</div>
+              {eng.stakeholdersMS.map(s=><div key={s.id} className="code-row"><span className="code-lbl">{s.name}</span><span className="code-val">ST-{eng.id}-{s.id}</span></div>)}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── TAB RELATÓRIOS ───────────────────────────────────────────────────────────
+// Reusable file action bar for reports
+function ReportFileBar({storagePath,fileName,filePath,onFileUploaded,onFileDeleted,label}){
+  const [uploading,setUploading]=useState(false);
+  return (
+    <div style={{background:'#F9FAFB',border:'1px solid #E4E6EF',borderRadius:9,padding:'12px 16px',marginBottom:12}}>
+      <div style={{fontSize:11,fontWeight:600,letterSpacing:'1px',textTransform:'uppercase',color:'#A0A3B1',marginBottom:10}}>{label||'Arquivo do relatório'}</div>
+      {filePath&&fileName?(
+        <div style={{display:'flex',alignItems:'center',gap:10}}>
+          <span style={{fontSize:13,color:'#059669'}}>📎 {fileName}</span>
+          <button className="btn btn-g btn-xs" onClick={async()=>{
+            const url=await getFileUrl(filePath);
+            if(url) window.open(url,'_blank'); else alert('Arquivo não encontrado.');
+          }}>↓ Baixar</button>
+          <button className="btn btn-d btn-xs" onClick={async()=>{
+            if(!safeConfirm('Remover o arquivo "'+fileName+'"?','O arquivo será excluído do storage e não poderá ser recuperado.')) return;
+            await deleteStorageFile(filePath);
+            onFileDeleted();
+          }}>Remover</button>
+        </div>
+      ):(
+        <label style={{cursor:'pointer',display:'block'}}>
+          <input type="file" style={{display:'none'}} accept=".pdf,.docx,.doc,.pptx,.xlsx,.xls"
+            onChange={async(e)=>{
+              const file=e.target.files[0];if(!file)return;
+              setUploading(true);
+              try{
+                const path=await uploadFile(file,`${storagePath}_${Date.now()}_${file.name}`);
+                onFileUploaded(path,file.name);
+              }catch(err){alert('Erro ao enviar: '+err.message);}
+              setUploading(false);
+            }}/>
+          <div style={{background:'#fff',border:'1px dashed #D8DAE8',borderRadius:7,padding:'10px 14px',display:'flex',alignItems:'center',gap:10}}>
+            {uploading?<><Dots/><span style={{fontSize:13,color:'#A0A3B1'}}>Enviando...</span></>
+            :<><span style={{fontSize:13,color:'#A0A3B1'}}>📎 Clique para enviar o arquivo final</span>
+              <span style={{fontSize:11,color:'#C8CAD6',marginLeft:'auto'}}>.pdf · .docx · .pptx · .xlsx</span></>}
+          </div>
+        </label>
+      )}
+    </div>
+  );
+}
+
+// CSV column mapper for external mini-survey data
+function CSVMapperModal({headers,competencias,onConfirm,onClose}){
+  const fields=[
+    {id:'name',label:'Nome do respondente'},
+    {id:'role',label:'Tipo de interação'},
+    {id:'objetivos',label:'Objetivos compartilhados (Sim/Não)'},
+    ...competencias.flatMap((c,i)=>[
+      {id:`freq_${i}`,label:`Frequência — ${c}`},
+      {id:`score_${i}`,label:`Score (-3 a +3) — ${c}`},
+    ]),
+    {id:'overall',label:'Efetividade geral (-3 a +3)'},
+    {id:'mudancas',label:'O que melhorou'},
+    {id:'sugestoes',label:'Próximos desafios / Sugestões'},
+  ];
+  const [map,setMap]=useState({});
+  return (
+    <Overlay onClose={onClose}>
+      <div className="modal modal-lg">
+        <div className="modal-title">Mapear colunas do arquivo</div>
+        <div className="modal-sub">Indique qual coluna da planilha corresponde a cada campo do mini-survey</div>
+        <div style={{maxHeight:400,overflowY:'auto'}}>
+          {fields.map(f=>(
+            <div key={f.id} className="frow" style={{marginBottom:8,alignItems:'center'}}>
+              <div style={{fontSize:13,color:'#1A1D2E',flex:1}}>{f.label}</div>
+              <select className="fsel" style={{flex:1}} value={map[f.id]||''} onChange={e=>setMap(p=>({...p,[f.id]:e.target.value}))}>
+                <option value="">— não importar —</option>
+                {headers.map(h=><option key={h} value={h}>{h}</option>)}
+              </select>
+            </div>
+          ))}
+        </div>
+        <div className="modal-foot">
+          <button className="btn btn-g" onClick={onClose}>Cancelar</button>
+          <button className="btn btn-p" onClick={()=>onConfirm(map)}>Importar dados</button>
+        </div>
+      </div>
+    </Overlay>
+  );
+}
+
+function TabRelatorios({eng,onUpdate}){
+  const [section,setSection]=useState('360');
+  const [editing360,setEditing360]=useState(false);
+  const [draft360,setDraft360]=useState(eng.report?.content||'');
+  const [selMS,setSelMS]=useState(eng.miniSurveys[0]||null);
+  const [editingMS,setEditingMS]=useState(false);
+  const [draftMS,setDraftMS]=useState('');
+  const [csvHeaders,setCsvHeaders]=useState(null);
+  const [csvRows,setCsvRows]=useState([]);
+  const [showMapper,setShowMapper]=useState(false);
+
+  const approve360=()=>{
+    if(!safeConfirm('Aprovar e compartilhar o relatório 360° com o coachee?','Após a aprovação, o relatório ficará visível no portal do coachee.')) return;
+    onUpdate({report:{...eng.report,approved:true,sharedAt:new Date().toISOString().split('T')[0]}});
+  };
+  const save360=()=>{onUpdate({report:{...eng.report,content:draft360}});setEditing360(false);};
+  const cancel360=()=>{
+    if(draft360!==eng.report?.content&&!safeConfirm('Descartar as alterações?','As edições não salvas serão perdidas.')) return;
+    setEditing360(false);
+  };
+
+  const updateMS=(patch)=>{
+    const updated=eng.miniSurveys.map(ms=>ms.id===selMS.id?{...ms,...patch}:ms);
+    onUpdate({miniSurveys:updated});
+    setSelMS(prev=>({...prev,...patch}));
+  };
+  const approveMS=()=>{
+    if(!safeConfirm('Aprovar e compartilhar este relatório de mini-survey?','Após a aprovação, ficará visível no portal do coachee.')) return;
+    updateMS({reportApproved:true,reportSharedAt:new Date().toISOString().split('T')[0]});
+  };
+  const saveMS=()=>{updateMS({reportContent:draftMS});setEditingMS(false);};
+  const cancelMS=()=>{
+    if(draftMS!==(selMS?.reportContent||'')&&!safeConfirm('Descartar as alterações?','As edições não salvas serão perdidas.')) return;
+    setEditingMS(false);
+  };
+
+  const handleTextUpload=(onContent)=>{
+    const input=document.createElement('input');
+    input.type='file'; input.accept='.txt,.md';
+    input.onchange=e=>{
+      const file=e.target.files[0];if(!file)return;
+      const reader=new FileReader();
+      reader.onload=ev=>onContent(ev.target.result);
+      reader.readAsText(file,'utf-8');
+    };
+    input.click();
+  };
+
+  const handleCSVUpload=()=>{
+    const input=document.createElement('input');
+    input.type='file'; input.accept='.csv,.xlsx,.xls';
+    input.onchange=e=>{
+      const file=e.target.files[0];if(!file)return;
+      const reader=new FileReader();
+      reader.onload=ev=>{
+        const text=ev.target.result;
+        const lines=text.split('\n').filter(l=>l.trim());
+        if(lines.length<2){alert('Arquivo vazio ou inválido.');return;}
+        // Handle BOM
+        const cleanFirst=lines[0].replace(/^\uFEFF/,'');
+        const sep=cleanFirst.includes(';')?';':',';
+        const parseRow=row=>row.split(sep).map(c=>c.replace(/^"|"$/g,'').trim());
+        const headers=parseRow(cleanFirst);
+        const rows=lines.slice(1).map(parseRow);
+        setCsvHeaders(headers);
+        setCsvRows(rows);
+        setShowMapper(true);
+      };
+      reader.readAsText(file,'utf-8');
+    };
+    input.click();
+  };
+
+  const importCSV=(map)=>{
+    if(!selMS){alert('Selecione um mini-survey primeiro.');return;}
+    const compCount=selMS.competencias.length;
+    const imported=csvRows.filter(r=>r.length>1).map((r,i)=>{
+      const get=col=>col&&map[col]!==undefined?r[csvHeaders.indexOf(map[col])]||'':'';
+      const scores=[];
+      for(let ci=0;ci<compCount;ci++){
+        const v=parseFloat(get(`score_${ci}`));
+        scores.push(isNaN(v)?0:Math.max(-3,Math.min(3,v)));
+      }
+      const overall=parseFloat(get('overall'));
+      const freq=[];
+      for(let ci=0;ci<compCount;ci++) freq.push(get(`freq_${ci}`)||'');
+      return {
+        shId:Date.now()+i,
+        name:get('name')||`Respondente ${i+1}`,
+        role:get('role')||'',
+        objetivos:get('objetivos')||'',
+        scores,overall:isNaN(overall)?0:Math.max(-3,Math.min(3,overall)),
+        freq,
+        mudancas:get('mudancas')||'',
+        sugestoes:get('sugestoes')||'',
+      };
+    });
+    if(imported.length===0){alert('Nenhuma linha válida encontrada.');return;}
+    updateMS({responses:[...selMS.responses,...imported]});
+    setShowMapper(false);
+    alert(`${imported.length} resposta(s) importada(s) com sucesso!`);
+  };
+
+  const Report360Section=({eng,onUpdate,editing360,setEditing360,draft360,setDraft360,approve360,save360,cancel360,handleTextUpload})=>(
+    <>
+      {/* 360 Summary - always show if there are responses */}
+      {eng.stakeholders360.filter(s=>s.status==='done'&&s.feedback).length>0&&(
+        <div style={{marginBottom:20}}>
+          <Tab360Summary eng={eng} onUpdate={onUpdate}/>
+          <div className="divider"/>
+        </div>
+      )}
+      {!eng.report?(
+        <div className="empty">
+          <div className="ei">◌</div>
+          Nenhum relatório 360° ainda.<br/>
+          <button className="btn btn-p btn-sm" style={{marginTop:12}}
+            onClick={()=>{onUpdate({report:{content:'',approved:false,sharedAt:null,reportFile:'',reportFileName:''}});setEditing360(true);}}>
+            + Criar relatório
+          </button>
+        </div>
+      ):(
+        <div>
+          {eng.report.approved&&(
+            <div className="approved-banner">✓ Aprovado e compartilhado em {eng.report.sharedAt} — visível para o coachee</div>
+          )}
+
+          {/* 360 Summary */}
+          <div style={{marginBottom:16}}>
+            <Tab360Summary eng={eng} onUpdate={onUpdate}/>
+          </div>
+
+          {/* Content editor */}
+          <div style={{background:'#fff',border:'1px solid #E4E6EF',borderRadius:10,padding:'16px 18px',marginBottom:12}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+              <div style={{fontSize:11,fontWeight:600,letterSpacing:'1px',textTransform:'uppercase',color:'#A0A3B1'}}>
+                {editing360?'Editando conteúdo':'Conteúdo do relatório'}
+              </div>
+              <div style={{display:'flex',gap:6}}>
+                {!editing360&&!eng.report.approved&&(
+                  <button className="btn btn-g btn-sm" onClick={()=>handleTextUpload(txt=>{
+                    if(eng.report.content&&!safeConfirm('Substituir o conteúdo atual pelo arquivo?','O texto atual será substituído.')) return;
+                    onUpdate({report:{...eng.report,content:txt}});
+                  })}>↑ Importar .txt/.md</button>
+                )}
+                {!editing360&&(
+                  <button className="btn btn-g btn-sm" onClick={()=>{setDraft360(eng.report.content);setEditing360(true);}}>
+                    {eng.report.approved?'Ver texto':'Editar'}
+                  </button>
+                )}
+                {!editing360&&eng.report.content&&(
+                  <button className="btn btn-g btn-sm" onClick={()=>generateDOCX(eng.report.content,`Relatório 360° - ${eng.coachee.name}`)}>↓ Baixar .doc</button>
+                )}
+                {editing360&&<>
+                  <button className="btn btn-g btn-sm" onClick={cancel360}>Cancelar</button>
+                  {!eng.report.approved&&<button className="btn btn-p btn-sm" onClick={save360}>Salvar</button>}
+                </>}
+              </div>
+            </div>
+            {editing360
+              ?<textarea className="report-editor" value={draft360} onChange={e=>setDraft360(e.target.value)} readOnly={eng.report.approved}/>
+              :<div className="report-view" style={{maxHeight:300,overflowY:'auto'}}>
+                <div className="report-text" style={{fontSize:13}}>{eng.report.content||'Sem conteúdo — clique em Editar ou Importar para adicionar.'}</div>
+              </div>
+            }
+          </div>
+
+          {/* File upload */}
+          <ReportFileBar
+            label="Arquivo final (relatório completo para download)"
+            storagePath={`reports/${eng.id}/360`}
+            fileName={eng.report.reportFileName}
+            filePath={eng.report.reportFile}
+            onFileUploaded={(path,name)=>onUpdate({report:{...eng.report,reportFile:path,reportFileName:name}})}
+            onFileDeleted={()=>onUpdate({report:{...eng.report,reportFile:'',reportFileName:''}})}
+          />
+
+          {/* Approve */}
+          {!eng.report.approved&&(
+            <div style={{display:'flex',justifyContent:'flex-end',marginTop:8}}>
+              <button className="btn btn-p" onClick={approve360}>✓ Aprovar e Compartilhar com coachee</button>
+            </div>
+          )}
+        </div>
+      )}
+    </>
+  );
+
+  const MSSection=({eng,selMS,setSelMS,editingMS,setEditingMS,draftMS,setDraftMS,updateMS,approveMS,saveMS,cancelMS,handleTextUpload,handleCSVUpload})=>(
+    <>
+      {eng.miniSurveys.length===0?(
+        <div className="empty"><div className="ei">◌</div>Nenhum mini-survey criado.<br/>Crie na aba Stakeholders.</div>
+      ):(
+        <div>
+          {/* Survey selector */}
+          {eng.miniSurveys.length>1&&(
+            <div style={{display:'flex',gap:8,marginBottom:20,flexWrap:'wrap'}}>
+              {eng.miniSurveys.map(ms=>(
+                <button key={ms.id} className={`btn btn-sm ${selMS?.id===ms.id?'btn-p':'btn-g'}`}
+                  onClick={()=>{setSelMS(ms);setEditingMS(false);setDraftMS(ms.reportContent||'');}}>
+                  {ms.label}{ms.reportApproved?' ✓':''}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {selMS&&(
+            <div style={{border:'2px solid #E4E6EF',borderRadius:12,overflow:'hidden'}}>
+              {/* Survey header */}
+              <div style={{background:'#F4F5F7',borderBottom:'1px solid #E4E6EF',padding:'12px 18px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                <div>
+                  <div style={{fontSize:14,fontWeight:700,color:'#1A1D2E'}}>{selMS.label}</div>
+                  <div style={{fontSize:12,color:'#A0A3B1'}}>Criado em {selMS.sentAt} · {selMS.responses.length} resposta{selMS.responses.length!==1?'s':''}</div>
+                </div>
+                {selMS.reportApproved&&<span style={{fontSize:11,fontWeight:600,color:'#059669',background:'#F0FDF4',padding:'4px 10px',borderRadius:6}}>✓ Aprovado</span>}
+              </div>
+
+              {/* Section 1: Data */}
+              <div style={{padding:'16px 18px',borderBottom:'1px solid #E4E6EF'}}>
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+                  <div style={{fontSize:11,fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',color:'#A0A3B1'}}>Dados da pesquisa</div>
+                  <div style={{display:'flex',gap:6}}>
+                    <button className="btn btn-g btn-sm" onClick={handleCSVUpload}>↑ Importar CSV/Excel</button>
+                    {selMS.responses.length>0&&<button className="btn btn-g btn-sm" onClick={()=>exportMiniSurveyExcel(selMS,eng)}>↓ Planilha Excel</button>}
+                  </div>
+                </div>
+                {selMS.responses.length>0
+                  ?<ProgressChart miniSurveys={[selMS]}/>
+                  :<div style={{fontSize:13,color:'#A0A3B1',textAlign:'center',padding:'16px 0'}}>Sem respostas. Importe dados ou aguarde os stakeholders.</div>
+                }
+              </div>
+
+              {/* Section 2: Narrative report */}
+              <div style={{padding:'16px 18px',borderBottom:'1px solid #E4E6EF'}}>
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+                  <div style={{fontSize:11,fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',color:'#A0A3B1'}}>Relatório narrativo</div>
+                  <div style={{display:'flex',gap:6}}>
+                    {!editingMS&&!selMS.reportApproved&&(
+                      <button className="btn btn-g btn-sm" onClick={()=>handleTextUpload(txt=>{
+                        if(selMS.reportContent&&!safeConfirm('Substituir conteúdo atual?','O texto atual será substituído.')) return;
+                        updateMS({reportContent:txt});
+                      })}>↑ Importar .txt/.md</button>
+                    )}
+                    {!editingMS&&<button className="btn btn-g btn-sm" onClick={()=>{setDraftMS(selMS.reportContent||'');setEditingMS(true);}}>{selMS.reportApproved?'Ver':'Editar'}</button>}
+                    {!editingMS&&selMS.reportContent&&<button className="btn btn-g btn-sm" onClick={()=>generateDOCX(selMS.reportContent,`${selMS.label} - ${eng.coachee.name}`)}>↓ Baixar .doc</button>}
+                    {editingMS&&<><button className="btn btn-g btn-sm" onClick={cancelMS}>Cancelar</button>{!selMS.reportApproved&&<button className="btn btn-p btn-sm" onClick={saveMS}>Salvar</button>}</>}
+                  </div>
+                </div>
+                {editingMS
+                  ?<textarea className="report-editor" value={draftMS} onChange={e=>setDraftMS(e.target.value)} readOnly={selMS.reportApproved}/>
+                  :<div className="report-view" style={{maxHeight:240,overflowY:'auto'}}>
+                    <div className="report-text" style={{fontSize:13}}>{selMS.reportContent||'Sem conteúdo — edite ou importe.'}</div>
+                  </div>
+                }
+              </div>
+
+              {/* Section 3: File + approve */}
+              <div style={{padding:'16px 18px'}}>
+                <ReportFileBar
+                  label="Arquivo final para download"
+                  storagePath={`reports/${eng.id}/ms_${selMS.id}`}
+                  fileName={selMS.reportFileName}
+                  filePath={selMS.reportFile}
+                  onFileUploaded={(path,name)=>updateMS({reportFile:path,reportFileName:name})}
+                  onFileDeleted={()=>updateMS({reportFile:'',reportFileName:''})}
+                />
+                {!selMS.reportApproved&&(
+                  <div style={{display:'flex',justifyContent:'flex-end',marginTop:8}}>
+                    <button className="btn btn-p" onClick={approveMS}>✓ Aprovar e Compartilhar com coachee</button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </>
+  );
+
+
+  return (
+    <div style={{marginTop:20}}>
+      {showMapper&&csvHeaders&&selMS&&(
+        <CSVMapperModal
+          headers={csvHeaders}
+          competencias={selMS.competencias}
+          onConfirm={importCSV}
+          onClose={()=>setShowMapper(false)}
+        />
+      )}
+      <div style={{display:'flex',gap:3,background:'#F4F5F7',borderRadius:9,padding:3,marginBottom:20,width:'fit-content'}}>
+        {[{id:'360',l:'Relatório 360°'},{id:'ms',l:`Mini-Surveys (${eng.miniSurveys.length})`}].map(s=>(
+          <button key={s.id} className={`btn btn-sm ${section===s.id?'btn-p':'btn-g'}`} style={{border:'none'}} onClick={()=>setSection(s.id)}>{s.l}</button>
+        ))}
+      </div>
+      {section==='360'&&<Report360Section eng={eng} onUpdate={onUpdate} editing360={editing360} setEditing360={setEditing360} draft360={draft360} setDraft360={setDraft360} approve360={approve360} save360={save360} cancel360={cancel360} handleTextUpload={handleTextUpload}/>}
+      {section==='ms'&&<MSSection eng={eng} selMS={selMS} setSelMS={setSelMS} editingMS={editingMS} setEditingMS={setEditingMS} draftMS={draftMS} setDraftMS={setDraftMS} updateMS={updateMS} approveMS={approveMS} saveMS={saveMS} cancelMS={cancelMS} handleTextUpload={handleTextUpload} handleCSVUpload={handleCSVUpload}/>}
+    </div>
+  );
+}
+
+// ─── UPLOAD ZONE COMPONENT ───────────────────────────────────────────────────
+function UploadZone({accept,storagePath,onUploaded,currentFile,onRemove}){
+  const [uploading,setUploading]=useState(false);
+  const [err,setErr]=useState('');
+
+  const handleFile=async(file)=>{
+    if(!file)return;
+    setUploading(true);setErr('');
+    try{
+      const path=`${storagePath}_${file.name}`;
+      await uploadFile(file,path);
+      onUploaded(path,file.name);
+    }catch(e){setErr('Erro ao enviar: '+e.message);}
+    setUploading(false);
+  };
+
+  if(currentFile) return (
+    <div style={{background:'#F0FDF4',border:'1px solid #BBF7D0',borderRadius:8,padding:'10px 14px',display:'flex',alignItems:'center',gap:10}}>
+      <span style={{fontSize:13,color:'#059669'}}>✓ {currentFile}</span>
+      <button className="btn btn-d btn-xs" style={{marginLeft:'auto'}} onClick={onRemove}>Remover</button>
+    </div>
+  );
+
+  return (
+    <label style={{display:'block',cursor:'pointer'}}>
+      <input type="file" accept={accept} style={{display:'none'}} onChange={e=>handleFile(e.target.files[0])}/>
+      <div style={{background:'#F9FAFB',border:'1px dashed #D8DAE8',borderRadius:8,padding:'12px 16px',display:'flex',alignItems:'center',gap:10,transition:'border-color .12s'}}>
+        <span style={{fontSize:13,color:'#A0A3B1'}}>📎 {uploading?'Enviando...':`Clique para selecionar (${accept})`}</span>
+        {!uploading&&<span className="btn btn-g btn-xs" style={{marginLeft:'auto',pointerEvents:'none'}}>Selecionar</span>}
+        {uploading&&<Dots/>}
+      </div>
+      {err&&<div style={{fontSize:11,color:'#DC2626',marginTop:4}}>{err}</div>}
+    </label>
+  );
+}
+
+// ─── SESSIONS TAB ─────────────────────────────────────────────────────────────
+function TabSessions({eng,onUpdate}){
+  const [showNew,setShowNew]=useState(false);
+  const [newSession,setNewSession]=useState({date:'',notes:''});
+  const [expandedIdx,setExpandedIdx]=useState(null);
+  const [editIdx,setEditIdx]=useState(null);
+  const [editNotes,setEditNotes]=useState('');
+
+  const saveNew=()=>{
+    if(!newSession.date||(![newSession.notes.trim(),newSession.fileName].some(Boolean)))return;
+    const num=eng.sessions.length+1;
+    const d=new Date(newSession.date);
+    const months=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    const dateStr=`${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+    onUpdate({sessions:[{num,date:dateStr,notes:newSession.notes.trim(),filePath:newSession.filePath||'',fileName:newSession.fileName||''},...eng.sessions]});
+    setNewSession({date:'',notes:'',filePath:'',fileName:''});setShowNew(false);
+  };
+
+  const saveEdit=(i)=>{
+    const updated=eng.sessions.map((s,idx)=>idx===i?{...s,notes:editNotes}:s);
+    onUpdate({sessions:updated});setEditIdx(null);
+  };
+
+  return (
+    <div style={{marginTop:20}}>
+      <div className="sec">
+        <span className="sec-lbl">Sessões ({eng.sessions.length})</span>
+        <button className="btn btn-p btn-sm" onClick={()=>setShowNew(p=>!p)}>+ Registrar sessão</button>
+      </div>
+
+      {showNew&&(
+        <div style={{background:'#EEF1FF',border:'1px solid #D0D8F8',borderRadius:10,padding:16,marginBottom:16}}>
+          <div className="field"><div className="flbl">Data da sessão</div><input className="finp" type="date" value={newSession.date} onChange={e=>setNewSession(p=>({...p,date:e.target.value}))}/></div>
+          <div className="field">
+            <div className="flbl">Anotações do coach</div>
+            <div style={{fontSize:11,color:'#A0A3B1',marginBottom:6}}>Espaço livre para suas anotações e reflexões sobre a sessão</div>
+            <textarea className="finp" rows={5} placeholder="Registre os principais pontos discutidos, insights do coachee, ações definidas, observações para próximas sessões..." value={newSession.notes} onChange={e=>setNewSession(p=>({...p,notes:e.target.value}))}/>
+            <div style={{fontSize:11,color:'#A0A3B1',marginTop:4}}>Estas anotações poderão ser usadas pela IA para gerar recomendações.</div>
+          </div>
+          <div className="field">
+            <div className="flbl">Upload de arquivo</div>
+            <div style={{fontSize:11,color:'#A0A3B1',marginBottom:6}}>Anotações externas (.txt, .docx) ou transcrições (.pdf, .txt)</div>
+            <UploadZone
+              accept=".txt,.md,.docx,.pdf"
+              storagePath={`sessions/${eng.id}/${Date.now()}`}
+              onUploaded={(path,name)=>setNewSession(p=>({...p,filePath:path,fileName:name}))}
+              currentFile={newSession.fileName}
+              onRemove={()=>setNewSession(p=>({...p,filePath:'',fileName:''}))}
+            />
+          </div>
+          <div style={{display:'flex',gap:8}}>
+            <button className="btn btn-g btn-sm" onClick={()=>setShowNew(false)}>Cancelar</button>
+            <button className="btn btn-p btn-sm" onClick={saveNew} disabled={!newSession.date||(!newSession.notes.trim()&&!newSession.fileName)}>Salvar</button>
+          </div>
+        </div>
+      )}
+
+      {eng.sessions.length===0?<div className="empty"><div className="ei">◌</div>Nenhuma sessão registrada.</div>
+      :eng.sessions.map((s,i)=>{
+        const parts=s.date.split(' ');
+        const day=parts[0]; const m=parts[1]||'';
+        const months={Jan:'JAN',Fev:'FEV',Mar:'MAR',Abr:'ABR',Mai:'MAI',Jun:'JUN',Jul:'JUL',Ago:'AGO',Set:'SET',Out:'OUT',Nov:'NOV',Dez:'DEZ'};
+        return (
+          <div key={i} style={{borderBottom:'1px solid #E4E6EF'}}>
+            <div style={{display:'flex',gap:14,padding:'14px 0',cursor:'pointer'}} onClick={()=>setExpandedIdx(expandedIdx===i?null:i)}>
+              <div style={{minWidth:44,textAlign:'center',background:'#fff',border:'1px solid #E4E6EF',borderRadius:8,padding:'7px 5px',flexShrink:0}}>
+                <div style={{fontSize:18,fontWeight:700,color:'#1A1D2E',lineHeight:1}}>{day}</div>
+                <div style={{fontSize:9,color:'#A0A3B1',letterSpacing:'1px',textTransform:'uppercase',marginTop:2}}>{months[m]||m}</div>
+              </div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:11,fontWeight:600,color:'#A0A3B1',textTransform:'uppercase',letterSpacing:'.8px',marginBottom:4}}>Sessão {s.num}</div>
+                <div style={{fontSize:14,color:'#6B6E8E',lineHeight:1.5,overflow:'hidden',whiteSpace:expandedIdx===i?'pre-wrap':'nowrap',textOverflow:'ellipsis'}}>{s.notes}</div>
+              </div>
+              <span style={{fontSize:12,color:'#A0A3B1',flexShrink:0,paddingTop:4}}>{expandedIdx===i?'▲':'▼'}</span>
+            </div>
+            {expandedIdx===i&&(
+              <div style={{paddingBottom:14}}>
+                {editIdx===i?(
+                  <div>
+                    <textarea className="finp" rows={6} value={editNotes} onChange={e=>setEditNotes(e.target.value)} style={{marginBottom:8}}/>
+                    <div style={{display:'flex',gap:8}}>
+                      <button className="btn btn-g btn-sm" onClick={()=>setEditIdx(null)}>Cancelar</button>
+                      <button className="btn btn-p btn-sm" onClick={()=>saveEdit(i)}>Salvar</button>
+                    </div>
+                  </div>
+                ):(
+                  <div>
+                    {s.fileName&&(
+                      <div style={{background:'#F9FAFB',border:'1px solid #E4E6EF',borderRadius:8,padding:'10px 14px',marginBottom:10,display:'flex',alignItems:'center',gap:10}}>
+                        <span style={{fontSize:13,color:'#6B6E8E'}}>📎 {s.fileName}</span>
+                        <button className="btn btn-g btn-xs" style={{marginLeft:'auto'}} onClick={async()=>{
+                          const url=await getFileUrl(s.filePath);
+                          if(url) window.open(url,'_blank');
+                          else alert('Arquivo não encontrado.');
+                        }}>Baixar</button>
+                      </div>
+                    )}
+                    <div style={{display:'flex',gap:8}}>
+                      <button className="btn btn-g btn-sm" onClick={()=>{setEditIdx(i);setEditNotes(s.notes);}}>Editar anotação</button>
+                      <button className="btn btn-d btn-sm" onClick={()=>{if(safeConfirm('Apagar esta sessão?','As anotações e arquivos desta sessão serão perdidos.')){onUpdate({sessions:eng.sessions.filter((_,idx)=>idx!==i)});}}}>Apagar</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── ENGAGEMENT DETAIL ────────────────────────────────────────────────────────
+function EngDetail({id,engs,onBack,onUpdate,onDelete,onOpenPortal}){
+  const [tab,setTab]=useState('roadmap');
+  const [showPortalMenu,setShowPortalMenu]=useState(false);
+  const [showArchive,setShowArchive]=useState(false);
+  const eng=engs.find(e=>e.id===id);
+  if(!eng)return null;
+  const upd=patch=>onUpdate(id,patch);
+  const pendingStk=eng.stakeholders360.some(s=>s.status==='pending')||eng.stakeholdersMS.some(s=>s.status==='pending');
+  const hasActions=(eng.planoAcoes||[]).length;
+  const TABS=[
+    {id:'roadmap',label:'Jornada'},
+    {id:'stk',label:`Stakeholders${pendingStk?' ⚠':''}`},
+    {id:'relatorios',label:`Relatórios${eng.report?.approved?' ✓':eng.report?' (rascunho)':''}`},
+    {id:'plano',label:`Plano de Ações${hasActions?' ('+hasActions+')':''}`},
+    {id:'sessions',label:`Sessões (${eng.sessions.length})`},
+  ];
+
+  const portals=[
+    {label:'Portal do Coachee',role:'coachee'},
+    ...(eng.leaders||[]).map(l=>({label:`Portal: ${l.name} (Líder)`,role:'lider',liderId:l.id})),
+    {label:'Portal do RH',role:'rh'},
+  ];
+
+  return (
+    <>
+      {showArchive&&!eng.archived&&(
+        <ArchiveModal eng={eng} onClose={()=>setShowArchive(false)} onArchive={patch=>{upd(patch);setShowArchive(false);onBack();}}/>
+      )}
+      <div className="topbar">
+        <button className="back" onClick={onBack}>← {eng.archived?'Arquivados':'Todos os processos'}</button>
+        <div className="det-hd">
+          <div className="det-av" style={{background:eng.coachee.color+'18',border:`1px solid ${eng.coachee.color}35`}}>
+            <span style={{color:eng.coachee.color}}>{eng.coachee.initials}</span>
+          </div>
+          <div>
+            <div className="det-name">{eng.coachee.name}</div>
+            <div className="det-sub">{eng.coachee.role} · {eng.coachee.company}</div>
+          </div>
+          <div style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:10}}>
+            <StatusBadge status={currentStatus(eng)}/>
+            <span style={{fontSize:12,color:'#A0A3B1'}}>{STAGES[eng.phase-1]} · {eng.cadence}</span>
+
+            {/* Portal dropdown */}
+            <div className="portal-dropdown">
+              <button className="btn btn-g btn-sm" onClick={()=>setShowPortalMenu(p=>!p)}>
+                Acessar portal ▾
+              </button>
+              {showPortalMenu&&(
+                <>
+                  <div style={{position:'fixed',inset:0,zIndex:99}} onClick={()=>setShowPortalMenu(false)}/>
+                  <div className="portal-menu">
+                    {portals.map((p,i)=>(
+                      <button key={i} className="portal-menu-item" onClick={()=>{
+                        setShowPortalMenu(false);
+                        onOpenPortal(eng.id,p);
+                      }}>{p.label}</button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            <button className="btn btn-g btn-sm" onClick={()=>setShowArchive(true)}>
+              {eng.archived?'📁 Arquivado':'📁 Arquivar'}
+            </button>
+            {!eng.archived&&<button className="btn btn-d btn-xs" onClick={()=>{
+              if(!window.confirm('Tem certeza que deseja apagar este processo?')) return;
+              if(!safeConfirm('Confirma a exclusão de "'+eng.coachee.name+'"?','TODOS os dados deste processo serão permanentemente excluídos.')) return;
+              const nome=window.prompt('Digite o nome do coachee para confirmar:');
+              if(nome?.trim()===eng.coachee.name.trim()){onDelete(eng.id);onBack();}
+              else alert('Nome incorreto. Processo não apagado.');
+            }}>Apagar</button>}
+          </div>
+        </div>
+        <div className="tabs">{TABS.map(t=><div key={t.id} className={`tab${tab===t.id?' on':''}`} onClick={()=>setTab(t.id)}>{t.label}</div>)}</div>
+      </div>
+      <div className="scroll">
+        {eng.archived&&(
+          <div style={{background:eng.archiveType==='conclusao'?'#F0FDF4':'#FEF2F2',border:`1px solid ${eng.archiveType==='conclusao'?'#BBF7D0':'#FCD4D4'}`,borderRadius:9,padding:'12px 18px',margin:'16px 0 0',display:'flex',alignItems:'center',gap:12}}>
+            <span style={{fontSize:16}}>{eng.archiveType==='conclusao'?'✓':'⚠'}</span>
+            <div>
+              <div style={{fontSize:13,fontWeight:600,color:eng.archiveType==='conclusao'?'#059669':'#DC2626'}}>
+                Processo {eng.archiveType==='conclusao'?'concluído':'interrompido'} em {eng.archivedAt}
+              </div>
+              {eng.archiveReason&&<div style={{fontSize:12,color:'#6B6E8E',marginTop:2}}>Motivo: {eng.archiveReason}</div>}
+              {eng.archiveObs&&<div style={{fontSize:12,color:'#6B6E8E',marginTop:2,fontStyle:'italic'}}>"{eng.archiveObs}"</div>}
+            </div>
+            <button className="btn btn-g btn-sm" style={{marginLeft:'auto'}} onClick={()=>{if(safeConfirm('Reativar este processo?','Ele voltará para a lista de processos ativos.')) upd({archived:false,archiveType:null,archiveReason:null,archiveObs:null,archivedAt:null});}}>
+              Reativar
+            </button>
+          </div>
+        )}
+        {tab==='roadmap'&&<RoadmapTab eng={eng} onUpdate={upd}/>}
+        {tab==='stk'&&<TabStakeholders eng={eng} onUpdate={upd}/>}
+        {tab==='relatorios'&&<TabRelatorios eng={eng} onUpdate={upd}/>}
+        {tab==='plano'&&<TabPlanoAcoes eng={eng} onUpdate={upd} isCoach={true}/>}
+        {tab==='sessions'&&<TabSessions eng={eng} onUpdate={upd}/>}
+      </div>
+    </>
+  );
+}
+
+// ─── 360° SUMMARY (visual digest for coach) ──────────────────────────────────
+function Tab360Summary({eng,onUpdate}){
+  const feedbacks = eng.stakeholders360.filter(s=>s.status==='done'&&s.feedback);
+  const [editPriorities,setEditPriorities]=useState(false);
+  const [draftPrio,setDraftPrio]=useState(eng.summary360Priorities||'');
+
+  // Has structured data from stakeholders
+  const hasStructuredData = feedbacks.length > 0;
+  // Has report content (text or file)
+  const hasReportContent = !!(eng.report?.content || eng.report?.reportFile);
+
+  if(!hasStructuredData && !hasReportContent) return (
+    <div className="empty"><div className="ei">◌</div>Aguardando respostas do 360° para gerar o resumo.</div>
+  );
+
+  // If no structured data but has report — show simplified view
+  if(!hasStructuredData && hasReportContent) return (
+    <div style={{marginTop:20}}>
+      <div className="info-box" style={{marginBottom:16}}>
+        O resumo automático usa as respostas estruturadas dos stakeholders. Como os dados foram inseridos via relatório, os pontos prioritários recomendados podem ser definidos manualmente abaixo.
+      </div>
+      {eng.report?.reportFile&&(
+        <div style={{background:'#F9FAFB',border:'1px solid #E4E6EF',borderRadius:10,padding:'14px 16px',marginBottom:16,display:'flex',alignItems:'center',gap:10}}>
+          <span style={{fontSize:13,color:'#6B6E8E'}}>📎 Relatório disponível para referência</span>
+          <button className="btn btn-g btn-xs" style={{marginLeft:'auto'}} onClick={async()=>{
+            const url=await getFileUrl(eng.report.reportFile);
+            if(url) window.open(url,'_blank');
+          }}>Abrir</button>
+        </div>
+      )}
+      {eng.report?.content&&(
+        <div style={{background:'#fff',border:'1px solid #E4E6EF',borderRadius:10,padding:'14px 16px',marginBottom:16,maxHeight:200,overflowY:'auto'}}>
+          <div style={{fontSize:11,fontWeight:600,color:'#A0A3B1',letterSpacing:'1px',textTransform:'uppercase',marginBottom:8}}>Conteúdo do relatório</div>
+          <div style={{fontSize:13,color:'#3A3D58',lineHeight:1.6,whiteSpace:'pre-wrap'}}>{eng.report.content.slice(0,800)}{eng.report.content.length>800?'...':''}</div>
+        </div>
+      )}
+      <div style={{background:'#EEF1FF',border:'1px solid #D0D8F8',borderRadius:10,padding:'16px 18px'}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
+          <div style={{fontSize:11,fontWeight:700,letterSpacing:'1.2px',textTransform:'uppercase',color:'#4169FF'}}>Pontos Prioritários Recomendados (editável pelo coach)</div>
+          {!editPriorities
+            ?<button className="btn btn-g btn-xs" onClick={()=>{setDraftPrio(eng.summary360Priorities||'');setEditPriorities(true);}}>Editar</button>
+            :<div style={{display:'flex',gap:6}}>
+              <button className="btn btn-g btn-xs" onClick={()=>setEditPriorities(false)}>Cancelar</button>
+              <button className="btn btn-p btn-xs" onClick={()=>{onUpdate({summary360Priorities:draftPrio});setEditPriorities(false);}}>Salvar</button>
+            </div>
+          }
+        </div>
+        {editPriorities
+          ?<textarea className="finp" rows={4} placeholder="1. [Ponto prioritário 1]&#10;2. [Ponto prioritário 2]" value={draftPrio} onChange={e=>setDraftPrio(e.target.value)}/>
+          :<div style={{fontSize:13,color:'#3358E0',lineHeight:1.7,whiteSpace:'pre-wrap',minHeight:60}}>
+            {eng.summary360Priorities||'Clique em Editar para definir os pontos prioritários recomendados.'}
+          </div>
+        }
+      </div>
+    </div>
+  );
+
+  if(feedbacks.length===0) return (
+    <div className="empty"><div className="ei">◌</div>Aguardando respostas do 360° para gerar o resumo.</div>
+  );
+
+  // Compile top positives
+  const positives=[];
+  feedbacks.forEach(f=>{
+    const fb=f.feedback;
+    [fb.pos1,fb.pos2,fb.pos3].filter(Boolean).forEach(p=>positives.push(p));
+  });
+  const posCount={};
+  positives.forEach(p=>{const k=p.toLowerCase().trim();posCount[k]=(posCount[k]||0)+1;});
+  const topPos=Object.entries(posCount).sort((a,b)=>b[1]-a[1]).slice(0,5);
+
+  // Compile top gaps (parar + começar)
+  const gaps=[];
+  feedbacks.forEach(f=>{
+    const fb=f.feedback;
+    [fb.par1,fb.par2,fb.par3,fb.inic1,fb.inic2,fb.inic3].filter(Boolean).forEach(g=>gaps.push(g));
+  });
+  const gapCount={};
+  gaps.forEach(g=>{const k=g.toLowerCase().trim();gapCount[k]=(gapCount[k]||0)+1;});
+  const topGaps=Object.entries(gapCount).sort((a,b)=>b[1]-a[1]).slice(0,5);
+
+  // Priorities from stakeholders
+  const priors=feedbacks.map(f=>f.feedback?.prior).filter(Boolean);
+
+  return (
+    <div style={{marginTop:20}}>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:20}}>
+        {/* Top positives */}
+        <div style={{background:'#F0FDF4',border:'1px solid #BBF7D0',borderRadius:10,padding:'16px 18px'}}>
+          <div style={{fontSize:11,fontWeight:700,letterSpacing:'1.2px',textTransform:'uppercase',color:'#059669',marginBottom:12}}>
+            Top Pontos Positivos ({feedbacks.length} respondentes)
+          </div>
+          {topPos.length===0?<div style={{fontSize:13,color:'#A0A3B1'}}>Sem dados.</div>:
+          topPos.map(([p,c],i)=>(
+            <div key={i} style={{display:'flex',alignItems:'flex-start',gap:10,marginBottom:8}}>
+              <span style={{background:'#059669',color:'#fff',borderRadius:'50%',width:20,height:20,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:700,flexShrink:0}}>{i+1}</span>
+              <div style={{flex:1}}>
+                <div style={{fontSize:13,color:'#1A1D2E',fontWeight:500,textTransform:'capitalize'}}>{p}</div>
+                {c>1&&<div style={{fontSize:11,color:'#059669'}}>{c} menções</div>}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Top gaps */}
+        <div style={{background:'#FEF2F2',border:'1px solid #FCD4D4',borderRadius:10,padding:'16px 18px'}}>
+          <div style={{fontSize:11,fontWeight:700,letterSpacing:'1.2px',textTransform:'uppercase',color:'#DC2626',marginBottom:12}}>
+            Top Pontos a Desenvolver
+          </div>
+          {topGaps.length===0?<div style={{fontSize:13,color:'#A0A3B1'}}>Sem dados.</div>:
+          topGaps.map(([g,c],i)=>(
+            <div key={i} style={{display:'flex',alignItems:'flex-start',gap:10,marginBottom:8}}>
+              <span style={{background:'#DC2626',color:'#fff',borderRadius:'50%',width:20,height:20,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:700,flexShrink:0}}>{i+1}</span>
+              <div style={{flex:1}}>
+                <div style={{fontSize:13,color:'#1A1D2E',fontWeight:500,textTransform:'capitalize'}}>{g}</div>
+                {c>1&&<div style={{fontSize:11,color:'#DC2626'}}>{c} menções</div>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Priorities from stakeholders */}
+      {priors.length>0&&(
+        <div style={{background:'#FFFBEB',border:'1px solid #FDE68A',borderRadius:10,padding:'16px 18px',marginBottom:16}}>
+          <div style={{fontSize:11,fontWeight:700,letterSpacing:'1.2px',textTransform:'uppercase',color:'#D97706',marginBottom:10}}>
+            Prioridades Indicadas pelos Stakeholders
+          </div>
+          {priors.map((p,i)=>(
+            <div key={i} style={{fontSize:13,color:'#92400E',marginBottom:5}}>— {p}</div>
+          ))}
+        </div>
+      )}
+
+      {/* Editable coach priorities */}
+      <div style={{background:'#EEF1FF',border:'1px solid #D0D8F8',borderRadius:10,padding:'16px 18px'}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
+          <div style={{fontSize:11,fontWeight:700,letterSpacing:'1.2px',textTransform:'uppercase',color:'#4169FF'}}>
+            Pontos Prioritários Recomendados (editável pelo coach)
+          </div>
+          {!editPriorities
+            ?<button className="btn btn-g btn-xs" onClick={()=>{setDraftPrio(eng.summary360Priorities||'');setEditPriorities(true);}}>Editar</button>
+            :<div style={{display:'flex',gap:6}}>
+              <button className="btn btn-g btn-xs" onClick={()=>setEditPriorities(false)}>Cancelar</button>
+              <button className="btn btn-p btn-xs" onClick={()=>{onUpdate({summary360Priorities:draftPrio});setEditPriorities(false);}}>Salvar</button>
+            </div>
+          }
+        </div>
+        {editPriorities
+          ?<textarea className="finp" rows={4} placeholder="1. [Ponto prioritário 1]&#10;2. [Ponto prioritário 2]" value={draftPrio} onChange={e=>setDraftPrio(e.target.value)}/>
+          :<div style={{fontSize:13,color:'#3358E0',lineHeight:1.7,whiteSpace:'pre-wrap',minHeight:60}}>
+            {eng.summary360Priorities||'Clique em Editar para definir os pontos prioritários recomendados.'}
+          </div>
+        }
+      </div>
+    </div>
+  );
+}
+
+// ─── TAB PLANO DE AÇÕES ───────────────────────────────────────────────────────
+const AP_STATUS=['Não iniciada','Em andamento','Concluída'];
+const AP_CAT=['Começar a fazer','Parar de fazer'];
+const AP_STATUS_COLOR={'Não iniciada':'#A0A3B1','Em andamento':'#4169FF','Concluída':'#059669'};
+const AP_STATUS_BG={'Não iniciada':'#F4F5F7','Em andamento':'rgba(65,105,255,.08)','Concluída':'rgba(16,185,129,.08)'};
+
+function TabPlanoAcoes({eng,onUpdate,isCoach=false,readOnly=false}){
+  const [showAdd,setShowAdd]=useState(false);
+  const [newAcao,setNewAcao]=useState({competenciaId:'',descricao:'',categoria:AP_CAT[0],status:AP_STATUS[0],resultado:'',dataInicio:'',dataFim:''});
+  const [expandedId,setExpandedId]=useState(null);
+  const [editingId,setEditingId]=useState(null);
+  const [aiLoading,setAiLoading]=useState(false);
+  const [editDraft,setEditDraft]=useState({});
+
+  const acoes=eng.planoAcoes||[];
+
+  const addAcao=()=>{
+    if(!newAcao.descricao.trim()||!newAcao.competenciaId)return;
+    const a={id:Date.now(),...newAcao};
+    onUpdate({planoAcoes:[...acoes,a]});
+    setNewAcao({competenciaId:'',descricao:'',categoria:AP_CAT[0],status:AP_STATUS[0],resultado:'',dataInicio:'',dataFim:''});
+    setShowAdd(false);
+  };
+
+  const updateAcao=(id,patch)=>{
+    onUpdate({planoAcoes:acoes.map(a=>a.id===id?{...a,...patch}:a)});
+  };
+
+  const deleteAcao=(id)=>{
+    if(!safeConfirm('Apagar esta ação?','A ação e seus resultados serão perdidos.'))return;
+    onUpdate({planoAcoes:acoes.filter(a=>a.id!==id)});
+  };
+
+  // Group by competencia
+  const byComp={};
+  eng.competencias.forEach(c=>{byComp[c.id]=[];});
+  byComp['outras']=[];
+  acoes.forEach(a=>{
+    const cid=a.competenciaId;
+    if(byComp[cid]!==undefined) byComp[cid].push(a);
+    else byComp['outras'].push(a);
+  });
+
+  const statusIcon={'Não iniciada':'○','Em andamento':'→','Concluída':'✓'};
+
+  return (
+    <div style={{marginTop:20}}>
+      <div className="sec">
+        <span className="sec-lbl">Plano de Ações ({acoes.length} ação{acoes.length!==1?'ões':''})</span>
+        <div style={{display:'flex',gap:8}}>
+          {isCoach&&eng.report?.content&&acoes.length===0&&(
+            <button className="btn btn-g btn-sm" disabled={aiLoading} onClick={async()=>{
+              if(!eng.competencias.length){alert('Defina as competências antes de gerar o plano.');return;}
+              setAiLoading(true);
+              const prompt=`Você é especialista em coaching executivo MGSCC. Com base no relatório 360° abaixo, gere um plano de ações inicial para o coachee.
+
+COACHEE: ${eng.coachee.name} | ${eng.coachee.role}
+COMPETÊNCIAS: ${eng.competencias.map(c=>c.nome).join(' / ')}
+RELATÓRIO 360°:
+${eng.report.content.slice(0,2000)}
+
+Gere exatamente ${eng.competencias.length*2} ações no formato JSON array. Cada ação: {"competenciaId":"[id da competência]","descricao":"[comportamento concreto]","categoria":"Começar a fazer" ou "Parar de fazer","status":"Não iniciada","resultado":"","dataInicio":"","dataFim":""}
+
+IDs das competências: ${eng.competencias.map(c=>`${c.id}="${c.nome}"`).join(', ')}
+
+Responda APENAS com o JSON array, sem texto adicional.`;
+              try{
+                const res=await fetch('/api/ai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt,max_tokens:1500})});
+                const data=await res.json();
+                if(data.error) throw new Error(data.error);
+                const txt=data.content?.[0]?.text||'';
+                const clean=txt.replace(/```json|```/g,'').trim();
+                const arr=JSON.parse(clean);
+                const acoes=arr.map((a,i)=>({...a,id:Date.now()+i,competenciaId:parseInt(a.competenciaId)||eng.competencias[0]?.id}));
+                onUpdate({planoAcoes:acoes});
+                alert(acoes.length+' ações geradas com sucesso! Revise e edite conforme necessário.');
+              }catch(e){alert('Erro ao gerar: '+e.message);}
+              setAiLoading(false);
+            }}>{aiLoading?<Dots/>:'✦ Gerar com IA'}</button>
+          )}
+          {!readOnly&&<button className="btn btn-p btn-sm" onClick={()=>setShowAdd(p=>!p)}>+ Adicionar ação</button>}
+        </div>
+      </div>
+
+      {showAdd&&(
+        <div style={{background:'#EEF1FF',border:'1px solid #D0D8F8',borderRadius:10,padding:16,marginBottom:16}}>
+          <div className="frow">
+            <div className="field">
+              <div className="flbl">Competência</div>
+              <select className="fsel" value={newAcao.competenciaId} onChange={e=>setNewAcao(p=>({...p,competenciaId:e.target.value}))}>
+                <option value="">Selecione...</option>
+                {eng.competencias.map(c=><option key={c.id} value={c.id}>{c.nome}</option>)}
+              </select>
+            </div>
+            <div className="field">
+              <div className="flbl">Categoria</div>
+              <select className="fsel" value={newAcao.categoria} onChange={e=>setNewAcao(p=>({...p,categoria:e.target.value}))}>
+                {AP_CAT.map(c=><option key={c}>{c}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="field">
+            <div className="flbl">Descrição da ação</div>
+            <textarea className="finp" rows={2} placeholder="Descreva o comportamento ou ação concreta..." value={newAcao.descricao} onChange={e=>setNewAcao(p=>({...p,descricao:e.target.value}))}/>
+          </div>
+          <div className="frow">
+            <div className="field"><div className="flbl">Prazo de início</div><input className="finp" type="date" value={newAcao.dataInicio||''} onChange={e=>setNewAcao(p=>({...p,dataInicio:e.target.value}))}/></div>
+            <div className="field"><div className="flbl">Prazo de conclusão</div><input className="finp" type="date" value={newAcao.dataFim||''} onChange={e=>setNewAcao(p=>({...p,dataFim:e.target.value}))}/></div>
+          </div>
+          <div style={{display:'flex',gap:8}}>
+            <button className="btn btn-g btn-sm" onClick={()=>setShowAdd(false)}>Cancelar</button>
+            <button className="btn btn-p btn-sm" onClick={addAcao} disabled={!newAcao.descricao.trim()||!newAcao.competenciaId}>Salvar</button>
+          </div>
+        </div>
+      )}
+
+      {acoes.length===0&&<div className="empty"><div className="ei">◌</div>Nenhuma ação cadastrada.<br/>Adicione ações vinculadas às competências do processo.</div>}
+
+      {eng.competencias.map(c=>{
+        const cAcoes=byComp[c.id]||[];
+        if(cAcoes.length===0&&!showAdd) return null;
+        return (
+          <div key={c.id} style={{marginBottom:20}}>
+            <div style={{fontSize:11,fontWeight:700,letterSpacing:'1.2px',textTransform:'uppercase',color:'#4169FF',marginBottom:10,display:'flex',alignItems:'center',gap:8}}>
+              <span>{c.nome}</span>
+              <span style={{fontSize:11,color:'#A0A3B1',fontWeight:400}}>({cAcoes.length} ação{cAcoes.length!==1?'ões':''})</span>
+            </div>
+            {cAcoes.map(a=>{
+              const isExpanded=expandedId===a.id;
+              const isEditing=editingId===a.id;
+              const bgCls=a.status==='Concluída'?'ap-done':a.status==='Em andamento'?'ap-active':'';
+              return (
+                <div key={a.id} className={`action-plan-item ${bgCls}`}>
+                  <div style={{display:'flex',alignItems:'flex-start',gap:10,cursor:'pointer'}} onClick={()=>setExpandedId(isExpanded?null:a.id)}>
+                    <span style={{fontSize:16,color:AP_STATUS_COLOR[a.status],flexShrink:0,marginTop:2}}>{statusIcon[a.status]}</span>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:13,fontWeight:500,color:'#1A1D2E',marginBottom:3}}>{a.descricao}</div>
+                      <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                        <span style={{fontSize:11,color:'#6B6E8E',background:'#F4F5F7',padding:'2px 8px',borderRadius:4}}>{a.categoria}</span>
+                        <span style={{fontSize:11,fontWeight:600,color:AP_STATUS_COLOR[a.status],background:AP_STATUS_BG[a.status],padding:'2px 8px',borderRadius:4}}>{a.status}</span>
+                        {a.dataFim&&<span style={{fontSize:11,color:'#A0A3B1'}}>até {a.dataFim}</span>}
+                      </div>
+                    </div>
+                    <span style={{fontSize:11,color:'#A0A3B1'}}>{isExpanded?'▲':'▼'}</span>
+                  </div>
+
+                  {isExpanded&&!isEditing&&(
+                    <div style={{marginTop:14,paddingTop:14,borderTop:'1px solid #E4E6EF'}}>
+                      <div style={{fontSize:11,fontWeight:600,letterSpacing:'1px',textTransform:'uppercase',color:'#A0A3B1',marginBottom:8}}>Resultado observado</div>
+                      <div style={{fontSize:13,color:'#3A3D58',lineHeight:1.6,marginBottom:12,minHeight:40,whiteSpace:'pre-wrap'}}>
+                        {a.resultado||'Nenhum resultado registrado ainda.'}
+                      </div>
+                      <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                        {!readOnly&&AP_STATUS.map(s=>(
+                          <button key={s} className={`btn btn-xs ${a.status===s?'btn-p':'btn-g'}`}
+                            onClick={()=>updateAcao(a.id,{status:s})}>
+                            {statusIcon[s]} {s}
+                          </button>
+                        ))}
+                        <div style={{marginLeft:'auto',display:'flex',gap:6}}>
+                          {!readOnly&&<button className="btn btn-g btn-xs" onClick={()=>{setEditDraft({...a});setEditingId(a.id);}}>Editar</button>}
+                          {isCoach&&!readOnly&&<button className="btn btn-d btn-xs" onClick={()=>deleteAcao(a.id)}>Apagar</button>}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {isExpanded&&isEditing&&(
+                    <div style={{marginTop:14,paddingTop:14,borderTop:'1px solid #E4E6EF'}}>
+                      {isCoach&&(
+                        <>
+                          <div className="field">
+                            <div className="flbl">Descrição</div>
+                            <textarea className="finp" rows={2} value={editDraft.descricao} onChange={e=>setEditDraft(p=>({...p,descricao:e.target.value}))}/>
+                          </div>
+                          <div className="frow">
+                            <div className="field">
+                              <div className="flbl">Categoria</div>
+                              <select className="fsel" value={editDraft.categoria} onChange={e=>setEditDraft(p=>({...p,categoria:e.target.value}))}>
+                                {AP_CAT.map(c=><option key={c}>{c}</option>)}
+                              </select>
+                            </div>
+                            <div className="field">
+                              <div className="flbl">Status</div>
+                              <select className="fsel" value={editDraft.status} onChange={e=>setEditDraft(p=>({...p,status:e.target.value}))}>
+                                {AP_STATUS.map(s=><option key={s}>{s}</option>)}
+                              </select>
+                            </div>
+                          </div>
+                          <div className="frow">
+                            <div className="field"><div className="flbl">Prazo de início</div><input className="finp" type="date" value={editDraft.dataInicio||''} onChange={e=>setEditDraft(p=>({...p,dataInicio:e.target.value}))}/></div>
+                            <div className="field"><div className="flbl">Prazo de conclusão</div><input className="finp" type="date" value={editDraft.dataFim||''} onChange={e=>setEditDraft(p=>({...p,dataFim:e.target.value}))}/></div>
+                          </div>
+                        </>
+                      )}
+                      <div className="field">
+                        <div className="flbl">Resultado observado {!isCoach&&'(preenchido pelo coachee)'}</div>
+                        <textarea className="finp" rows={3} placeholder="Descreva o que aconteceu, o que mudou, o que ainda precisa melhorar..." value={editDraft.resultado||''} onChange={e=>setEditDraft(p=>({...p,resultado:e.target.value}))}/>
+                      </div>
+                      <div style={{display:'flex',gap:8}}>
+                        <button className="btn btn-g btn-sm" onClick={()=>setEditingId(null)}>Cancelar</button>
+                        <button className="btn btn-p btn-sm" onClick={()=>{updateAcao(a.id,editDraft);setEditingId(null);}}>Salvar</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── 360° FORM ────────────────────────────────────────────────────────────────
+function Form360({eng,sh,onSubmit}){
+  const [tipo,setTipo]=useState('');
+  const [f,setF]=useState({pos1:'',pos1ex:'',pos2:'',pos2ex:'',pos3:'',pos3ex:'',cont1:'',cont1ex:'',cont2:'',cont2ex:'',cont3:'',cont3ex:'',par1:'',par1ex:'',par2:'',par2ex:'',par3:'',par3ex:'',inic1:'',inic1ex:'',inic2:'',inic2ex:'',inic3:'',inic3ex:'',prior:''});
+  const [done,setDone]=useState(false);
+  const set=(k,v)=>setF(p=>({...p,[k]:v}));
+  const valid=tipo&&f.pos1&&f.pos1ex&&f.pos2&&f.pos2ex&&f.cont1&&f.cont1ex&&f.cont2&&f.cont2ex&&f.par1&&f.par1ex&&f.par2&&f.par2ex&&f.inic1&&f.inic1ex&&f.inic2&&f.inic2ex&&f.prior;
+  if(done) return <div className="done-page"><style>{CSS}</style><div className="done-icon">✓</div><div className="done-title">Obrigado!</div><div className="done-sub">Suas respostas foram registradas. Sua contribuição é fundamental para o desenvolvimento de {eng.coachee.name}.</div></div>;
+  const QA=({label,id,req,ph})=>(
+    <div className="q-block">
+      <div className="q-label">{label}{req&&<span className="q-req">*</span>}</div>
+      <textarea className="q-area" placeholder={ph||"Descreva..."} value={f[id]} onChange={e=>set(id,e.target.value)}/>
+    </div>
+  );
+  return (
+    <div className="form-page">
+      <style>{CSS}</style>
+      <div className="form-header"><div style={{fontWeight:700,fontSize:16,color:'#1A1D2E'}}>Lidehra</div><div style={{fontSize:12,color:'#A0A3B1'}}>Avaliação 360° · Confidencial</div></div>
+      <div className="form-body">
+        <div className="form-hero">
+          <div className="form-hero-title">Feedback para Desenvolvimento de Liderança</div>
+          <div className="form-hero-sub">Avaliação de <strong style={{color:'#1A1D2E'}}>{eng.coachee.name}</strong> ({eng.coachee.role})<br/>Traga exemplos concretos. Tempo estimado: 15–20 min.<br/><span style={{fontSize:13,color:'#A0A3B1'}}>Confidencial — sua identidade não será revelada.</span></div>
+        </div>
+        <div className="q-block"><div className="q-label">Tipo de interação com a pessoa avaliada<span className="q-req">*</span></div>
+          <select className="q-sel" value={tipo} onChange={e=>setTipo(e.target.value)}><option value="">Selecione...</option>{SH_ROLES_360.map(r=><option key={r}>{r}</option>)}</select>
+        </div>
+        <div className="q-sect-lbl">Pontos positivos (2 a 3)</div>
+        <QA label="Ponto positivo 1" id="pos1" req ph="Ex: Proativo, conhecimento técnico..."/>
+        <QA label="Exemplo para o ponto 1" id="pos1ex" req ph="Descreva uma situação..."/>
+        <QA label="Ponto positivo 2" id="pos2" req ph="Ex: Bom relacionamento..."/>
+        <QA label="Exemplo para o ponto 2" id="pos2ex" req ph="Descreva uma situação..."/>
+        <QA label="Ponto positivo 3 (opcional)" id="pos3" ph="Opcional..."/>
+        {f.pos3&&<QA label="Exemplo para o ponto 3" id="pos3ex" ph="Descreva uma situação..."/>}
+        <div className="q-sect-lbl">Continuar fazendo (2 a 3)</div>
+        <QA label="Continuar fazendo (1)" id="cont1" req ph="Verbo de ação..."/>
+        <QA label="Exemplo (1)" id="cont1ex" req ph="Descreva uma situação..."/>
+        <QA label="Continuar fazendo (2)" id="cont2" req ph="Verbo de ação..."/>
+        <QA label="Exemplo (2)" id="cont2ex" req ph="Descreva uma situação..."/>
+        <QA label="Continuar fazendo (3) (opcional)" id="cont3" ph="Opcional..."/>
+        {f.cont3&&<QA label="Exemplo (3)" id="cont3ex" ph="Descreva uma situação..."/>}
+        <div className="q-sect-lbl">Parar de fazer (2 a 3)</div>
+        <QA label="Parar de fazer (1)" id="par1" req ph="Comportamento que atrapalha..."/>
+        <QA label="Exemplo (1)" id="par1ex" req ph="Descreva uma situação..."/>
+        <QA label="Parar de fazer (2)" id="par2" req ph="Comportamento que atrapalha..."/>
+        <QA label="Exemplo (2)" id="par2ex" req ph="Descreva uma situação..."/>
+        <QA label="Parar de fazer (3) (opcional)" id="par3" ph="Opcional..."/>
+        {f.par3&&<QA label="Exemplo (3)" id="par3ex" ph="Descreva uma situação..."/>}
+        <div className="q-sect-lbl">Começar a fazer (2 a 3)</div>
+        <QA label="Começar a fazer (1)" id="inic1" req ph="Atitude que ajudaria..."/>
+        <QA label="Exemplo (1)" id="inic1ex" req ph="Descreva uma situação..."/>
+        <QA label="Começar a fazer (2)" id="inic2" req ph="Atitude que ajudaria..."/>
+        <QA label="Exemplo (2)" id="inic2ex" req ph="Descreva uma situação..."/>
+        <QA label="Começar a fazer (3) (opcional)" id="inic3" ph="Opcional..."/>
+        {f.inic3&&<QA label="Exemplo (3)" id="inic3ex" ph="Descreva uma situação..."/>}
+        <div className="q-sect-lbl">Priorização</div>
+        <QA label="Dos pontos citados, qual deve ser priorizado?" id="prior" req ph="Indique o ponto mais importante..."/>
+        <button className="login-btn" onClick={()=>{if(valid){onSubmit({...f,tipo});setDone(true);}}} disabled={!valid} style={{opacity:valid?1:.5,marginBottom:32}}>Enviar Avaliação</button>
+      </div>
+    </div>
+  );
+}
+
+// ─── MINI SURVEY FORM ─────────────────────────────────────────────────────────
+function FormMiniSurvey({eng,sh,ms,onSubmit}){
+  const [tipo,setTipo]=useState('');
+  const [objetivos,setObjetivos]=useState('');
+  const [freq,setFreq]=useState(ms.competencias.map(()=>''));
+  const [scores,setScores]=useState(ms.competencias.map(()=>null));
+  const [overall,setOverall]=useState(null);
+  const [mudancas,setMudancas]=useState('');
+  const [sugestoes,setSugestoes]=useState('');
+  const [done,setDone]=useState(false);
+  const valid=tipo&&objetivos&&scores.every(s=>s!==null)&&overall!==null&&mudancas&&sugestoes;
+  if(done) return <div className="done-page"><style>{CSS}</style><div className="done-icon">✓</div><div className="done-title">Obrigado!</div><div className="done-sub">Suas respostas foram registradas com sucesso.</div></div>;
+  const SBtn=({k,val,onChange})=>{const n=parseInt(k);const cls=val===n?(n>0?'sp':n<0?'sn':'sz'):'';return <button className={`scale-btn ${cls}`} onClick={()=>onChange(n)}>{k}</button>;};
+  return (
+    <div className="form-page">
+      <style>{CSS}</style>
+      <div className="form-header"><div style={{fontWeight:700,fontSize:16,color:'#1A1D2E'}}>Lidehra</div><div style={{fontSize:12,color:'#A0A3B1'}}>Pesquisa de Progresso · {ms.label}</div></div>
+      <div className="form-body">
+        <div className="form-hero">
+          <div className="form-hero-title">Acompanhamento de Progresso</div>
+          <div className="form-hero-sub">Avalie o progresso de <strong style={{color:'#1A1D2E'}}>{eng.coachee.name}</strong><br/><span style={{fontSize:13,color:'#A0A3B1'}}>Respostas confidenciais, compiladas anonimamente.</span></div>
+        </div>
+        <div className="q-block"><div className="q-label">Tipo de interação<span className="q-req">*</span></div><select className="q-sel" value={tipo} onChange={e=>setTipo(e.target.value)}><option value="">Selecione...</option>{SH_ROLES_MS.map(r=><option key={r}>{r}</option>)}</select></div>
+        <div className="q-block"><div className="q-label">Os objetivos do coaching foram compartilhados com você?<span className="q-req">*</span></div><select className="q-sel" value={objetivos} onChange={e=>setObjetivos(e.target.value)}><option value="">Selecione...</option><option>Sim</option><option>Não</option></select></div>
+        <div className="q-block">
+          <div className="q-label">Frequência com que o/a líder pediu feedback sobre as competências<span className="q-req">*</span></div>
+          {ms.competencias.map((c,i)=>(
+            <div key={i} className="scale-row">
+              <div className="scale-lbl">{c}</div>
+              <select className="freq-sel" value={freq[i]} onChange={e=>{const n=[...freq];n[i]=e.target.value;setFreq(n);}}>
+                <option value="">Selecione...</option>{FREQ_OPTS.map(o=><option key={o}>{o}</option>)}
+              </select>
+            </div>
+          ))}
+        </div>
+        <div className="q-block">
+          <div className="q-label">Progresso nas competências (-3 a +3)<span className="q-req">*</span></div>
+          <div style={{fontSize:12,color:'#A0A3B1',marginBottom:10}}>-3 = Piorou muito · 0 = Sem mudança · +3 = Melhorou muito</div>
+          {ms.competencias.map((c,i)=>(
+            <div key={i} className="scale-row">
+              <div className="scale-lbl">{c}</div>
+              <div className="scale-btns">{SCALE.map(k=><SBtn key={k} k={k} val={scores[i]} onChange={v=>{const n=[...scores];n[i]=v;setScores(n);}}/>)}</div>
+            </div>
+          ))}
+        </div>
+        <div className="q-block">
+          <div className="q-label">Efetividade geral de liderança (-3 a +3)<span className="q-req">*</span></div>
+          <div className="scale-btns" style={{marginTop:6}}>{SCALE.map(k=><SBtn key={k} k={k} val={overall} onChange={setOverall}/>)}</div>
+        </div>
+        <div className="q-block"><div className="q-label">Mudanças de comportamento mais perceptíveis<span className="q-req">*</span></div><textarea className="q-area" placeholder="Descreva o que observou..." value={mudancas} onChange={e=>setMudancas(e.target.value)}/></div>
+        <div className="q-block"><div className="q-label">Sugestões para os próximos meses<span className="q-req">*</span></div><textarea className="q-area" placeholder="Suas sugestões..." value={sugestoes} onChange={e=>setSugestoes(e.target.value)}/></div>
+        <button className="login-btn" onClick={()=>{if(valid){onSubmit({shId:sh.id,name:sh.name,role:tipo,scores,overall,mudancas,sugestoes,freq,objetivos});setDone(true);}}} disabled={!valid} style={{opacity:valid?1:.5,marginBottom:32}}>Enviar Pesquisa</button>
+      </div>
+    </div>
+  );
+}
+
+// ─── COACHEE RELATORIOS COMPONENT ────────────────────────────────────────────
+function CoacheeRelatorios({eng}){
+  const [sub,setSub]=useState('360');
+  const [selMS,setSelMS]=useState(eng.miniSurveys[0]||null);
+
+  const approvedMS=eng.miniSurveys.filter(ms=>ms.reportApproved);
+
+  return (
+    <div>
+      <div style={{display:'flex',gap:3,background:'#F4F5F7',borderRadius:9,padding:3,marginBottom:20,width:'fit-content'}}>
+        {[{id:'360',l:'Relatório 360°'},{id:'ms',l:`Mini-Surveys (${approvedMS.length} disponível${approvedMS.length!==1?'is':''})`}].map(s=>(
+          <button key={s.id} className={`btn btn-sm ${sub===s.id?'btn-p':'btn-g'}`} style={{border:'none'}} onClick={()=>setSub(s.id)}>{s.l}</button>
+        ))}
+      </div>
+
+      {sub==='360'&&(
+        <>
+          {!eng.report?.approved
+            ?<div className="warn-box">Seu relatório 360° está sendo preparado pelo coach.</div>
+            :<div>
+              <div style={{background:'#F0FDF4',border:'1px solid #BBF7D0',borderRadius:9,padding:'14px 16px',marginBottom:12,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                <div>
+                  <div style={{fontSize:13,fontWeight:600,color:'#059669'}}>✓ Relatório de Desenvolvimento disponível</div>
+                  <div style={{fontSize:12,color:'#6B6E8E',marginTop:2}}>Aprovado em {eng.report.sharedAt}</div>
+                </div>
+                <div style={{display:'flex',gap:8}}>
+                  {eng.report.reportFile&&<button className="btn btn-p btn-sm" onClick={async()=>{
+                    const url=await getFileUrl(eng.report.reportFile);
+                    if(url) window.open(url,'_blank'); else alert('Arquivo não encontrado.');
+                  }}>↓ Baixar relatório completo</button>}
+                  {eng.report.content&&<button className="btn btn-g btn-sm" onClick={()=>generateDOCX(eng.report.content,`Relatório 360° - ${eng.coachee?.name||''}`)}>↓ Baixar .doc</button>}
+                </div>
+              </div>
+              {eng.report.content&&<div className="report-view"><div className="report-text" style={{fontSize:13}}>{eng.report.content}</div></div>}
+            </div>
+          }
+        </>
+      )}
+
+      {sub==='ms'&&(
+        <>
+          {approvedMS.length===0
+            ?<div className="warn-box">Nenhum relatório de mini-survey disponível ainda.</div>
+            :<>
+              <div style={{display:'flex',gap:8,marginBottom:16,flexWrap:'wrap'}}>
+                {approvedMS.map(ms=>(
+                  <button key={ms.id} className={`btn btn-sm ${selMS?.id===ms.id?'btn-p':'btn-g'}`} onClick={()=>setSelMS(ms)}>
+                    {ms.label}
+                  </button>
+                ))}
+              </div>
+              {selMS&&selMS.reportApproved&&(
+                <div>
+                  <div style={{background:'#F0FDF4',border:'1px solid #BBF7D0',borderRadius:9,padding:'14px 16px',marginBottom:12,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                    <div>
+                      <div style={{fontSize:13,fontWeight:600,color:'#059669'}}>✓ {selMS.label} — disponível</div>
+                      <div style={{fontSize:12,color:'#6B6E8E',marginTop:2}}>Aprovado em {selMS.reportSharedAt}</div>
+                    </div>
+                    <div style={{display:'flex',gap:8}}>
+                      {selMS.reportFile&&<button className="btn btn-p btn-sm" onClick={async()=>{
+                        const url=await getFileUrl(selMS.reportFile);
+                        if(url) window.open(url,'_blank'); else alert('Arquivo não encontrado.');
+                      }}>↓ Baixar relatório completo</button>}
+                      {selMS.reportContent&&<button className="btn btn-g btn-sm" onClick={()=>generateDOCX(selMS.reportContent,`${selMS.label}`)}>↓ Baixar .doc</button>}
+                    </div>
+                  </div>
+                  {selMS.reportContent&&<div className="report-view"><div className="report-text" style={{fontSize:13}}>{selMS.reportContent}</div></div>}
+                </div>
+              )}
+            </>
+          }
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── PROGRESS CHART COACHEE (all surveys + selector) ─────────────────────────
+function ProgressChartCoachee({miniSurveys}){
+  const [selId,setSelId]=useState(null); // null = most recent
+
+  const ms = selId
+    ? miniSurveys.find(m=>m.id===selId)||miniSurveys[miniSurveys.length-1]
+    : miniSurveys[miniSurveys.length-1];
+
+  if(!ms||ms.responses.length===0){
+    return <div className="warn-box">Nenhuma resposta coletada ainda neste mini-survey.</div>;
+  }
+
+  return (
+    <div>
+      {/* Multi-survey selector */}
+      {miniSurveys.length>1&&(
+        <div style={{marginBottom:20}}>
+          <div style={{fontSize:11,color:'#A0A3B1',marginBottom:8,fontWeight:600,letterSpacing:'1px',textTransform:'uppercase'}}>Selecionar período</div>
+          <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+            {miniSurveys.map(m=>(
+              <button key={m.id}
+                className={`btn btn-sm ${(selId===m.id||(selId===null&&m.id===miniSurveys[miniSurveys.length-1].id))?'btn-p':'btn-g'}`}
+                onClick={()=>setSelId(m.id)}>
+                {m.label}{m.period?` · ${m.period}`:''}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      <ProgressChart miniSurveys={[ms]}/>
+    </div>
+  );
+}
+
+// ─── COACHEE PORTAL ───────────────────────────────────────────────────────────
+function CoacheePortal({eng,onLogout,onUpdate,isCoachView,onBackToCoach}){
+  const [tab,setTab]=useState('jornada');
+  const [showAdd360,setShowAdd360]=useState(false);
+  const [showAddMS,setShowAddMS]=useState(false);
+  const c=eng.coachee;
+  const notifs=eng.notifications||[];
+
+  const TABS=[{id:'jornada',l:'Minha Jornada'},{id:'stk',l:`Stakeholders${notifs.length>0?` (${notifs.length})`:''}`},{id:'relatorios',l:'Relatórios'},{id:'plano',l:`Plano de Ações${(eng.planoAcoes||[]).length>0?' ('+(eng.planoAcoes||[]).length+')':''}`},{id:'progresso',l:'Progresso'}];
+
+  return (
+    <div className="portal-page">
+      <style>{CSS}</style>
+      {showAdd360&&<AddShModal tipo="360" currentCount={eng.stakeholders360.length} onSave={sh=>{onUpdate(eng.id,{stakeholders360:[...eng.stakeholders360,sh]});setShowAdd360(false);}} onClose={()=>setShowAdd360(false)}/>}
+      {showAddMS&&<AddShModal tipo="ms" currentCount={eng.stakeholdersMS.length} onSave={sh=>{onUpdate(eng.id,{stakeholdersMS:[...eng.stakeholdersMS,sh]});setShowAddMS(false);}} onClose={()=>setShowAddMS(false)}/>}
+      <div className="portal-header">
+        <div><div style={{fontWeight:700,fontSize:16,color:'#1A1D2E'}}>Lidehra</div><div style={{fontSize:10,color:'#A0A3B1',letterSpacing:'2px',textTransform:'uppercase'}}>Minha Jornada</div></div>
+        <div style={{display:'flex',alignItems:'center',gap:12}}>
+          {isCoachView&&<button className="btn btn-p btn-sm" onClick={onBackToCoach}>← Voltar ao processo</button>}
+          <div style={{textAlign:'right'}}><div style={{fontSize:14,fontWeight:600,color:'#1A1D2E'}}>{c.name}</div><div style={{fontSize:12,color:'#A0A3B1'}}>{c.role} · {c.company}</div></div>
+          {!isCoachView&&<button className="btn btn-g btn-sm" onClick={onLogout}>Sair</button>}
+        </div>
+      </div>
+      <div className="portal-body">
+        <div className="portal-hero">
+          <div className="portal-name">{c.name}</div>
+          <div style={{fontSize:11,color:'#A0A3B1',letterSpacing:'1.5px',textTransform:'uppercase',margin:'4px 0 10px'}}>Processo de Desenvolvimento · MGSCC</div>
+          <div style={{fontSize:11,color:'#A0A3B1',fontWeight:600,textTransform:'uppercase',letterSpacing:'1px',marginBottom:4}}>Objetivo principal do processo</div>
+          <div style={{fontSize:14,color:'#3A3D58',lineHeight:1.6,marginBottom:eng.competencias.length>0?14:0}}>{eng.goal||'A definir'}</div>
+          {eng.competencias.length>0&&(
+            <div>
+              <div style={{fontSize:11,color:'#A0A3B1',fontWeight:600,textTransform:'uppercase',letterSpacing:'1px',marginBottom:8}}>Competências em desenvolvimento</div>
+              <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                {eng.competencias.map((comp,i)=>(
+                  <div key={i} style={{display:'flex',gap:8,alignItems:'flex-start'}}>
+                    <span style={{fontSize:11,fontWeight:700,color:'#4169FF',background:'#EEF1FF',padding:'2px 8px',borderRadius:4,flexShrink:0}}>Competência {i+1}</span>
+                    <div>
+                      <div style={{fontSize:13,fontWeight:600,color:'#1A1D2E'}}>{comp.nome}</div>
+                      {comp.detalhe&&<div style={{fontSize:11,color:'#6B6E8E'}}>{comp.detalhe}</div>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="tabs">{TABS.map(t=><div key={t.id} className={`tab${tab===t.id?' on':''}`} onClick={()=>setTab(t.id)}>{t.l}</div>)}</div>
+        <div style={{paddingTop:24}}>
+          {tab==='jornada'&&(
+            <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10}}>
+              {[1,2,3,4].map(p=>{
+                const ss=stageStatus(eng,p);
+                const actions=[
+                  ['Cadastrar stakeholders 360°','Formulário 360° respondido','Relatório disponível'],
+                  ['Definir competências','Cadastrar stakeholders mini-survey','Reunião de engajamento'],
+                  ['Sessões de coaching','Reuniões mensais com stakeholders','Mini-survey de progresso'],
+                  ['Mini-survey final','Apresentação de resultados'],
+                ];
+                return (
+                  <div key={p} style={{background:'#fff',border:`1px solid ${p===eng.phase?SC[p-1]+'55':'#E4E6EF'}`,borderRadius:10,padding:16}}>
+                    <div style={{fontSize:10,color:'#A0A3B1',letterSpacing:'2px',textTransform:'uppercase',fontWeight:600,marginBottom:6}}>Etapa {p}</div>
+                    <div style={{fontSize:13,fontWeight:700,textTransform:'uppercase',letterSpacing:'.4px',color:SC[p-1],marginBottom:8}}>{STAGES[p-1]}</div>
+                    <div style={{display:'flex',alignItems:'center',gap:5,marginBottom:10}}><span className={`sdot ${STATUS[ss].dot}`}/><span className={STATUS[ss].txt} style={{fontSize:11}}>{STATUS[ss].label}</span></div>
+                    <ul style={{listStyle:'none'}}>
+                      {actions[p-1].map((a,i)=><li key={i} style={{display:'flex',gap:6,fontSize:12,color:'#6B6E8E',marginBottom:5,alignItems:'flex-start',lineHeight:1.4}}><span style={{width:4,height:4,borderRadius:'50%',background:'#D8DAE8',flexShrink:0,marginTop:5}}/>{a}</li>)}
+                    </ul>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {tab==='stk'&&(
+            <>
+              {notifs.length>0&&(
+                <div style={{marginBottom:20}}>
+                  <div className="sec-lbl" style={{marginBottom:10}}>Notificações do Líder ({notifs.length})</div>
+                  {notifs.map((n,i)=>(
+                    <div key={i} className="notif">
+                      <div className="notif-icon">⚠</div>
+                      <div><div className="notif-text">{n.msg}</div><div className="notif-time">{n.date}</div></div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="sec"><span className="sec-lbl">Stakeholders escolhidos — Avaliação 360° ({eng.stakeholders360.length}/15)</span><button className="btn btn-p btn-sm" onClick={()=>setShowAdd360(true)}>+ Adicionar</button></div>
+              {eng.stakeholders360.length===0?<div className="empty"><div className="ei">◌</div>Adicione as pessoas da sua avaliação 360°.</div>
+              :<div className="sh-list" style={{marginBottom:20}}>
+                {eng.stakeholders360.map(s=>(
+                  <div key={s.id} className={`sh-item ${s.invalid?'sh-invalid':''}`}>
+                    <div className="sh-av">{s.initials}</div>
+                    <div style={{flex:1}}>
+                      <div className="sh-name" style={{textDecoration:s.invalid?'line-through':''}}>{s.name}</div>
+                      <div className="sh-role">{s.role}</div>
+                      {s.invalid&&<div style={{fontSize:11,color:'#DC2626',marginTop:2}}>Solicitação do líder: {s.leaderMsg}</div>}
+                    </div>
+                    <span className={`badge ${s.invalid?'b-invalid':s.validatedByLeader?'b-done':'b-pend'}`}>{s.invalid?'Revisar':s.validatedByLeader?'Validado':'Aguardando líder'}</span>
+                  </div>
+                ))}
+              </div>}
+              <div className="sec"><span className="sec-lbl">Stakeholders escolhidos — Jornada de desenvolvimento ({eng.stakeholdersMS.length}/15)</span><button className="btn btn-p btn-sm" onClick={()=>setShowAddMS(true)}>+ Adicionar</button></div>
+              {eng.stakeholdersMS.length===0?<div className="empty"><div className="ei">◌</div>Adicione as pessoas que acompanharão seu progresso.</div>
+              :<div className="sh-list">
+                {eng.stakeholdersMS.map(s=>(
+                  <div key={s.id} className="sh-item">
+                    <div className="sh-av">{s.initials}</div>
+                    <div style={{flex:1}}><div className="sh-name">{s.name}</div><div className="sh-role">{s.role}</div></div>
+                    <span className={`badge ${s.validatedByLeader?'b-done':'b-pend'}`}>{s.validatedByLeader?'Validado':'Aguardando líder'}</span>
+                  </div>
+                ))}
+              </div>}
+            </>
+          )}
+
+          {tab==='relatorios'&&(
+            <CoacheeRelatorios eng={eng}/>
+          )}
+
+          {tab==='plano'&&<TabPlanoAcoes eng={eng} onUpdate={upd=>onUpdate(eng.id,upd)} isCoach={false}/>}
+          {tab==='progresso'&&(
+            <>
+              {eng.miniSurveys.length===0
+                ?<div className="empty"><div className="ei">◌</div>O progresso será exibido após o primeiro mini-survey.</div>
+                :(
+                  <>
+                    <ProgressChartCoachee miniSurveys={eng.miniSurveys}/>
+                  </>
+                )
+              }
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── LEADER PORTAL ────────────────────────────────────────────────────────────
+function LeaderPortal({engId,liderId,engs,onLogout,onUpdate,isCoachView,onBackToCoach}){
+  const [tab,setTab]=useState('visao');
+  const [invalidModal,setInvalidModal]=useState(null);
+  const [suggestModal,setSuggestModal]=useState(false);
+  const [listType,setListType]=useState('360');
+  const eng=engs.find(e=>e.id===engId);
+  const lider=eng?.leaders.find(l=>l.id===liderId);
+  if(!eng||!lider) return <div className="done-page"><style>{CSS}</style><div className="done-icon">⚠</div><div className="done-title">Acesso não encontrado</div></div>;
+
+  const doInvalidate=(sh,tipo,msg)=>{
+    const notif={msg:`Líder solicitou revisão de "${sh.name}" na lista de ${tipo==='360'?'Avaliação 360°':'Mini-survey'}. Mensagem: ${msg}`,date:new Date().toLocaleDateString('pt-BR')};
+    if(tipo==='360'){
+      onUpdate(eng.id,{
+        stakeholders360:eng.stakeholders360.map(s=>s.id===sh.id?{...s,invalid:true,leaderMsg:msg}:s),
+        notifications:[...(eng.notifications||[]),notif]
+      });
+    } else {
+      onUpdate(eng.id,{
+        stakeholdersMS:eng.stakeholdersMS.map(s=>s.id===sh.id?{...s,invalid:true,leaderMsg:msg}:s),
+        notifications:[...(eng.notifications||[]),notif]
+      });
+    }
+    setInvalidModal(null);
+  };
+
+  const doSuggest=(data)=>{
+    const notif={msg:`Líder sugeriu adicionar "${data.name}" (${data.role}) à lista. Motivo: ${data.msg}`,date:new Date().toLocaleDateString('pt-BR')};
+    onUpdate(eng.id,{notifications:[...(eng.notifications||[]),notif]});
+    setSuggestModal(false);
+    alert('Sugestão enviada ao coachee!');
+  };
+
+  const validateAll=(tipo)=>{
+    if(tipo==='360') onUpdate(eng.id,{stakeholders360:eng.stakeholders360.map(s=>({...s,validatedByLeader:true}))});
+    else onUpdate(eng.id,{stakeholdersMS:eng.stakeholdersMS.map(s=>({...s,validatedByLeader:true}))});
+    alert('Lista validada!');
+  };
+
+  const TABS=[{id:'visao',l:'Visão Geral'},{id:'listas',l:'Listas de Stakeholders'},{id:'plano',l:'Plano de Ações'},{id:'progresso',l:'Progresso'}];
+
+  return (
+    <div className="portal-page">
+      <style>{CSS}</style>
+      {invalidModal&&<InvalidateModal sh={invalidModal.sh} onConfirm={msg=>doInvalidate(invalidModal.sh,invalidModal.tipo,msg)} onClose={()=>setInvalidModal(null)}/>}
+      {suggestModal&&<SuggestModal onConfirm={doSuggest} onClose={()=>setSuggestModal(false)}/>}
+      <div className="portal-header">
+        <div><div style={{fontWeight:700,fontSize:16,color:'#1A1D2E'}}>Lidehra</div><div style={{fontSize:10,color:'#A0A3B1',letterSpacing:'2px',textTransform:'uppercase'}}>Portal do Líder</div></div>
+        <div style={{display:'flex',alignItems:'center',gap:12}}>
+          <div style={{textAlign:'right'}}><div style={{fontSize:14,fontWeight:600,color:'#1A1D2E'}}>{lider.name}</div><div style={{fontSize:12,color:'#A0A3B1'}}>Líder</div></div>
+          {isCoachView&&<button className="btn btn-p btn-sm" onClick={onBackToCoach}>← Voltar ao processo</button>}
+          {!isCoachView&&<button className="btn btn-g btn-sm" onClick={onLogout}>Sair</button>}
+        </div>
+      </div>
+      <div className="portal-body">
+        <div className="portal-hero">
+          <div style={{fontSize:12,color:'#A0A3B1',marginBottom:4}}>Processo de coaching</div>
+          <div className="portal-name">{eng.coachee.name}</div>
+          <div style={{fontSize:13,color:'#6B6E8E',marginTop:4}}>{eng.coachee.role} · {eng.coachee.company}</div>
+          <div style={{marginTop:10,display:'flex',alignItems:'center',gap:8}}>
+            <span className={`sdot ${STATUS[currentStatus(eng)].dot}`}/>
+            <span style={{fontSize:13,color:'#6B6E8E',fontWeight:500}}>{STAGES[eng.phase-1]} · {STATUS[currentStatus(eng)].label}</span>
+          </div>
+        </div>
+        <div className="tabs">{TABS.map(t=><div key={t.id} className={`tab${tab===t.id?' on':''}`} onClick={()=>setTab(t.id)}>{t.l}</div>)}</div>
+        <div style={{paddingTop:24}}>
+          {tab==='visao'&&(
+            <>
+              <div style={{background:'#fff',border:'1px solid #E4E6EF',borderRadius:9,padding:'14px 18px',marginBottom:16,display:'flex',gap:24}}>
+                <div><div style={{fontSize:10,color:'#A0A3B1',letterSpacing:'1.5px',textTransform:'uppercase',fontWeight:600,marginBottom:4}}>Sessão atual</div><div style={{fontSize:22,fontWeight:600,color:'#4169FF'}}>{eng.sessions.length}<span style={{fontSize:13,color:'#A0A3B1',fontWeight:400}}>/10</span></div></div>
+                <div><div style={{fontSize:10,color:'#A0A3B1',letterSpacing:'1.5px',textTransform:'uppercase',fontWeight:600,marginBottom:4}}>Etapa atual</div><div style={{fontSize:15,fontWeight:600,color:'#1A1D2E'}}>{STAGES[eng.phase-1]}</div></div>
+                <div><div style={{fontSize:10,color:'#A0A3B1',letterSpacing:'1.5px',textTransform:'uppercase',fontWeight:600,marginBottom:4}}>Cadência</div><div style={{fontSize:15,fontWeight:600,color:'#1A1D2E',textTransform:'capitalize'}}>{eng.cadence}</div></div>
+                <div><div style={{fontSize:10,color:'#A0A3B1',letterSpacing:'1.5px',textTransform:'uppercase',fontWeight:600,marginBottom:4}}>Mini-Surveys</div><div style={{fontSize:15,fontWeight:600,color:'#1A1D2E'}}>{eng.miniSurveys.length} aplicado{eng.miniSurveys.length!==1?'s':''}</div></div>
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8}}>
+                {[1,2,3,4].map(p=>{
+                  const ss=stageStatus(eng,p);
+                  return <div key={p} style={{background:'#fff',border:`1px solid ${p===eng.phase?SC[p-1]+'50':'#E4E6EF'}`,borderRadius:9,padding:'14px 16px'}}>
+                    <div style={{fontSize:10,color:'#A0A3B1',letterSpacing:'1.5px',textTransform:'uppercase',marginBottom:4}}>Etapa {p}</div>
+                    <div style={{fontSize:13,fontWeight:600,color:SC[p-1],marginBottom:8}}>{STAGES[p-1]}</div>
+                    <div style={{display:'flex',alignItems:'center',gap:5}}><span className={`sdot ${STATUS[ss].dot}`}/><span className={STATUS[ss].txt} style={{fontSize:11}}>{STATUS[ss].label}</span></div>
+                  </div>;
+                })}
+              </div>
+            </>
+          )}
+          {tab==='listas'&&(
+            <>
+              <div style={{display:'flex',gap:8,marginBottom:20}}>
+                <button className={`btn ${listType==='360'?'btn-p':'btn-g'}`} onClick={()=>setListType('360')}>Avaliação 360°</button>
+                <button className={`btn ${listType==='ms'?'btn-p':'btn-g'}`} onClick={()=>setListType('ms')}>Mini-Survey</button>
+                <button className="btn btn-y btn-sm" style={{marginLeft:'auto'}} onClick={()=>setSuggestModal(true)}>+ Sugerir nome</button>
+                <button className="btn btn-p btn-sm" onClick={()=>validateAll(listType)}>✓ Validar lista</button>
+              </div>
+              {(listType==='360'?eng.stakeholders360:eng.stakeholdersMS).length===0
+                ?<div className="empty"><div className="ei">◌</div>Aguardando coachee cadastrar a lista.</div>
+                :<div className="sh-list">
+                  {(listType==='360'?eng.stakeholders360:eng.stakeholdersMS).map(s=>(
+                    <div key={s.id} className={`sh-item ${s.invalid?'sh-invalid':''}`}>
+                      <div className="sh-av">{s.initials}</div>
+                      <div style={{flex:1}}>
+                        <div className="sh-name" style={{textDecoration:s.invalid?'line-through':''}}>{s.name}</div>
+                        <div className="sh-role">{s.role}</div>
+                      </div>
+                      <span className={`badge ${s.invalid?'b-invalid':s.validatedByLeader?'b-done':'b-pend'}`} style={{marginRight:8}}>
+                        {s.invalid?'Invalidado':s.validatedByLeader?'Validado':'Pendente'}
+                      </span>
+                      {!s.invalid&&<button className="btn btn-d btn-xs" onClick={()=>{if(safeConfirm('Invalidar '+s.name+'?','Uma mensagem será enviada ao coachee solicitando revisão.')) setInvalidModal({sh:s,tipo:listType});}}>Invalidar</button>}
+                    </div>
+                  ))}
+                </div>
+              }
+              <div style={{fontSize:12,color:'#A0A3B1',marginTop:12}}>Limite: 15 stakeholders por lista</div>
+            </>
+          )}
+          {tab==='plano'&&<TabPlanoAcoes eng={eng} onUpdate={()=>{}} isCoach={false} readOnly={true}/>}
+          {tab==='progresso'&&<ProgressChart miniSurveys={eng.miniSurveys}/>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── RH PORTAL ────────────────────────────────────────────────────────────────
+function RHPortal({company,engs,onLogout,isCoachView,onBackToCoach}){
+  const compEngs=engs.filter(e=>e.coachee.company.toLowerCase().includes(company.toLowerCase())||company==='dimas');
+  const [selId,setSelId]=useState(compEngs[0]?.id||null);
+  const selEng=compEngs.find(e=>e.id===selId);
+
+  return (
+    <div className="portal-page">
+      <style>{CSS}</style>
+      <div className="portal-header">
+        <div><div style={{fontWeight:700,fontSize:16,color:'#1A1D2E'}}>Lidehra</div><div style={{fontSize:10,color:'#A0A3B1',letterSpacing:'2px',textTransform:'uppercase'}}>Portal RH</div></div>
+        <div style={{display:'flex',alignItems:'center',gap:12}}>
+          <div style={{textAlign:'right'}}><div style={{fontSize:14,fontWeight:600,color:'#1A1D2E'}}>RH · {company}</div></div>
+          {isCoachView&&<button className="btn btn-p btn-sm" onClick={onBackToCoach}>← Voltar ao processo</button>}
+          {!isCoachView&&<button className="btn btn-g btn-sm" onClick={onLogout}>Sair</button>}
+        </div>
+      </div>
+      <div className="portal-body" style={{maxWidth:900}}>
+        <div style={{fontSize:22,fontWeight:600,color:'#1A1D2E',marginBottom:4}}>Visão Geral — Processos de Coaching</div>
+        <div style={{fontSize:13,color:'#A0A3B1',marginBottom:24}}>Empresa: {company} · {compEngs.length} processo{compEngs.length!==1?'s':''} ativo{compEngs.length!==1?'s':''}</div>
+        {compEngs.length===0?<div className="empty"><div className="ei">◌</div>Nenhum processo encontrado para esta empresa.</div>:(
+          <>
+            <div className="grid" style={{marginBottom:24}}>
+              {compEngs.map(e=>(
+                <div key={e.id} className="eng-card" onClick={()=>setSelId(e.id)} style={{border:selId===e.id?`2px solid ${e.coachee.color}`:'1px solid #E4E6EF'}}>
+                  <div className="ec-top">
+                    <div className="ec-av" style={{background:e.coachee.color+'18',border:`1px solid ${e.coachee.color}35`}}><span style={{color:e.coachee.color}}>{e.coachee.initials}</span></div>
+                    <div style={{flex:1}}><div className="ec-name">{e.coachee.name}</div><div className="ec-role">{e.coachee.role}</div></div>
+                  </div>
+                  <StageBar eng={e}/>
+                  <div style={{display:'flex',gap:12,marginBottom:8}}>
+                    <span style={{fontSize:11,color:'#6B6E8E'}}>Sessão <strong style={{color:'#1A1D2E'}}>{e.sessions.length}</strong>/10</span>
+                    <span style={{fontSize:11,color:'#6B6E8E'}}>{STAGES[e.phase-1]}</span>
+                    <span style={{fontSize:11,color:'#6B6E8E'}}>{e.miniSurveys.length} mini-survey{e.miniSurveys.length!==1?'s':''}</span>
+                  </div>
+                  <div className="ec-meta"><StatusBadge status={currentStatus(e)}/><span className="ec-info">{e.cadence}</span></div>
+                </div>
+              ))}
+            </div>
+            {selEng&&(
+              <div>
+                <div style={{display:'flex',gap:3,background:'#F4F5F7',borderRadius:9,padding:3,marginBottom:16,width:'fit-content'}}>
+                  {[{id:'prog',l:'Progresso'},{id:'plano',l:'Plano de Ações'}].map(t=>(
+                    <button key={t.id} className={`btn btn-sm ${(selEng._rhTab||'prog')===t.id?'btn-p':'btn-g'}`} style={{border:'none'}}
+                      onClick={()=>setSelId(prev=>{const e=compEngs.find(x=>x.id===prev);if(e)e._rhTab=t.id;return prev;})}>
+                      {t.l}
+                    </button>
+                  ))}
+                </div>
+                <div style={{fontSize:16,fontWeight:600,color:'#1A1D2E',marginBottom:16}}>{selEng.coachee.name}</div>
+                <ProgressChart miniSurveys={selEng.miniSurveys}/>
+                <TabPlanoAcoes eng={selEng} onUpdate={()=>{}} isCoach={false} readOnly={true}/>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── ARCHIVE MODAL ────────────────────────────────────────────────────────────
+const ARCHIVE_REASONS = ['Cliente desistiu','Questões financeiras / budget','Questões pessoais do coachee','Mudança de prioridades da empresa','Conclusão antecipada','Outros'];
+
+function ArchiveModal({eng,onArchive,onClose}){
+  const [tipo,setTipo]=useState('interrupcao'); // 'interrupcao' | 'conclusao'
+  const [motivo,setMotivo]=useState('');
+  const [motivoCustom,setMotivoCustom]=useState('');
+  const [obs,setObs]=useState('');
+
+  const save=()=>{
+    if(tipo==='interrupcao'&&!motivo){alert('Selecione o motivo do arquivamento.');return;}
+    const finalMotivo = motivo==='Outros'?motivoCustom:motivo;
+    onArchive({
+      archived:true,
+      archiveType:tipo,
+      archiveReason:finalMotivo,
+      archiveObs:obs,
+      archivedAt:new Date().toISOString().split('T')[0],
+    });
+  };
+
+  return (
+    <Overlay onClose={onClose}>
+      <div className="modal">
+        <div className="modal-title">{tipo==='conclusao'?'Finalizar Processo':'Arquivar Processo'}</div>
+        <div className="modal-sub">{eng.coachee.name} · {eng.coachee.company}</div>
+
+        <div className="field">
+          <div className="flbl">Tipo de encerramento</div>
+          <div style={{display:'flex',gap:8,marginBottom:8}}>
+            {[{id:'conclusao',l:'✓ Conclusão normal'},{id:'interrupcao',l:'⚠ Interrompido (churn)'}].map(t=>(
+              <button key={t.id} className={`btn btn-sm ${tipo===t.id?'btn-p':'btn-g'}`} onClick={()=>setTipo(t.id)}>{t.l}</button>
+            ))}
+          </div>
+        </div>
+
+        {tipo==='interrupcao'&&(
+          <div className="field">
+            <div className="flbl">Motivo do arquivamento <span className="flbl-hint">*obrigatório</span></div>
+            <select className="fsel" value={motivo} onChange={e=>setMotivo(e.target.value)}>
+              <option value="">Selecione...</option>
+              {ARCHIVE_REASONS.map(r=><option key={r}>{r}</option>)}
+            </select>
+            {motivo==='Outros'&&(
+              <input className="finp" style={{marginTop:8}} placeholder="Descreva o motivo..." value={motivoCustom} onChange={e=>setMotivoCustom(e.target.value)}/>
+            )}
+          </div>
+        )}
+
+        <div className="field">
+          <div className="flbl">Observações {tipo==='conclusao'?'(opcional)':'(opcional)'}</div>
+          <textarea className="finp" rows={3} placeholder={tipo==='conclusao'?'Registre aprendizados, destaques ou próximos passos...':'Contexto adicional sobre o encerramento...'} value={obs} onChange={e=>setObs(e.target.value)}/>
+        </div>
+
+        <div style={{background:tipo==='conclusao'?'#F0FDF4':'#FEF2F2',border:`1px solid ${tipo==='conclusao'?'#BBF7D0':'#FCD4D4'}`,borderRadius:8,padding:'10px 14px',fontSize:12,color:tipo==='conclusao'?'#059669':'#DC2626',marginBottom:16}}>
+          {tipo==='conclusao'?'O processo será marcado como concluído e movido para Arquivados. Todos os dados serão preservados em modo somente leitura.':'O processo será marcado como interrompido e movido para Arquivados. Todos os dados serão preservados.'}
+        </div>
+
+        <div className="modal-foot">
+          <button className="btn btn-g" onClick={onClose}>Cancelar</button>
+          <button className={`btn ${tipo==='conclusao'?'btn-p':'btn-d'}`} onClick={save}>
+            {tipo==='conclusao'?'Finalizar e Arquivar':'Arquivar Processo'}
+          </button>
+        </div>
+      </div>
+    </Overlay>
+  );
+}
+
+// ─── ARCHIVED VIEW ────────────────────────────────────────────────────────────
+function ArchivedView({engs,onOpen}){
+  const [filter,setFilter]=useState('all'); // all | conclusao | interrupcao
+  const archived=engs.filter(e=>e.archived);
+  const filtered=filter==='all'?archived:archived.filter(e=>e.archiveType===filter);
+
+  if(archived.length===0) return (
+    <div className="empty" style={{marginTop:40}}>
+      <div className="ei">◌</div>
+      Nenhum processo arquivado ainda.<br/>
+      <span style={{fontSize:12,color:'#A0A3B1'}}>Processos finalizados ou interrompidos aparecerão aqui.</span>
+    </div>
+  );
+
+  return (
+    <div>
+      <div style={{display:'flex',gap:3,background:'#F4F5F7',borderRadius:9,padding:3,marginBottom:20,width:'fit-content'}}>
+        {[{id:'all',l:`Todos (${archived.length})`},{id:'conclusao',l:`Concluídos (${archived.filter(e=>e.archiveType==='conclusao').length})`},{id:'interrupcao',l:`Interrompidos (${archived.filter(e=>e.archiveType==='interrupcao').length})`}].map(f=>(
+          <button key={f.id} className={`btn btn-sm ${filter===f.id?'btn-p':'btn-g'}`} style={{border:'none'}} onClick={()=>setFilter(f.id)}>{f.l}</button>
+        ))}
+      </div>
+
+      <div className="grid">
+        {filtered.map(e=>(
+          <div key={e.id} className="eng-card" onClick={()=>onOpen(e.id)} style={{opacity:0.85}}>
+            <div className="ec-top">
+              <div className="ec-av" style={{background:e.coachee.color+'18',border:`1px solid ${e.coachee.color}35`}}>
+                <span style={{color:e.coachee.color}}>{e.coachee.initials}</span>
+              </div>
+              <div style={{flex:1}}>
+                <div className="ec-name">{e.coachee.name}</div>
+                <div className="ec-role">{e.coachee.role} · {e.coachee.company}</div>
+              </div>
+              <span style={{fontSize:11,fontWeight:600,padding:'3px 8px',borderRadius:4,
+                background:e.archiveType==='conclusao'?'#F0FDF4':'#FEF2F2',
+                color:e.archiveType==='conclusao'?'#059669':'#DC2626'}}>
+                {e.archiveType==='conclusao'?'✓ Concluído':'⚠ Interrompido'}
+              </span>
+            </div>
+            <StageBar eng={e}/>
+            <div style={{fontSize:12,color:'#A0A3B1',marginTop:6}}>
+              Arquivado em {e.archivedAt}
+              {e.archiveReason&&<span> · {e.archiveReason}</span>}
+            </div>
+            {e.archiveObs&&<div style={{fontSize:12,color:'#6B6E8E',marginTop:4,fontStyle:'italic'}}>"{e.archiveObs}"</div>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── APP ROOT ─────────────────────────────────────────────────────────────────
+export default function App(){
+  const [user,setUser]=useState(null);
+  const [engs,setEngs]=useState([]);
+  const [view,setView]=useState('dash');
+  const [activeEng,setActiveEng]=useState(null);
+  const [navItem,setNavItem]=useState('processos');
+  const [loading,setLoading]=useState(true);
+  const [saveErr,setSaveErr]=useState('');
+
+  // Load session on mount — also handle ?code= URL param for stakeholders
+  useEffect(()=>{
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    if(code){
+      const c=code.trim().toUpperCase();
+      const mSTK=c.match(/^ST-(\d+)-(\d+)$/);
+      const mCE=c.match(/^CE-(\d+)$/);
+      const mLD=c.match(/^LD-(\d+)-(\d+)$/);
+      if(mSTK||mCE||mLD){
+        // Load engagements from DB first so the portal has real data
+        const engId=mSTK?parseInt(mSTK[1]):mCE?parseInt(mCE[1]):parseInt(mLD[1]);
+        supabase.from('engagements').select('app_id,data').order('app_id',{ascending:true}).then(({data:rows,error})=>{
+          let loadedEngs=INIT_ENGS;
+          if(!error&&rows&&rows.length>0){
+            const fromDB=rows.map(row=>({...row.data,id:row.app_id}));
+            const dbIds=new Set(fromDB.map(e=>e.id));
+            loadedEngs=[...fromDB,...INIT_ENGS.filter(e=>!dbIds.has(e.id))].sort((a,b)=>a.id-b.id);
+          }
+          setEngs(loadedEngs);
+          if(mSTK){setUser({role:'stk',engId:parseInt(mSTK[1]),shId:parseInt(mSTK[2])});setView('stk');setActiveEng(parseInt(mSTK[1]));}
+          else if(mCE){setUser({role:'coachee',engId:parseInt(mCE[1])});setView('coachee');setActiveEng(parseInt(mCE[1]));}
+          else if(mLD){setUser({role:'lider',engId:parseInt(mLD[1]),liderId:parseInt(mLD[2])});setView('lider');setActiveEng(parseInt(mLD[1]));}
+          setLoading(false);
+        });
+        return;
+      }
+    }
+    supabase.auth.getSession().then(({data:{session}})=>{
+      if(session){
+        const u=session.user;
+        const nm=u.user_metadata?.name||u.email;
+        setUser({role:'coach',name:nm,initials:nm.split(' ').slice(0,2).map(w=>w[0].toUpperCase()).join('')});
+        loadEngsFromDB();
+      } else {
+        setLoading(false);
+      }
+    });
+    const {data:{subscription}}=supabase.auth.onAuthStateChange((_,session)=>{
+      if(!session){setUser(null);setEngs([]);setLoading(false);}
+    });
+    return ()=>subscription.unsubscribe();
+  },[]);
+
+  // Load engagements from Supabase
+  const loadEngsFromDB=async()=>{
+    setLoading(true);
+    const{data,error}=await supabase.from('engagements').select('app_id,data').order('app_id',{ascending:true});
+    if(!error&&data&&data.length>0){
+      const fromDB=data.map(row=>({...row.data,id:row.app_id}));
+      const dbIds=new Set(fromDB.map(e=>e.id));
+      // Merge: DB data takes priority; INIT_ENGS fills in anything not yet saved
+      const merged=[...fromDB, ...INIT_ENGS.filter(e=>!dbIds.has(e.id))];
+      setEngs(merged.sort((a,b)=>a.id-b.id));
+    } else {
+      setEngs(INIT_ENGS);
+    }
+    setLoading(false);
+  };
+
+  // Save single engagement to Supabase
+  const saveEngToDB=async(eng)=>{
+    const{data:{session}}=await supabase.auth.getSession();
+    if(!session) return;
+    const{error}=await supabase.from('engagements').upsert(
+      {app_id:eng.id, coach_id:session.user.id, data:eng},
+      {onConflict:'app_id'}
+    );
+    if(error){setSaveErr('Erro ao salvar: '+error.message);console.error(error);}
+    else setSaveErr('');
+  };
+
+  // Update engagement in state + Supabase
+  const updateEng=(id,patch)=>{
+    setEngs(prev=>prev.map(e=>{
+      if(e.id!==id) return e;
+      const merged={...e,...patch};
+      saveEngToDB(merged);
+      return merged;
+    }));
+  };
+
+  // Add new engagement
+  const addEng=async(e)=>{
+    setEngs(prev=>[...prev,e]);
+    await saveEngToDB(e);
+  };
+
+  // Logout
+  const logout=async()=>{
+    if(user?.role==='coach') await supabase.auth.signOut();
+    setUser(null);setEngs([]);setView('dash');setActiveEng(null);
+  };
+
+  // Login handler
+  const handleLogin=u=>{
+    setUser(u);
+    if(u.role==='coachee'){setView('coachee');setActiveEng(u.engId);}
+    else if(u.role==='lider'){setView('lider');setActiveEng(u.engId);}
+    else if(u.role==='rh'){setView('rh');}
+    else if(u.role==='stk'){setView('stk');setActiveEng(u.engId);}
+    else{setView('dash');loadEngsFromDB();}
+  };
+
+  if(loading) return (
+    <div style={{minHeight:'100vh',background:'#F4F5F7',display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:16,fontFamily:"'Poppins',sans-serif"}}>
+      <style>{CSS}</style>
+      <div style={{fontSize:22,fontWeight:700,color:'#1A1D2E'}}>Lidehra</div>
+      <Dots/>
+    </div>
+  );
+
+  if(!user) return <><style>{CSS}</style><Login onLogin={handleLogin}/></>;
+
+  if(user.role==='coachee'){
+    const eng=engs.find(e=>e.id===activeEng);
+    if(!eng) return <div className="done-page"><style>{CSS}</style><div className="done-icon">⚠</div><div className="done-title">Processo não encontrado</div></div>;
+    return <CoacheePortal eng={eng} onLogout={logout} onUpdate={updateEng} isCoachView={user.isCoachView} onBackToCoach={()=>{setUser({...user._coach,role:'coach'});setView('eng');}}/>;
+  }
+
+  if(user.role==='lider'){
+    return <LeaderPortal engId={activeEng} liderId={user.liderId} engs={engs} onLogout={logout} onUpdate={updateEng} isCoachView={user.isCoachView} onBackToCoach={()=>{setUser({...user._coach,role:'coach'});setView('eng');}}/>;
+  }
+
+  if(user.role==='rh'){
+    return <RHPortal company={user.company} engs={engs} onLogout={logout} isCoachView={user.isCoachView} onBackToCoach={()=>{setUser({...user._coach,role:'coach'});setView('eng');}}/>;
+  }
+
+  if(user.role==='stk'){
+    const eng=engs.find(e=>e.id===activeEng);
+    const sh360=eng?.stakeholders360.find(s=>s.id===user.shId);
+    const shMS=eng?.stakeholdersMS.find(s=>s.id===user.shId);
+    if(!eng||(!(sh360||shMS))) return <div className="done-page"><style>{CSS}</style><div className="done-icon">⚠</div><div className="done-title">Acesso não encontrado</div></div>;
+    const openMS=eng.miniSurveys.find(ms=>!ms.responses.find(r=>r.shId===user.shId));
+    if(openMS&&shMS){
+      return <FormMiniSurvey eng={eng} sh={shMS} ms={openMS} onSubmit={resp=>{
+        const updated=eng.miniSurveys.map(ms=>ms.id===openMS.id?{...ms,responses:[...ms.responses,resp]}:ms);
+        updateEng(eng.id,{miniSurveys:updated});
+      }}/>;
+    }
+    if(sh360&&sh360.status!=='done'){
+      return <Form360 eng={eng} sh={sh360} onSubmit={answers=>{
+        updateEng(eng.id,{stakeholders360:eng.stakeholders360.map(s=>s.id===sh360.id?{...s,status:'done',feedback:answers}:s)});
+      }}/>;
+    }
+    return <div className="done-page"><style>{CSS}</style><div className="done-icon">✓</div><div className="done-title">Avaliação concluída</div><div className="done-sub">Você já respondeu a avaliação para este processo. Obrigado pela contribuição!</div></div>;
+  }
+
+  // COACH
+  const activeEngs = engs.filter(e=>!e.archived);
+  const archivedEngs = engs.filter(e=>e.archived);
+  const NAV=[
+    {id:'processos',label:'Processos',badge:activeEngs.length},
+    {id:'arquivados',label:'Arquivados',badge:archivedEngs.length||null},
+    {id:'briefings',label:'Briefings'},
+    {id:'biblioteca',label:'Biblioteca'},
+  ];
+  return (
+    <>
+      <style>{CSS}</style>
+      <div className="shell">
+        <div className="sb">
+          <div className="sb-logo"><div className="sb-title">Lidehra</div><div className="sb-sub">Coach Platform Lidehra</div></div>
+          <nav className="sb-nav">
+            <div className="sb-sect">Workspace</div>
+            {NAV.map(n=>(
+              <div key={n.id} className={`sb-item${navItem===n.id?' on':''}`} onClick={()=>{setNavItem(n.id);if(n.id==='processos'||n.id==='arquivados'){setView('dash');setActiveEng(null);}}}>
+                <span className="sb-dot"/>{n.label}{n.badge&&<span className="sb-badge">{n.badge}</span>}
+              </div>
+            ))}
+          </nav>
+          <div className="sb-foot">
+            <div className="sb-user"><div className="sb-av">{user.initials}</div><div><div className="sb-uname">{user.name}</div><div className="sb-urole">Executive Coach · MGSCC</div></div></div>
+            <button className="sb-out" onClick={logout}>Sair da conta</button>
+          </div>
+        </div>
+        <div className="main">
+          {saveErr&&<div style={{background:'#FEF2F2',borderBottom:'1px solid #FCD4D4',padding:'8px 24px',fontSize:12,color:'#DC2626'}}>{saveErr}</div>}
+          {view==='dash'&&navItem==='processos'&&(
+            <>
+              <div className="topbar"><div className="pg-title">Dashboard</div><div className="pg-sub">Processos ativos ({activeEngs.length}) — {new Date().toLocaleDateString('pt-BR',{month:'long',year:'numeric'})}</div><div className="divline"/></div>
+              <div className="scroll">
+                <Dashboard engs={activeEngs} onSelect={id=>{setActiveEng(id);setView('eng');}} onCreate={addEng}
+                  onOpenCoachee={id=>{
+                    setUser(prev=>({role:'coachee',engId:id,isCoachView:true,_coach:{role:'coach',name:prev.name,initials:prev.initials}}));
+                    setView('coachee');setActiveEng(id);
+                  }}/>
+              </div>
+            </>
+          )}
+          {view==='eng'&&activeEng&&(
+            <EngDetail id={activeEng} engs={engs} onBack={()=>{setView('dash');setActiveEng(null);const e=engs.find(x=>x.id===activeEng);if(e?.archived)setNavItem('arquivados');}} onUpdate={updateEng}
+              onDelete={id=>{setEngs(prev=>prev.filter(e=>e.id!==id));supabase.from('engagements').delete().eq('app_id',id).then(()=>{});}}
+              onOpenPortal={(engId,portal)=>{
+                const _coach={role:'coach',name:user.name,initials:user.initials};
+                if(portal.role==='coachee') setUser({role:'coachee',engId,isCoachView:true,_coach});
+                else if(portal.role==='lider') setUser({role:'lider',engId,liderId:portal.liderId,isCoachView:true,_coach});
+                else if(portal.role==='rh'){const rhe=engs.find(e=>e.id===engId);setUser({role:'rh',company:rhe?.coachee?.company,isCoachView:true,_coach});}
+                setActiveEng(engId);
+                setView(portal.role==='coachee'?'coachee':portal.role==='lider'?'lider':'rh');
+              }}
+            />
+          )}
+          {navItem==='arquivados'&&view==='dash'&&(
+            <>
+              <div className="topbar"><div className="pg-title">Arquivados</div><div className="pg-sub">{archivedEngs.length} processo{archivedEngs.length!==1?'s':''} arquivado{archivedEngs.length!==1?'s':''}</div><div className="divline"/></div>
+              <div className="scroll"><ArchivedView engs={engs} onOpen={id=>{setActiveEng(id);setView('eng');}}/></div>
+            </>
+          )}
+          {navItem!=='processos'&&navItem!=='arquivados'&&(
+            <>
+              <div className="topbar"><div className="pg-title" style={{textTransform:'capitalize'}}>{navItem}</div><div className="pg-sub">Em breve</div><div className="divline"/></div>
+              <div className="scroll" style={{display:'flex',alignItems:'center',justifyContent:'center'}}><div className="empty"><div className="ei">◌</div>Esta seção estará disponível em breve.</div></div>
+            </>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
