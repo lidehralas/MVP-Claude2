@@ -2327,7 +2327,7 @@ function TabPlanoAcoes({eng,onUpdate,isCoach=false}){
   return (
     <div style={{marginTop:20}}>
       <div className="sec">
-        <span className="sec-lbl">Plano de Ações ({acoes.length} ação{acoes.length!==1?'ões':''}{acoes.filter(a=>a.status==='Concluída').length>0?' · '+acoes.filter(a=>a.status==='Concluída').length+' concluída'+(acoes.filter(a=>a.status==='Concluída').length!==1?'s':'':''})</span>
+        <span className="sec-lbl">Plano de Ações ({acoes.length} ação{acoes.length!==1?'ões':''})</span>
         <button className="btn btn-p btn-sm" onClick={()=>setShowAdd(p=>!p)}>+ Adicionar ação</button>
       </div>
 
