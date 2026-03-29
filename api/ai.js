@@ -29,7 +29,7 @@ export default async function handler(req) {
         'anthropic-beta': 'messages-2023-12-15',
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
+        model: 'claude-3-5-haiku-20241022',
         max_tokens,
         messages: [{ role: 'user', content: prompt }],
       }),
