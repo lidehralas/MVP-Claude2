@@ -266,8 +266,21 @@ const STATUS = {
 };
 
 // ─── STORAGE UTILITIES ───────────────────────────────────────────────────────
+function sanitizeFileName(name) {
+  return name
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // remove accents
+    .replace(/[^a-zA-Z0-9._-]/g, '_')                  // replace special chars
+    .replace(/_+/g, '_');                                // collapse multiple underscores
+}
+
 async function uploadFile(file, path) {
-  const { data, error } = await supabase.storage.from('lidehra-files').upload(path, file, { upsert: true });
+  // Sanitize the filename portion of the path
+  const parts = path.split('/');
+  const lastPart = parts[parts.length - 1];
+  const safeLast = sanitizeFileName(lastPart);
+  parts[parts.length - 1] = safeLast;
+  const safePath = parts.join('/');
+  const { data, error } = await supabase.storage.from('lidehra-files').upload(safePath, file, { upsert: true });
   if (error) throw error;
   return data.path;
 }
