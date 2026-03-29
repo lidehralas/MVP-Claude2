@@ -2232,7 +2232,58 @@ function EngDetail({id,engs,onBack,onUpdate,onDelete,onOpenPortal}){
 function Tab360Summary({eng,onUpdate}){
   const feedbacks = eng.stakeholders360.filter(s=>s.status==='done'&&s.feedback);
   const [editPriorities,setEditPriorities]=useState(false);
-  const [draftPrio,setDraftPrio]=useState(eng.summary360Priorities||'');
+  const [draftPrio,setDraftPrio]=useState(eng.summary360Priorities||''‌);
+
+  // Has structured data from stakeholders
+  const hasStructuredData = feedbacks.length > 0;
+  // Has report content (text or file)
+  const hasReportContent = !!(eng.report?.content || eng.report?.reportFile);
+
+  if(!hasStructuredData && !hasReportContent) return (
+    <div className="empty"><div className="ei">◌</div>Aguardando respostas do 360° para gerar o resumo.</div>
+  );
+
+  // If no structured data but has report — show simplified view
+  if(!hasStructuredData && hasReportContent) return (
+    <div style={{marginTop:20}}>
+      <div className="info-box" style={{marginBottom:16}}>
+        O resumo automático usa as respostas estruturadas dos stakeholders. Como os dados foram inseridos via relatório, os pontos prioritários recomendados podem ser definidos manualmente abaixo.
+      </div>
+      {eng.report?.reportFile&&(
+        <div style={{background:'#F9FAFB',border:'1px solid #E4E6EF',borderRadius:10,padding:'14px 16px',marginBottom:16,display:'flex',alignItems:'center',gap:10}}>
+          <span style={{fontSize:13,color:'#6B6E8E'}}>📎 Relatório disponível para referência</span>
+          <button className="btn btn-g btn-xs" style={{marginLeft:'auto'}} onClick={async()=>{
+            const url=await getFileUrl(eng.report.reportFile);
+            if(url) window.open(url,'_blank');
+          }}>Abrir</button>
+        </div>
+      )}
+      {eng.report?.content&&(
+        <div style={{background:'#fff',border:'1px solid #E4E6EF',borderRadius:10,padding:'14px 16px',marginBottom:16,maxHeight:200,overflowY:'auto'}}>
+          <div style={{fontSize:11,fontWeight:600,color:'#A0A3B1',letterSpacing:'1px',textTransform:'uppercase',marginBottom:8}}>Conteúdo do relatório</div>
+          <div style={{fontSize:13,color:'#3A3D58',lineHeight:1.6,whiteSpace:'pre-wrap'}}>{eng.report.content.slice(0,800)}{eng.report.content.length>800?'...':''}‌</div>
+        </div>
+      )}
+      <div style={{background:'#EEF1FF',border:'1px solid #D0D8F8',borderRadius:10,padding:'16px 18px'}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
+          <div style={{fontSize:11,fontWeight:700,letterSpacing:'1.2px',textTransform:'uppercase',color:'#4169FF'}}>Pontos Prioritários Recomendados (editável pelo coach)</div>
+          {!editPriorities
+            ?<button className="btn btn-g btn-xs" onClick={()=>{setDraftPrio(eng.summary360Priorities||''‌);setEditPriorities(true);}}>Editar</button>
+            :<div style={{display:'flex',gap:6}}>
+              <button className="btn btn-g btn-xs" onClick={()=>setEditPriorities(false)}>Cancelar</button>
+              <button className="btn btn-p btn-xs" onClick={()=>{onUpdate({summary360Priorities:draftPrio});setEditPriorities(false);}}>Salvar</button>
+            </div>
+          }
+        </div>
+        {editPriorities
+          ?<textarea className="finp" rows={4} placeholder="1. [Ponto prioritário 1]&#10;2. [Ponto prioritário 2]" value={draftPrio} onChange={e=>setDraftPrio(e.target.value)}/>
+          :<div style={{fontSize:13,color:'#3358E0',lineHeight:1.7,whiteSpace:'pre-wrap',minHeight:60}}>
+            {eng.summary360Priorities||'Clique em Editar para definir os pontos prioritários recomendados.'}
+          </div>
+        }
+      </div>
+    </div>
+  );
 
   if(feedbacks.length===0) return (
     <div className="empty"><div className="ei">◌</div>Aguardando respostas do 360° para gerar o resumo.</div>
@@ -2342,7 +2393,7 @@ const AP_CAT=['Começar a fazer','Parar de fazer'];
 const AP_STATUS_COLOR={'Não iniciada':'#A0A3B1','Em andamento':'#4169FF','Concluída':'#059669'};
 const AP_STATUS_BG={'Não iniciada':'#F4F5F7','Em andamento':'rgba(65,105,255,.08)','Concluída':'rgba(16,185,129,.08)'};
 
-function TabPlanoAcoes({eng,onUpdate,isCoach=false}){
+function TabPlanoAcoes({eng,onUpdate,isCoach=false,readOnly=false}){
   const [showAdd,setShowAdd]=useState(false);
   const [newAcao,setNewAcao]=useState({competenciaId:'',descricao:'',categoria:AP_CAT[0],status:AP_STATUS[0],resultado:'',dataInicio:'',dataFim:''});
   const [expandedId,setExpandedId]=useState(null);
@@ -2416,7 +2467,7 @@ Responda APENAS com o JSON array, sem texto adicional.`;
               setAiLoading(false);
             }}>{aiLoading?<Dots/>:'✦ Gerar com IA'}</button>
           )}
-          <button className="btn btn-p btn-sm" onClick={()=>setShowAdd(p=>!p)}>+ Adicionar ação</button>
+          {!readOnly&&<button className="btn btn-p btn-sm" onClick={()=>setShowAdd(p=>!p)}>+ Adicionar ação</button>}
         </div>
       </div>
 
@@ -2489,15 +2540,15 @@ Responda APENAS com o JSON array, sem texto adicional.`;
                         {a.resultado||'Nenhum resultado registrado ainda.'}
                       </div>
                       <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-                        {AP_STATUS.map(s=>(
+                        {!readOnly&&AP_STATUS.map(s=>(
                           <button key={s} className={`btn btn-xs ${a.status===s?'btn-p':'btn-g'}`}
                             onClick={()=>updateAcao(a.id,{status:s})}>
                             {statusIcon[s]} {s}
                           </button>
                         ))}
                         <div style={{marginLeft:'auto',display:'flex',gap:6}}>
-                          <button className="btn btn-g btn-xs" onClick={()=>{setEditDraft({...a});setEditingId(a.id);}}>Editar</button>
-                          {isCoach&&<button className="btn btn-d btn-xs" onClick={()=>deleteAcao(a.id)}>Apagar</button>}
+                          {!readOnly&&<button className="btn btn-g btn-xs" onClick={()=>{setEditDraft({...a});setEditingId(a.id);}}>Editar</button>}
+                          {isCoach&&!readOnly&&<button className="btn btn-d btn-xs" onClick={()=>deleteAcao(a.id)}>Apagar</button>}
                         </div>
                       </div>
                     </div>
@@ -2919,7 +2970,7 @@ function CoacheePortal({eng,onLogout,onUpdate,isCoachView,onBackToCoach}){
 }
 
 // ─── LEADER PORTAL ────────────────────────────────────────────────────────────
-function LeaderPortal({engId,liderId,engs,onLogout,onUpdate}){
+function LeaderPortal({engId,liderId,engs,onLogout,onUpdate,isCoachView,onBackToCoach}){
   const [tab,setTab]=useState('visao');
   const [invalidModal,setInvalidModal]=useState(null);
   const [suggestModal,setSuggestModal]=useState(false);
@@ -2968,7 +3019,8 @@ function LeaderPortal({engId,liderId,engs,onLogout,onUpdate}){
         <div><div style={{fontWeight:700,fontSize:16,color:'#1A1D2E'}}>Lidehra</div><div style={{fontSize:10,color:'#A0A3B1',letterSpacing:'2px',textTransform:'uppercase'}}>Portal do Líder</div></div>
         <div style={{display:'flex',alignItems:'center',gap:12}}>
           <div style={{textAlign:'right'}}><div style={{fontSize:14,fontWeight:600,color:'#1A1D2E'}}>{lider.name}</div><div style={{fontSize:12,color:'#A0A3B1'}}>Líder</div></div>
-          <button className="btn btn-g btn-sm" onClick={onLogout}>Sair</button>
+          {isCoachView&&<button className="btn btn-p btn-sm" onClick={onBackToCoach}>← Voltar ao processo</button>}
+          {!isCoachView&&<button className="btn btn-g btn-sm" onClick={onLogout}>Sair</button>}
         </div>
       </div>
       <div className="portal-body">
@@ -3032,7 +3084,7 @@ function LeaderPortal({engId,liderId,engs,onLogout,onUpdate}){
               <div style={{fontSize:12,color:'#A0A3B1',marginTop:12}}>Limite: 15 stakeholders por lista</div>
             </>
           )}
-          {tab==='plano'&&<TabPlanoAcoes eng={eng} onUpdate={()=>{}} isCoach={false}/>}
+          {tab==='plano'&&<TabPlanoAcoes eng={eng} onUpdate={()=>{}} isCoach={false} readOnly={true}/>}
           {tab==='progresso'&&<ProgressChart miniSurveys={eng.miniSurveys}/>}
         </div>
       </div>
@@ -3041,7 +3093,7 @@ function LeaderPortal({engId,liderId,engs,onLogout,onUpdate}){
 }
 
 // ─── RH PORTAL ────────────────────────────────────────────────────────────────
-function RHPortal({company,engs,onLogout}){
+function RHPortal({company,engs,onLogout,isCoachView,onBackToCoach}){
   const compEngs=engs.filter(e=>e.coachee.company.toLowerCase().includes(company.toLowerCase())||company==='dimas');
   const [selId,setSelId]=useState(compEngs[0]?.id||null);
   const selEng=compEngs.find(e=>e.id===selId);
@@ -3053,7 +3105,8 @@ function RHPortal({company,engs,onLogout}){
         <div><div style={{fontWeight:700,fontSize:16,color:'#1A1D2E'}}>Lidehra</div><div style={{fontSize:10,color:'#A0A3B1',letterSpacing:'2px',textTransform:'uppercase'}}>Portal RH</div></div>
         <div style={{display:'flex',alignItems:'center',gap:12}}>
           <div style={{textAlign:'right'}}><div style={{fontSize:14,fontWeight:600,color:'#1A1D2E'}}>RH · {company}</div></div>
-          <button className="btn btn-g btn-sm" onClick={onLogout}>Sair</button>
+          {isCoachView&&<button className="btn btn-p btn-sm" onClick={onBackToCoach}>← Voltar ao processo</button>}
+          {!isCoachView&&<button className="btn btn-g btn-sm" onClick={onLogout}>Sair</button>}
         </div>
       </div>
       <div className="portal-body" style={{maxWidth:900}}>
@@ -3090,7 +3143,7 @@ function RHPortal({company,engs,onLogout}){
                 </div>
                 <div style={{fontSize:16,fontWeight:600,color:'#1A1D2E',marginBottom:16}}>{selEng.coachee.name}</div>
                 <ProgressChart miniSurveys={selEng.miniSurveys}/>
-                <TabPlanoAcoes eng={selEng} onUpdate={()=>{}} isCoach={false}/>
+                <TabPlanoAcoes eng={selEng} onUpdate={()=>{}} isCoach={false} readOnly={true}/>
               </div>
             )}
           </>
@@ -3231,11 +3284,11 @@ export default function App(){
   }
 
   if(user.role==='lider'){
-    return <LeaderPortal engId={activeEng} liderId={user.liderId} engs={engs} onLogout={logout} onUpdate={updateEng}/>;
+    return <LeaderPortal engId={activeEng} liderId={user.liderId} engs={engs} onLogout={logout} onUpdate={updateEng} isCoachView={user.isCoachView} onBackToCoach={()=>{setUser({...user._coach,role:'coach'});setView('eng');}}/>;
   }
 
   if(user.role==='rh'){
-    return <RHPortal company={user.company} engs={engs} onLogout={logout}/>;
+    return <RHPortal company={user.company} engs={engs} onLogout={logout} isCoachView={user.isCoachView} onBackToCoach={()=>{setUser({...user._coach,role:'coach'});setView('eng');}}/>;
   }
 
   if(user.role==='stk'){
@@ -3287,7 +3340,7 @@ export default function App(){
               <div className="scroll">
                 <Dashboard engs={engs} onSelect={id=>{setActiveEng(id);setView('eng');}} onCreate={addEng}
                   onOpenCoachee={id=>{
-                    setUser(prev=>({role:'coachee',engId:id,isCoachView:true,_coachName:prev.name,_coachInitials:prev.initials}));
+                    setUser(prev=>({role:'coachee',engId:id,isCoachView:true,_coach:{role:'coach',name:prev.name,initials:prev.initials}}));
                     setView('coachee');setActiveEng(id);
                   }}/>
               </div>
