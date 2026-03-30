@@ -1884,52 +1884,115 @@ ESTRUTURA (use ## para seções):
   const generateFromMSRaw=async(fileContent,fileName,ms)=>{
     if(!ms){alert('Selecione um mini-survey primeiro.');return;}
     setAiLoadingMS(true);
-    const prompt=`Você é especialista em coaching executivo MGSCC. Analise os dados brutos de uma pesquisa de progresso (mini-survey) e gere um relatório de acompanhamento em português brasileiro.
+
+    const compList=ms.competencias.map((c,i)=>`${i}. ${c}`).join('\n');
+
+    // Step 1: Extract structured data for charts
+    const promptData=`Analise os dados brutos desta pesquisa de progresso e extraia as informações em formato JSON.
+
+COMPETÊNCIAS (índices 0 a ${ms.competencias.length-1}):
+${compList}
+
+DADOS BRUTOS (arquivo: ${fileName}):
+${fileContent.slice(0,10000)}
+
+Retorne APENAS um JSON válido, sem texto adicional, no formato:
+{
+  "respondentes": [
+    {
+      "name": "nome do respondente",
+      "role": "cargo/relação",
+      "scores": [nota_comp0, nota_comp1, ...],
+      "overall": nota_efetividade_geral,
+      "mudancas": "o que melhorou segundo este respondente",
+      "sugestoes": "próximos desafios segundo este respondente",
+      "objetivos": "Sim ou Não",
+      "freq": ["frequência comp0", "frequência comp1", ...]
+    }
+  ]
+}
+
+REGRAS:
+- Notas são inteiros de -3 a +3
+- Se uma nota não estiver clara, use 0
+- Extraia todos os respondentes encontrados nos dados
+- Retorne APENAS o JSON, sem markdown, sem explicações`;
+
+    let structuredResponses=[];
+    try{
+      const res1=await fetch('/api/ai',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({prompt:promptData,max_tokens:2000})});
+      const d1=await res1.json();
+      if(!d1.error){
+        const rawJSON=(d1.content?.[0]?.text||'').replace(/```json|```/g,'').trim();
+        const parsed=JSON.parse(rawJSON);
+        if(parsed.respondentes&&Array.isArray(parsed.respondentes)){
+          structuredResponses=parsed.respondentes.map((r,i)=>({
+            shId:Date.now()+i,
+            name:r.name||`Respondente ${i+1}`,
+            role:r.role||'',
+            scores:Array.isArray(r.scores)?r.scores.map(s=>Math.max(-3,Math.min(3,parseInt(s)||0))):ms.competencias.map(()=>0),
+            overall:Math.max(-3,Math.min(3,parseInt(r.overall)||0)),
+            mudancas:r.mudancas||'',
+            sugestoes:r.sugestoes||'',
+            objetivos:r.objetivos||'',
+            freq:Array.isArray(r.freq)?r.freq:ms.competencias.map(()=>''),
+          }));
+        }
+      }
+    }catch(e){console.warn('Structured extraction failed:',e);}
+
+    // Step 2: Generate narrative report
+    const promptNarr=`Você é especialista em coaching executivo MGSCC. Com base nos dados abaixo, gere um relatório de acompanhamento em português brasileiro.
 
 CONTEXTO:
 - Coachee: ${eng.coachee.name} | ${eng.coachee.role} | ${eng.coachee.company}
 - Período: ${ms.label}${ms.period?' ('+ms.period+')':''}
-- Competências avaliadas: ${ms.competencias.join(', ')||'Conforme dados'}
+- Competências: ${ms.competencias.join(', ')}
+- Respondentes: ${structuredResponses.length>0?structuredResponses.length+' extraídos':'conforme dados'}
 
-DADOS BRUTOS DA PESQUISA (arquivo: ${fileName}):
-${fileContent.slice(0,10000)}
+DADOS BRUTOS (arquivo: ${fileName}):
+${fileContent.slice(0,8000)}
 
-INSTRUÇÕES:
-- Extraia as informações diretamente dos dados — não invente o que não está nos dados
-- Para cada competência, identifique a percepção de evolução dos respondentes
-- Compile os comentários qualitativos sobre o que melhorou e próximos desafios
-- As recomendações para o próximo ciclo são a única seção onde você deve gerar conteúdo interpretativo
-
-ESTRUTURA OBRIGATÓRIA (use ## para cada seção):
+ESTRUTURA (use ## para seções):
 
 ## Contexto da Pesquisa
-(Período, número de respondentes, competências avaliadas — extraído dos dados)
+(Período, respondentes, competências avaliadas)
 
 ## Resultados por Competência
-(Para cada competência: síntese da percepção de evolução dos respondentes, baseada nos dados)
+(Para cada competência: síntese da percepção de evolução com base nos dados)
 
 ## O que Melhorou
-(Compilação direta dos comentários dos respondentes sobre avanços observados)
+(Compilação dos comentários dos respondentes)
 
 ## Próximos Desafios
-(Compilação direta dos comentários dos respondentes sobre o que ainda precisa evoluir)
+(Compilação dos comentários dos respondentes)
 
 ## Recomendações para o Próximo Ciclo
-(Esta é a única seção gerada pela IA com base na interpretação dos dados. Máximo 3 recomendações concretas e acionáveis, conectadas às prioridades identificadas nos dados.)`;
+(Máximo 3 recomendações concretas e acionáveis geradas pela IA com base nos dados)`;
 
     try{
-      const res=await fetch('/api/ai',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({prompt,max_tokens:1500})});
-      const data=await res.json();
-      if(data.error) throw new Error(data.error);
-      const text=data.content?.[0]?.text;
+      const res2=await fetch('/api/ai',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({prompt:promptNarr,max_tokens:1500})});
+      const d2=await res2.json();
+      if(d2.error) throw new Error(d2.error);
+      const text=d2.content?.[0]?.text;
       if(!text) throw new Error('Resposta vazia');
-      const updated=eng.miniSurveys.map(m=>m.id===ms.id?{...m,reportContent:text}:m);
+      const updated=eng.miniSurveys.map(m=>m.id===ms.id?{
+        ...m,
+        reportContent:text,
+        responses:structuredResponses.length>0?structuredResponses:m.responses,
+      }:m);
       onUpdate({miniSurveys:updated});
-      setSelMS(prev=>({...prev,reportContent:text}));
+      setSelMS(prev=>({
+        ...prev,
+        reportContent:text,
+        responses:structuredResponses.length>0?structuredResponses:prev.responses,
+      }));
       setDraftMS(text);
       setRawMSFileContent('');setRawMSFileName('');
-      alert('Relatório gerado! Revise antes de aprovar.');
+      const chartMsg=structuredResponses.length>0?` Gráfico gerado com ${structuredResponses.length} respondentes.`:'';
+      alert('Relatório gerado!'+chartMsg+' Revise antes de aprovar.');
     }catch(e){alert('Erro ao gerar: '+e.message);}
     setAiLoadingMS(false);
   };
