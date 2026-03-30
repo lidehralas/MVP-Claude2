@@ -706,13 +706,13 @@ function CompEditor({competencias,onChange}){
         <div style={{background:'#fff',border:'1px solid #BCC4F0',borderRadius:9,padding:16,marginTop:8}}>
           <div className="field">
             <div className="flbl">Nome da competência<span className="flbl-hint">(máx. 40 caracteres — aparece no formulário)</span></div>
-            <input className="finp" maxLength={40} placeholder="Ex: Comunicação estratégica" value={nome} onChange={e=>setNome(e.target.value)}/>
-            <div className="char-count">{nome.length}/40</div>
+            <input className="finp" maxLength={500} placeholder="Ex: Comunicação estratégica" value={nome} onChange={e=>setNome(e.target.value)}/>
+            <div className="char-count">{nome.length}/500</div>
           </div>
           <div className="field">
             <div className="flbl">Mais informações<span className="flbl-hint">(máx. 80 caracteres)</span></div>
-            <input className="finp" maxLength={80} placeholder="Ex: Assertividade, presença executiva, visão de farol alto" value={detalhe} onChange={e=>setDetalhe(e.target.value)}/>
-            <div className="char-count">{detalhe.length}/80</div>
+            <input className="finp" maxLength={500} placeholder="Ex: Assertividade, presença executiva, visão de farol alto" value={detalhe} onChange={e=>setDetalhe(e.target.value)}/>
+            <div className="char-count">{detalhe.length}/500</div>
           </div>
           <div style={{display:'flex',gap:8}}>
             <button className="btn btn-g btn-sm" onClick={()=>{setShowAdd(false);setEditId(null);}}>Cancelar</button>
@@ -1856,18 +1856,14 @@ ESTRUTURA (use ## para seções):
           }
           const pdf=await window.pdfjsLib.getDocument({data:arrayBuf}).promise;
           let text='';
-          for(let i=1;i<=pdf.numPages;i++){const page=await pdf.getPage(i);const content=await page.getTextContent();text+=content.items.map(item=>item.str).join(' ')+'
-';}
+          for(let i=1;i<=pdf.numPages;i++){const page=await pdf.getPage(i);const content=await page.getTextContent();text+=content.items.map(item=>item.str).join(' ')+'\n';}
           setRawMSFileContent(text);
         }else if(ext==='xlsx'||ext==='xls'){
           const arrayBuf=await file.arrayBuffer();
           if(!window.XLSX){await new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';s.onload=res;s.onerror=rej;document.head.appendChild(s);});}
           const wb=window.XLSX.read(arrayBuf,{type:'array'});
           let text='';
-          wb.SheetNames.forEach(name=>{text+=`--- Aba: ${name} ---
-`;text+=window.XLSX.utils.sheet_to_csv(wb.Sheets[name])+'
-
-';});
+          wb.SheetNames.forEach(name=>{text+=`--- Aba: ${name} ---\n`;text+=window.XLSX.utils.sheet_to_csv(wb.Sheets[name])+'\n\n';});
           setRawMSFileContent(text);
         }else{
           const reader=new FileReader();
