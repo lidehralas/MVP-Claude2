@@ -506,14 +506,14 @@ function ProgressChart({miniSurveys}){
     return dist;
   };
 
-  // Deduplicate qualitative texts
+  // Deduplicate and limit qualitative texts to 4 bullets max
   const dedup=(texts)=>{
     const seen=new Set();
     return texts.filter(t=>{
-      const k=t.toLowerCase().trim().slice(0,40);
+      const k=t.toLowerCase().trim().slice(0,30);
       if(seen.has(k)) return false;
       seen.add(k); return true;
-    });
+    }).slice(0,4);
   };
 
   const globalMudancas=dedup(ms.responses.map(r=>r.mudancas).filter(Boolean));
@@ -1933,8 +1933,8 @@ Retorne APENAS um JSON válido, sem texto adicional, no formato:
       "role": "cargo/relação",
       "scores": [nota_comp0, nota_comp1, ...],
       "overall": nota_efetividade_geral,
-      "mudancas": "o que melhorou segundo este respondente",
-      "sugestoes": "próximos desafios segundo este respondente",
+      "mudancas": "síntese em 1 frase curta do que este respondente disse que melhorou",
+      "sugestoes": "síntese em 1 frase curta do que este respondente disse que ainda precisa melhorar",
       "objetivos": "Sim ou Não",
       "freq": ["frequência comp0", "frequência comp1", ...]
     }
@@ -1942,9 +1942,9 @@ Retorne APENAS um JSON válido, sem texto adicional, no formato:
 }
 
 REGRAS:
-- Notas são inteiros de -3 a +3
-- Se uma nota não estiver clara, use 0
-- Extraia todos os respondentes encontrados nos dados
+- Notas são inteiros de -3 a +3. Se não estiver clara, use 0
+- mudancas e sugestoes: síntese em 1 frase curta por respondente (máx 10 palavras), sem copiar texto literal
+- Extraia todos os respondentes encontrados
 - Retorne APENAS o JSON, sem markdown, sem explicações`;
 
     let structuredResponses=[];
