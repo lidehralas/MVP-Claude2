@@ -1094,7 +1094,7 @@ function RoadmapTab({eng,onUpdate}){
               </div>
             :<div style={{marginLeft:'auto'}}>
                 <UploadZone
-                  accept=".pdf,.docx,.doc,.txt"
+                  accept="*/*"
                   storagePath={`assessments/${eng.id}/assessment`}
                   onUploaded={(path,name)=>onUpdate({assessmentFile:name,assessmentFilePath:path})}
                   currentFile={null}
@@ -1608,7 +1608,7 @@ function ReportFileBar({storagePath,fileName,filePath,onFileUploaded,onFileDelet
         </div>
       ):(
         <label style={{cursor:'pointer',display:'block'}}>
-          <input type="file" style={{display:'none'}} accept="*"
+          <input type="file" style={{display:'none'}} accept="*/*"
             onChange={async(e)=>{
               const file=e.target.files[0];if(!file)return;
               setUploading(true);
@@ -1755,7 +1755,7 @@ ESTRUTURA DO RELATÓRIO (use ## para seções principais):
   const handleRawFileUpload=()=>{
     const input=document.createElement('input');
     input.type='file';
-    input.accept='.csv,.xlsx,.xls,.txt,.tsv';
+    input.accept='*/*';
     input.onchange=e=>{
       const file=e.target.files[0];if(!file)return;
       const reader=new FileReader();
@@ -1790,7 +1790,7 @@ ESTRUTURA DO RELATÓRIO (use ## para seções principais):
 
   const handleTextUpload=(onContent)=>{
     const input=document.createElement('input');
-    input.type='file'; input.accept='.txt,.md';
+    input.type='file'; input.accept='*/*';
     input.onchange=e=>{
       const file=e.target.files[0];if(!file)return;
       const reader=new FileReader();
@@ -2118,7 +2118,7 @@ function UploadZone({accept,storagePath,onUploaded,currentFile,onRemove}){
 
   return (
     <label style={{display:'block',cursor:'pointer'}}>
-      <input type="file" accept={accept} style={{display:'none'}} onChange={e=>handleFile(e.target.files[0])}/>
+      <input type="file" accept={accept||"*/*"} style={{display:'none'}} onChange={e=>handleFile(e.target.files[0])}/>
       <div style={{background:'#F9FAFB',border:'1px dashed #D8DAE8',borderRadius:8,padding:'12px 16px',display:'flex',alignItems:'center',gap:10,transition:'border-color .12s'}}>
         <span style={{fontSize:13,color:'#A0A3B1'}}>📎 {uploading?'Enviando...':`Clique para selecionar (${accept})`}</span>
         {!uploading&&<span className="btn btn-g btn-xs" style={{marginLeft:'auto',pointerEvents:'none'}}>Selecionar</span>}
@@ -2170,9 +2170,9 @@ function TabSessions({eng,onUpdate}){
           </div>
           <div className="field">
             <div className="flbl">Upload de arquivo</div>
-            <div style={{fontSize:11,color:'#A0A3B1',marginBottom:6}}>Anotações externas (.txt, .docx) ou transcrições (.pdf, .txt)</div>
+            <div style={{fontSize:11,color:'#A0A3B1',marginBottom:6}}>Anotações externas ou transcrições (qualquer formato)</div>
             <UploadZone
-              accept="*"
+              accept="*/*"
               storagePath={`sessions/${eng.id}/${Date.now()}`}
               onUploaded={(path,name)=>setNewSession(p=>({...p,filePath:path,fileName:name}))}
               currentFile={newSession.fileName}
