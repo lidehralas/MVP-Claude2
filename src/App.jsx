@@ -496,140 +496,123 @@ function ProgressChart({miniSurveys}){
   const n = ms.responses.length;
   if(n===0) return <div className="warn-box">Nenhuma resposta coletada ainda.</div>;
 
-  const segColors = {"-3":"#DC2626","-2":"#F87171","-1":"#FCA5A5","0":"#D1D5DB","+1":"#93C5FD","+2":"#3B82F6","+3":"#1D4ED8"};
+  const scalePoints=['-3','-2','-1','0','+1','+2','+3'];
+  const segColors={"-3":"#DC2626","-2":"#F87171","-1":"#FCA5A5","0":"#D1D5DB","+1":"#93C5FD","+2":"#3B82F6","+3":"#1D4ED8"};
 
-  const buildDist = (scores) => {
-    const dist = {};
-    SCALE.forEach(k=>dist[k]=0);
+  const buildDist=(scores)=>{
+    const dist={};
+    scalePoints.forEach(k=>dist[k]=0);
     scores.forEach(v=>{const k=(v>=0?'+':'')+v;if(dist[k]!==undefined)dist[k]++;});
     return dist;
   };
 
-  // Compile qualitative responses — mudancas = "O que melhorou", sugestoes = "Próximos desafios"
-  // These are global (not per-competência in the form), so we show once for Efetividade geral row
-  const mudancasTexts = ms.responses.map(r=>r.mudancas).filter(Boolean);
-  const sugestoesTexts = ms.responses.map(r=>r.sugestoes).filter(Boolean);
-
-  const allRows = [
-    ...ms.competencias.map((c,ci)=>({label:c,scores:ms.responses.map(r=>r.scores[ci]||0),isGeral:false,ci})),
-    {label:"Efetividade como líder (geral)",scores:ms.responses.map(r=>r.overall||0),isGeral:true},
-  ];
-
-  const QualBlock = ({texts,title,color,bg})=>(
-    <div style={{background:bg,border:`1px solid ${color}30`,borderRadius:7,padding:'10px 12px',marginBottom:8}}>
-      <div style={{fontSize:10,fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',color,marginBottom:6}}>{title}</div>
-      {texts.length===0
-        ?<div style={{fontSize:12,color:'#A0A3B1'}}>Sem respostas.</div>
-        :texts.map((t,i)=><div key={i} style={{fontSize:12,color:'#3A3D58',lineHeight:1.5,marginBottom:i<texts.length-1?5:0}}>— {t}</div>)
-      }
-    </div>
-  );
-
-  // Deduplicate and synthesize qualitative texts
-  const dedup = (texts) => {
-    const seen = new Set();
+  // Deduplicate qualitative texts
+  const dedup=(texts)=>{
+    const seen=new Set();
     return texts.filter(t=>{
-      const k = t.toLowerCase().trim().slice(0,40);
+      const k=t.toLowerCase().trim().slice(0,40);
       if(seen.has(k)) return false;
-      seen.add(k);
-      return true;
+      seen.add(k); return true;
     });
   };
 
-  // Per-competency qualitative (if available via freq field or structured)
-  // Global qualitative for overall row
-  const globalMudancas = dedup(mudancasTexts);
-  const globalSugestoes = dedup(sugestoesTexts);
+  const globalMudancas=dedup(ms.responses.map(r=>r.mudancas).filter(Boolean));
+  const globalSugestoes=dedup(ms.responses.map(r=>r.sugestoes).filter(Boolean));
+
+  const allRows=[
+    ...ms.competencias.map((c,ci)=>({label:c,scores:ms.responses.map(r=>r.scores[ci]||0),isGeral:false})),
+    {label:'Efetividade como líder (geral)',scores:ms.responses.map(r=>r.overall||0),isGeral:true},
+  ];
 
   return (
     <div>
-      <div style={{fontSize:13,color:'#A0A3B1',marginBottom:16}}>
-        {ms.label} · {ms.period||ms.sentAt} · {n} respondente{n!==1?'s':''}
-      </div>
-
-      {/* Unified table: each row has bars + qualitative below */}
-      <div style={{border:'1px solid #E4E6EF',borderRadius:10,overflow:'hidden'}}>
-
-        {/* Header */}
-        <div style={{display:'grid',gridTemplateColumns:'30% 1fr 1fr',background:'#F4F5F7',borderBottom:'1px solid #E4E6EF',padding:'8px 16px',gap:8}}>
-          <div style={{fontSize:11,fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',color:'#A0A3B1'}}>Competência</div>
-          <div style={{fontSize:11,fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',color:'#059669',textAlign:'center'}}>O que melhorou</div>
-          <div style={{fontSize:11,fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',color:'#4169FF',textAlign:'center'}}>Próximos desafios</div>
-        </div>
-
-        {allRows.map((row,ri)=>{
-          const dist = buildDist(row.scores);
-          const hasPositive = SCALE.filter(k=>parseInt(k)>0).some(k=>(dist[k]||0)>0);
-          const hasNegative = SCALE.filter(k=>parseInt(k)<0).some(k=>(dist[k]||0)>0);
-
-          // Use global qualitative for all rows (form collects globally)
-          const mudancas = globalMudancas;
-          const sugestoes = globalSugestoes;
-          const showQual = ri === allRows.length - 1; // show qualitative only in last row (efetividade geral)
-
-          return (
-            <div key={ri} style={{borderBottom:ri<allRows.length-1?'1px solid #E4E6EF':'none',background:row.isGeral?'#FAFAFA':'#fff'}}>
-              {/* Competency + bars */}
-              <div style={{display:'grid',gridTemplateColumns:'30% 70%',padding:'12px 16px',gap:8,alignItems:'center'}}>
-                <div style={{fontSize:13,fontWeight:row.isGeral?700:500,color:'#1A1D2E',lineHeight:1.4}}>
-                  {row.label}
+      <div style={{fontSize:13,color:'#A0A3B1',marginBottom:12}}>{ms.label} · {ms.period||ms.sentAt} · {n} respondente{n!==1?'s':''}</div>
+      <div style={{overflowX:'auto'}}>
+        <table style={{width:'100%',borderCollapse:'collapse',fontSize:'13px'}}>
+          <thead>
+            <tr style={{background:'#F4F5F7'}}>
+              <th style={{width:'22%',textAlign:'left',padding:'10px 14px',borderBottom:'2px solid #E4E6EF',verticalAlign:'bottom'}}>
+                <div style={{fontWeight:600}}>Temas trabalhados</div>
+                <div style={{fontWeight:400,color:'#A0A3B1',fontSize:'11px'}}>(específico individual)</div>
+              </th>
+              <th style={{width:'20%',textAlign:'center',padding:'10px 14px',borderBottom:'2px solid #E4E6EF',verticalAlign:'bottom'}}>
+                <div style={{fontWeight:600}}>Percepção de evolução</div>
+                <div style={{fontWeight:400,color:'#A0A3B1',fontSize:'11px'}}>(stakeholders)</div>
+                <div style={{display:'flex',marginTop:'6px',borderTop:'1px solid #E4E6EF'}}>
+                  {scalePoints.map(p=><div key={p} style={{flex:1,textAlign:'center',fontSize:'10px',color:'#A0A3B1',padding:'2px 0'}}>{p}</div>)}
                 </div>
-                <div>
-                  {/* Scale labels */}
-                  <div style={{display:'flex',gap:2,marginBottom:4}}>
-                    {SCALE.map(k=><span key={k} style={{fontSize:9,color:'#C8CAD6',width:32,textAlign:'center',flexShrink:0}}>{k}</span>)}
-                    <span style={{flex:1}}/>
-                  </div>
-                  {/* Bars */}
-                  <div style={{display:'flex',gap:2,alignItems:'center'}}>
-                    <div className="prog-bar-wrap" style={{flex:'none'}}>
-                      {SCALE.map(k=>{
+              </th>
+              <th style={{width:'29%',textAlign:'left',padding:'10px 14px',borderBottom:'2px solid #E4E6EF',verticalAlign:'bottom'}}>
+                <div style={{fontWeight:600,color:'#059669'}}>O que melhorou</div>
+                <div style={{fontWeight:400,color:'#A0A3B1',fontSize:'11px'}}>(stakeholders e autopercepção)</div>
+              </th>
+              <th style={{width:'29%',textAlign:'left',padding:'10px 14px',borderBottom:'2px solid #E4E6EF',verticalAlign:'bottom'}}>
+                <div style={{fontWeight:600,color:'#4169FF'}}>Próximos desafios</div>
+                <div style={{fontWeight:400,color:'#A0A3B1',fontSize:'11px'}}>(stakeholders e autopercepção)</div>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {allRows.map((row,ri)=>{
+              const dist=buildDist(row.scores);
+              // Show qualitative on each row — global data applies to all
+              const mudancas=globalMudancas;
+              const sugestoes=globalSugestoes;
+              return (
+                <tr key={ri} style={{borderBottom:'1px solid #E4E6EF',background:row.isGeral?'#FAFAFA':'#fff'}}>
+                  <td style={{padding:'12px 14px',verticalAlign:'top',fontWeight:row.isGeral?700:400,fontSize:'13px',color:'#1A1D2E',lineHeight:1.4}}>
+                    {row.label}
+                  </td>
+                  <td style={{padding:'12px 14px',verticalAlign:'middle'}}>
+                    <div style={{display:'flex',height:'28px'}}>
+                      {scalePoints.map(k=>{
                         const cnt=dist[k]||0;
                         const pct=n>0?Math.round(cnt/n*100):0;
-                        if(cnt===0) return <div key={k} style={{width:32,background:'#F4F5F7',borderRight:'1px solid #fff',height:24,flexShrink:0}}/>;
-                        return <div key={k} className="prog-seg" style={{width:32,background:segColors[k],flexShrink:0}}>{pct>0?`${pct}%`:''}</div>;
+                        return (
+                          <div key={k} style={{
+                            flex:1,
+                            background:cnt>0?segColors[k]:'#F4F5F7',
+                            display:'flex',alignItems:'center',justifyContent:'center',
+                            fontSize:'10px',fontWeight:600,
+                            color:cnt>0?'#fff':'transparent',
+                            borderRight:'1px solid #fff',
+                          }}>
+                            {cnt>0?`${pct}%`:''}
+                          </div>
+                        );
                       })}
                     </div>
-                    {/* Percentage badges */}
-                    <div style={{display:'flex',gap:3,flexWrap:'wrap',marginLeft:10}}>
-                      {SCALE.filter(k=>(dist[k]||0)>0).map(k=>{
+                    {/* Percentage badges below bar */}
+                    <div style={{display:'flex',gap:3,flexWrap:'wrap',marginTop:5}}>
+                      {scalePoints.filter(k=>(dist[k]||0)>0).map(k=>{
                         const pct=Math.round((dist[k]/n)*100);
                         const nv=parseInt(k);
                         const col=nv>0?'#059669':nv<0?'#DC2626':'#6B6E8E';
                         const bg=nv>0?'rgba(16,185,129,.1)':nv<0?'rgba(220,38,38,.1)':'#F4F5F7';
-                        return <span key={k} style={{fontSize:11,fontWeight:700,color:col,background:bg,padding:'2px 6px',borderRadius:4,whiteSpace:'nowrap'}}>{k}: {pct}%</span>;
+                        return <span key={k} style={{fontSize:10,fontWeight:700,color:col,background:bg,padding:'1px 5px',borderRadius:3}}>{k}: {pct}%</span>;
                       })}
                     </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Qualitative — show once, on the efetividade geral row */}
-              {showQual&&(mudancas.length>0||sugestoes.length>0)&&(
-                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:0,borderTop:'1px solid #E4E6EF'}}>
-                  <div style={{padding:'12px 16px',borderRight:'1px solid #E4E6EF',background:'rgba(16,185,129,.03)'}}>
-                    <div style={{fontSize:10,fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',color:'#059669',marginBottom:8}}>O que melhorou</div>
+                  </td>
+                  <td style={{padding:'12px 14px',verticalAlign:'top',fontSize:'12px',lineHeight:'1.6',color:'#3A3D58'}}>
                     {mudancas.length===0
-                      ?<div style={{fontSize:12,color:'#A0A3B1'}}>Sem respostas.</div>
-                      :mudancas.map((t,i)=><div key={i} style={{fontSize:12,color:'#3A3D58',lineHeight:1.6,marginBottom:4,paddingLeft:8,borderLeft:'2px solid #BBF7D0'}}>— {t}</div>)
+                      ?<span style={{color:'#A0A3B1'}}>—</span>
+                      :mudancas.map((t,i)=><div key={i} style={{marginBottom:4}}>— {t}</div>)
                     }
-                  </div>
-                  <div style={{padding:'12px 16px',background:'rgba(65,105,255,.03)'}}>
-                    <div style={{fontSize:10,fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',color:'#4169FF',marginBottom:8}}>Próximos desafios</div>
+                  </td>
+                  <td style={{padding:'12px 14px',verticalAlign:'top',fontSize:'12px',lineHeight:'1.6',color:'#3A3D58'}}>
                     {sugestoes.length===0
-                      ?<div style={{fontSize:12,color:'#A0A3B1'}}>Sem respostas.</div>
-                      :sugestoes.map((t,i)=><div key={i} style={{fontSize:12,color:'#3A3D58',lineHeight:1.6,marginBottom:4,paddingLeft:8,borderLeft:'2px solid #C7D2FE'}}>— {t}</div>)
+                      ?<span style={{color:'#A0A3B1'}}>—</span>
+                      :sugestoes.map((t,i)=><div key={i} style={{marginBottom:4}}>— {t}</div>)
                     }
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
-
       {miniSurveys.length>1&&(
-        <div style={{fontSize:12,color:'#A0A3B1',marginTop:12}}>Mostrando o mini-survey mais recente. Total aplicado: {miniSurveys.length}.</div>
+        <div style={{fontSize:12,color:'#A0A3B1',marginTop:10}}>Mostrando o mini-survey mais recente. Total: {miniSurveys.length} aplicado{miniSurveys.length!==1?'s':''}.</div>
       )}
     </div>
   );
