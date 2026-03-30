@@ -1539,8 +1539,16 @@ Tom: profissional, orientado ao desenvolvimento.`;
             {eng.miniSurveys.length>0&&(
               <div style={{display:'flex',gap:8,marginTop:12,flexWrap:'wrap'}}>
                 {eng.miniSurveys.map((ms)=>(
-                  <div key={ms.id} style={{background:'#fff',border:'1px solid #D0D8F8',borderRadius:8,padding:'8px 12px',minWidth:160}}>
-                    <div style={{fontSize:13,fontWeight:600,color:'#1A1D2E'}}>{ms.label}</div>
+                  <div key={ms.id} style={{background:'#fff',border:'1px solid #D0D8F8',borderRadius:8,padding:'8px 12px',minWidth:160,position:'relative'}}>
+                    <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:6}}>
+                      <div style={{fontSize:13,fontWeight:600,color:'#1A1D2E'}}>{ms.label}</div>
+                      <button className="btn btn-d btn-xs" style={{flexShrink:0}} onClick={()=>{
+                        if(!safeConfirm('Apagar "'+ms.label+'"?','O mini-survey e todas as respostas serão excluídos.')) return;
+                        const updated=eng.miniSurveys.filter(m=>m.id!==ms.id);
+                        onUpdate({miniSurveys:updated});
+                        if(updated.length>0) setSel(updated[updated.length-1]);
+                      }}>×</button>
+                    </div>
                     <div style={{fontSize:11,color:'#A0A3B1',marginTop:2}}>{ms.sentAt} · {ms.responses.length} resposta{ms.responses.length!==1?'s':''}</div>
                     <span className={`badge ${ms.responses.length>0?'b-done':'b-pend'}`} style={{marginTop:6,display:'inline-block'}}>{ms.responses.length>0?'Com respostas':'Aguardando'}</span>
                   </div>
@@ -2175,8 +2183,8 @@ ESTRUTURA OBRIGATÓRIA (use ## para cada seção):
                 <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
                   <div style={{fontSize:11,fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',color:'#A0A3B1'}}>Dados da pesquisa</div>
                   <div style={{display:'flex',gap:6}}>
-                    <button className="btn btn-g btn-sm" onClick={handleCSVUpload}>↑ Importar CSV/Excel</button>
                     {selMS.responses.length>0&&<button className="btn btn-g btn-sm" onClick={()=>exportMiniSurveyExcel(selMS,eng)}>↓ Planilha Excel</button>}
+                    {selMS.responses.length>0&&<button className="btn btn-d btn-xs" onClick={()=>{if(safeConfirm('Apagar os dados desta pesquisa?','Todas as respostas serão perdidas e os gráficos zerados.')) updateMS({responses:[]});}}>Apagar dados</button>}
                   </div>
                 </div>
                 {selMS.responses.length>0
@@ -2223,6 +2231,7 @@ ESTRUTURA OBRIGATÓRIA (use ## para cada seção):
                     )}
                     {!editingMS&&<button className="btn btn-g btn-sm" onClick={()=>{setDraftMS(selMS.reportContent||'');setEditingMS(true);}}>{selMS.reportApproved?'Ver':'Editar'}</button>}
                     {!editingMS&&selMS.reportContent&&<button className="btn btn-g btn-sm" onClick={()=>generateDOCX(selMS.reportContent,`${selMS.label} - ${eng.coachee.name}`)}>↓ Baixar .doc</button>}
+                    {!editingMS&&selMS.reportContent&&!selMS.reportApproved&&<button className="btn btn-d btn-sm" onClick={()=>{if(safeConfirm('Apagar o relatório narrativo?','O conteúdo gerado será perdido. Você poderá gerar novamente.')) updateMS({reportContent:''});}}>Apagar relatório</button>}
                     {editingMS&&<><button className="btn btn-g btn-sm" onClick={cancelMS}>Cancelar</button>{!selMS.reportApproved&&<button className="btn btn-p btn-sm" onClick={saveMS}>Salvar</button>}</>}
                   </div>
                 </div>
