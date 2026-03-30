@@ -760,7 +760,7 @@ function NewEngModal({onSave,onClose}){
         </div>
         <div className="field"><div className="flbl">Cadência das sessões</div>
           <select className="fsel" value={f.cadence} onChange={e=>set('cadence',e.target.value)}>
-            <option value="semanal">Semanal</option><option value="quinzenal">Quinzenal</option>
+            <option value="semanal">Semanal</option><option value="quinzenal">Quinzenal</option><option value="mensal">Mensal</option><option value="outro">Outro</option>
           </select>
         </div>
         <label className="fcheck" style={{marginBottom:10}}><input type="checkbox" checked={f.assessment} onChange={e=>set('assessment',e.target.checked)}/> Incluir assessment de perfil</label>
@@ -1052,7 +1052,7 @@ function RoadmapTab({eng,onUpdate}){
             </div>
             <div className="field"><div className="flbl">Cadência</div>
               <select className="fsel" value={profileDraft.cadence} onChange={e=>setProfileDraft(p=>({...p,cadence:e.target.value}))}>
-                <option value="semanal">Semanal</option><option value="quinzenal">Quinzenal</option>
+                <option value="semanal">Semanal</option><option value="quinzenal">Quinzenal</option><option value="mensal">Mensal</option><option value="outro">Outro (especificar)</option>
               </select>
             </div>
             <div className="modal-foot">
@@ -1683,6 +1683,9 @@ function TabRelatorios({eng,onUpdate}){
   const [showRawUpload,setShowRawUpload]=useState(false);
   const [rawFileContent,setRawFileContent]=useState('');
   const [rawFileName,setRawFileName]=useState('');
+  const [aiLoadingMS,setAiLoadingMS]=useState(false);
+  const [rawMSFileContent,setRawMSFileContent]=useState('');
+  const [rawMSFileName,setRawMSFileName]=useState('');
 
   const approve360=()=>{
     if(!safeConfirm('Aprovar e compartilhar o relatório 360° com o coachee?','Após a aprovação, o relatório ficará visível no portal do coachee.')) return;
@@ -1691,41 +1694,50 @@ function TabRelatorios({eng,onUpdate}){
 
   const generateFrom360Raw=async(fileContent,fileName)=>{
     setAiLoading360(true);
-    const prompt=`Você é um especialista sênior em coaching executivo com metodologia MGSCC (Marshall Goldsmith Stakeholder Centered Coaching). Sua missão é gerar um relatório de desenvolvimento executivo de alta qualidade em português brasileiro.
+    const prompt=`Você é um especialista sênior em coaching executivo com metodologia MGSCC (Marshall Goldsmith Stakeholder Centered Coaching). Gere um relatório de desenvolvimento executivo em português brasileiro.
 
-CONTEXTO DO PROCESSO:
+CONTEXTO:
 - Coachee: ${eng.coachee.name} | ${eng.coachee.role} | ${eng.coachee.company}
 - Objetivo: ${eng.goal||'Desenvolvimento de liderança executiva'}
-- Competências trabalhadas: ${eng.competencias.map(c=>c.nome).join(', ')||'A serem definidas'}
 
-DADOS DISPONÍVEIS (arquivo: ${fileName}):
+DADOS DO 360° (arquivo: ${fileName}):
 ${fileContent.slice(0,10000)}
 
-REGRAS ABSOLUTAS:
-1. Gere o relatório com as informações disponíveis, independentemente do formato ou qualidade dos dados
-2. Se os dados forem parciais ou incompletos, interprete o que existe e complemente com boas práticas de liderança executiva coerentes com o contexto
-3. NUNCA peça mais dados ou diga que os dados são insuficientes — sempre gere o relatório
-4. Se identificar padrões relevantes, destaque-os; se não houver dados suficientes para uma seção, escreva com base no contexto do coachee e do processo
-5. Mantenha tom profissional, respeitoso, orientado ao desenvolvimento — nunca julgador
+REGRAS:
+1. Gere sempre o relatório com os dados disponíveis — nunca peça mais informações
+2. Se dados forem parciais, complemente com base no contexto e boas práticas executivas
+3. Tom: profissional, direto, orientado ao desenvolvimento. Nunca julgador
+4. Linguagem: objetiva e executiva. Frases curtas e acionáveis
 
-ESTRUTURA OBRIGATÓRIA (use ## para cada seção):
+REFERÊNCIA PARA NOMENCLATURA DAS PRIORIDADES (Korn Ferry — use como referência, não copie):
+Garante a prestação de contas | Orientado para a ação | Gerencia a ambiguidade | Visão de negócios | Colabora | Comunica-se efetivamente | Gerencia a complexidade | Gerencia conflitos | Coragem | Foco no cliente | Qualidade da decisão | Desenvolve talentos | Direciona o trabalho | Impulsiona o engajamento | Perspicácia financeira | Cultiva a inovação | Conhecimento interpessoal | Constrói redes | Aprendizado ágil | Conhecimento organizacional | Convence | Planos e alinhamentos | Ser resiliente | Impulsiona resultados | Demonstra autoconsciência | Autodesenvolvimento | Adaptabilidade situacional | Equilibra as partes interessadas | Mentalidade estratégica | Constrói equipes eficazes | Instila confiança | Impulsiona a visão e o propósito | Otimiza processos de trabalho
 
-## Síntese do Perfil de Liderança
-(2-3 parágrafos: quem é este líder, seu contexto, desafios centrais)
+DIRETRIZES PARA AS PRIORIDADES DE DESENVOLVIMENTO:
+- Defina EXATAMENTE 2 prioridades. Inclua uma 3ª apenas se os dados apontarem claramente um terceiro tema
+- Para cada prioridade: (a) escolha ou adapte um nome da lista Korn Ferry — máximo 4 palavras, direto e reconhecível; (b) escreva 2-3 linhas explicando o que esse tema significa especificamente para este líder, com base nos dados reais do 360°
+- A explicação NÃO é a definição Korn Ferry — é a interpretação contextualizada para este profissional
+- Exemplo de formato:
+  **1. Presença executiva**
+  Vagner demonstra sólido conhecimento técnico, mas ainda ocupa os espaços de liderança de forma tímida em reuniões estratégicas. Desenvolver posicionamento claro e assertividade executiva é o principal alavancador de impacto neste momento.
 
-## Pontos Fortes Consolidados
-(Top 3-5 numerados com evidências ou inferências dos dados)
+ESTRUTURA (use ## para seções):
+
+## Síntese do Perfil
+(2 parágrafos: quem é este líder hoje e qual é o desafio central do processo)
+
+## Pontos Fortes
+(Top 3-5, numerados, com evidência concreta dos dados)
 
 ## Prioridades de Desenvolvimento
-(Top 3 numeradas, conectadas ao objetivo e competências — estas serão usadas como base do plano de ações)
+(2 prioridades — ou 3 se os dados justificarem. Use o formato do exemplo acima.)
 
 ## Pontos de Atenção
-(Inclua apenas se houver padrões críticos ou divergências significativas. Omita se não for relevante.)
+(Inclua apenas se houver padrões críticos ou divergências importantes. Omita se não for relevante.)
 
 ## Plano de Ação
-**Parar de fazer:** (comportamentos a eliminar)
-**Começar a fazer:** (comportamentos a adotar)
-**Continuar fazendo:** (pontos fortes a ampliar)
+**Parar de fazer:** (3-4 comportamentos concretos)
+**Começar a fazer:** (3-4 comportamentos concretos)
+**Continuar fazendo:** (2-3 pontos fortes a ampliar)
 
 ## Checklist de Comportamentos
 (5-7 itens práticos com ☐)`;
@@ -1828,6 +1840,98 @@ ESTRUTURA OBRIGATÓRIA (use ## para cada seção):
     };
     input.click();
   };
+  const handleRawMSFileUpload=()=>{
+    const input=document.createElement('input');
+    input.type='file'; input.accept='*/*';
+    input.onchange=async e=>{
+      const file=e.target.files[0];if(!file)return;
+      const ext=file.name.split('.').pop().toLowerCase();
+      setRawMSFileName(file.name);
+      try{
+        if(ext==='pdf'){
+          const arrayBuf=await file.arrayBuffer();
+          if(!window.pdfjsLib){
+            await new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';s.onload=res;s.onerror=rej;document.head.appendChild(s);});
+            window.pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+          }
+          const pdf=await window.pdfjsLib.getDocument({data:arrayBuf}).promise;
+          let text='';
+          for(let i=1;i<=pdf.numPages;i++){const page=await pdf.getPage(i);const content=await page.getTextContent();text+=content.items.map(item=>item.str).join(' ')+'
+';}
+          setRawMSFileContent(text);
+        }else if(ext==='xlsx'||ext==='xls'){
+          const arrayBuf=await file.arrayBuffer();
+          if(!window.XLSX){await new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';s.onload=res;s.onerror=rej;document.head.appendChild(s);});}
+          const wb=window.XLSX.read(arrayBuf,{type:'array'});
+          let text='';
+          wb.SheetNames.forEach(name=>{text+=`--- Aba: ${name} ---
+`;text+=window.XLSX.utils.sheet_to_csv(wb.Sheets[name])+'
+
+';});
+          setRawMSFileContent(text);
+        }else{
+          const reader=new FileReader();
+          reader.onload=ev=>setRawMSFileContent(ev.target.result);
+          reader.readAsText(file,'utf-8');
+        }
+      }catch(err){alert('Erro ao ler arquivo: '+err.message);setRawMSFileName('');}
+    };
+    input.click();
+  };
+
+  const generateFromMSRaw=async(fileContent,fileName,ms)=>{
+    if(!ms){alert('Selecione um mini-survey primeiro.');return;}
+    setAiLoadingMS(true);
+    const prompt=`Você é especialista em coaching executivo MGSCC. Analise os dados brutos de uma pesquisa de progresso (mini-survey) e gere um relatório de acompanhamento em português brasileiro.
+
+CONTEXTO:
+- Coachee: ${eng.coachee.name} | ${eng.coachee.role} | ${eng.coachee.company}
+- Período: ${ms.label}${ms.period?' ('+ms.period+')':''}
+- Competências avaliadas: ${ms.competencias.join(', ')||'Conforme dados'}
+
+DADOS BRUTOS DA PESQUISA (arquivo: ${fileName}):
+${fileContent.slice(0,10000)}
+
+INSTRUÇÕES:
+- Extraia as informações diretamente dos dados — não invente o que não está nos dados
+- Para cada competência, identifique a percepção de evolução dos respondentes
+- Compile os comentários qualitativos sobre o que melhorou e próximos desafios
+- As recomendações para o próximo ciclo são a única seção onde você deve gerar conteúdo interpretativo
+
+ESTRUTURA OBRIGATÓRIA (use ## para cada seção):
+
+## Contexto da Pesquisa
+(Período, número de respondentes, competências avaliadas — extraído dos dados)
+
+## Resultados por Competência
+(Para cada competência: síntese da percepção de evolução dos respondentes, baseada nos dados)
+
+## O que Melhorou
+(Compilação direta dos comentários dos respondentes sobre avanços observados)
+
+## Próximos Desafios
+(Compilação direta dos comentários dos respondentes sobre o que ainda precisa evoluir)
+
+## Recomendações para o Próximo Ciclo
+(Esta é a única seção gerada pela IA com base na interpretação dos dados. Máximo 3 recomendações concretas e acionáveis, conectadas às prioridades identificadas nos dados.)`;
+
+    try{
+      const res=await fetch('/api/ai',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({prompt,max_tokens:1500})});
+      const data=await res.json();
+      if(data.error) throw new Error(data.error);
+      const text=data.content?.[0]?.text;
+      if(!text) throw new Error('Resposta vazia');
+      const updated=eng.miniSurveys.map(m=>m.id===ms.id?{...m,reportContent:text}:m);
+      onUpdate({miniSurveys:updated});
+      setSelMS(prev=>({...prev,reportContent:text}));
+      setDraftMS(text);
+      setRawMSFileContent('');setRawMSFileName('');
+      alert('Relatório gerado! Revise antes de aprovar.');
+    }catch(e){alert('Erro ao gerar: '+e.message);}
+    setAiLoadingMS(false);
+  };
+
   const save360=()=>{onUpdate({report:{...eng.report,content:draft360}});setEditing360(false);};
   const cancel360=()=>{
     if(draft360!==eng.report?.content&&!safeConfirm('Descartar as alterações?','As edições não salvas serão perdidas.')) return;
@@ -2041,7 +2145,7 @@ ESTRUTURA OBRIGATÓRIA (use ## para cada seção):
     </>
   );
 
-  const MSSection=({eng,selMS,setSelMS,editingMS,setEditingMS,draftMS,setDraftMS,updateMS,approveMS,saveMS,cancelMS,handleTextUpload,handleCSVUpload})=>(
+  const MSSection=({eng,selMS,setSelMS,editingMS,setEditingMS,draftMS,setDraftMS,updateMS,approveMS,saveMS,cancelMS,handleTextUpload,handleCSVUpload,aiLoadingMS,rawMSFileName,rawMSFileContent,handleRawMSFileUpload,generateFromMSRaw})=>(
     <>
       {eng.miniSurveys.length===0?(
         <div className="empty"><div className="ei">◌</div>Nenhum mini-survey criado.<br/>Crie na aba Stakeholders.</div>
@@ -2085,7 +2189,32 @@ ESTRUTURA OBRIGATÓRIA (use ## para cada seção):
                 }
               </div>
 
-              {/* Section 2: Narrative report */}
+              {/* Section 2: AI generation from raw file */}
+              {!selMS.reportApproved&&(
+                <div style={{padding:'16px 18px',borderBottom:'1px solid #E4E6EF',background:'#EEF1FF'}}>
+                  <div style={{fontSize:13,fontWeight:600,color:'#1A1D2E',marginBottom:4}}>✦ Gerar relatório com IA</div>
+                  <div style={{fontSize:12,color:'#6B6E8E',marginBottom:12}}>Suba os dados brutos da pesquisa (PDF, Excel, CSV) e a IA gera o relatório automaticamente.</div>
+                  {rawMSFileName?(
+                    <div style={{background:'#fff',border:'1px solid #BBF7D0',borderRadius:8,padding:'10px 14px',display:'flex',alignItems:'center',gap:10,marginBottom:10}}>
+                      <span style={{fontSize:13,color:'#059669'}}>📎 {rawMSFileName}</span>
+                      <button className="btn btn-g btn-xs" style={{marginLeft:'auto'}} onClick={handleRawMSFileUpload}>Trocar</button>
+                    </div>
+                  ):(
+                    <button className="btn btn-g" style={{width:'100%',marginBottom:10}} onClick={handleRawMSFileUpload}>
+                      📎 Selecionar arquivo de dados brutos (.csv · .xlsx · .pdf · .txt)
+                    </button>
+                  )}
+                  <div style={{display:'flex',justifyContent:'flex-end'}}>
+                    <button className="btn btn-p" onClick={()=>generateFromMSRaw(rawMSFileContent,rawMSFileName,selMS)}
+                      disabled={aiLoadingMS||!rawMSFileName}>
+                      {aiLoadingMS?<Dots/>:'✦ Gerar relatório'}
+                    </button>
+                  </div>
+                  {aiLoadingMS&&<div style={{fontSize:12,color:'#6B6E8E',marginTop:8,textAlign:'center'}}>Analisando dados — pode levar até 30 segundos...</div>}
+                </div>
+              )}
+
+              {/* Section 3: Narrative report */}
               <div style={{padding:'16px 18px',borderBottom:'1px solid #E4E6EF'}}>
                 <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
                   <div style={{fontSize:11,fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',color:'#A0A3B1'}}>Relatório narrativo</div>
@@ -2149,7 +2278,7 @@ ESTRUTURA OBRIGATÓRIA (use ## para cada seção):
         ))}
       </div>
       {section==='360'&&<Report360Section eng={eng} onUpdate={onUpdate} editing360={editing360} setEditing360={setEditing360} draft360={draft360} setDraft360={setDraft360} approve360={approve360} save360={save360} cancel360={cancel360} handleTextUpload={handleTextUpload} aiLoading360={aiLoading360} showRawUpload={showRawUpload} setShowRawUpload={setShowRawUpload} rawFileContent={rawFileContent} rawFileName={rawFileName} handleRawFileUpload={handleRawFileUpload} generateFrom360Raw={generateFrom360Raw}/>}
-      {section==='ms'&&<MSSection eng={eng} selMS={selMS} setSelMS={setSelMS} editingMS={editingMS} setEditingMS={setEditingMS} draftMS={draftMS} setDraftMS={setDraftMS} updateMS={updateMS} approveMS={approveMS} saveMS={saveMS} cancelMS={cancelMS} handleTextUpload={handleTextUpload} handleCSVUpload={handleCSVUpload}/>}
+      {section==='ms'&&<MSSection eng={eng} selMS={selMS} setSelMS={setSelMS} editingMS={editingMS} setEditingMS={setEditingMS} draftMS={draftMS} setDraftMS={setDraftMS} updateMS={updateMS} approveMS={approveMS} saveMS={saveMS} cancelMS={cancelMS} handleTextUpload={handleTextUpload} handleCSVUpload={handleCSVUpload} aiLoadingMS={aiLoadingMS} rawMSFileName={rawMSFileName} rawMSFileContent={rawMSFileContent} handleRawMSFileUpload={handleRawMSFileUpload} generateFromMSRaw={generateFromMSRaw}/>}
     </div>
   );
 }
