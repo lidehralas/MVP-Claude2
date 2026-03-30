@@ -1791,8 +1791,7 @@ ESTRUTURA OBRIGATÓRIA (use ## para cada seção):
           for(let i=1;i<=pdf.numPages;i++){
             const page=await pdf.getPage(i);
             const content=await page.getTextContent();
-            text+=content.items.map(item=>item.str).join(' ')+'
-';
+            text+=content.items.map(item=>item.str).join(' ')+'\n';
           }
           setRawFileContent(text);
 
