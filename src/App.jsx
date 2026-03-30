@@ -1810,11 +1810,8 @@ ESTRUTURA OBRIGATÓRIA (use ## para cada seção):
           let text='';
           wb.SheetNames.forEach(name=>{
             const ws=wb.Sheets[name];
-            text+=`--- Aba: ${name} ---
-`;
-            text+=window.XLSX.utils.sheet_to_csv(ws)+'
-
-';
+            text+=`--- Aba: ${name} ---\n`;
+            text+=window.XLSX.utils.sheet_to_csv(ws)+'\n\n';
           });
           setRawFileContent(text);
 
@@ -1825,8 +1822,7 @@ ESTRUTURA OBRIGATÓRIA (use ## para cada seção):
           reader.readAsText(file,'utf-8');
         }
       }catch(err){
-        alert('Erro ao ler o arquivo: '+err.message+'
-Tente converter para .txt ou .csv.');
+        alert('Erro ao ler o arquivo: '+err.message+'\nTente converter para .txt ou .csv.');
         setRawFileName('');
       }
     };
