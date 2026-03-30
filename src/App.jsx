@@ -1737,13 +1737,21 @@ ESTRUTURA OBRIGATÓRIA (use ## para cada seção):
       if(data.error) throw new Error(data.error);
       const text=data.content?.[0]?.text;
       if(!text) throw new Error('Resposta vazia');
-      // Auto-extract priorities from report
+      // Auto-extract priorities from report — robust extraction
       let autoP='';
-      const prioMatch=text.match(/##\s*Prioridades de Desenvolvimento[\s\S]*?(?=##|$)/i);
-      if(prioMatch){
-        const lines=prioMatch[0].split('\n').filter(l=>l.match(/^\d+\.|^-|^•/)).slice(0,3);
-        autoP=lines.map(l=>l.replace(/^\d+\.\s*|^-\s*|^•\s*/,'')).join('\n');
-      }
+      try{
+        const prioMatch=text.match(/##\s*Prioridades de Desenvolvimento[\s\S]*?(?=\n##|$)/i);
+        if(prioMatch){
+          const block=prioMatch[0];
+          // Match numbered items: "1.", "1 -", "**1.", bold headers like "**Ampliar..."
+          const lines=block.split('\n')
+            .filter(l=>l.match(/^\s*(\d+[\.\)]|[-•●▪]|\*\*\d)/))
+            .slice(0,3)
+            .map(l=>l.replace(/^\s*\d+[\.\)]\s*|^\s*[-•●▪]\s*|\*\*/g,'').split('\n')[0].trim())
+            .filter(Boolean);
+          if(lines.length>0) autoP=lines.map((l,i)=>`${i+1}. ${l}`).join('\n');
+        }
+      }catch(e){console.warn('Priority extraction failed:',e);}
       if(!eng.report) onUpdate({report:{content:text,approved:false,sharedAt:null,reportFile:'',reportFileName:''},summary360Priorities:autoP||eng.summary360Priorities||''});
       else onUpdate({report:{...eng.report,content:text},summary360Priorities:autoP||eng.summary360Priorities||''});
       setDraft360(text);
@@ -1758,14 +1766,70 @@ ESTRUTURA OBRIGATÓRIA (use ## para cada seção):
     const input=document.createElement('input');
     input.type='file';
     input.accept='*/*';
-    input.onchange=e=>{
+    input.onchange=async e=>{
       const file=e.target.files[0];if(!file)return;
-      const reader=new FileReader();
-      reader.onload=ev=>{
-        setRawFileContent(ev.target.result);
-        setRawFileName(file.name);
-      };
-      reader.readAsText(file,'utf-8');
+      const ext=file.name.split('.').pop().toLowerCase();
+      setRawFileName(file.name);
+
+      try{
+        // ── PDF: use PDF.js ──
+        if(ext==='pdf'){
+          const arrayBuf=await file.arrayBuffer();
+          // Load PDF.js dynamically
+          if(!window.pdfjsLib){
+            await new Promise((res,rej)=>{
+              const s=document.createElement('script');
+              s.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+              s.onload=res;s.onerror=rej;
+              document.head.appendChild(s);
+            });
+            window.pdfjsLib.GlobalWorkerOptions.workerSrc=
+              'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+          }
+          const pdf=await window.pdfjsLib.getDocument({data:arrayBuf}).promise;
+          let text='';
+          for(let i=1;i<=pdf.numPages;i++){
+            const page=await pdf.getPage(i);
+            const content=await page.getTextContent();
+            text+=content.items.map(item=>item.str).join(' ')+'
+';
+          }
+          setRawFileContent(text);
+
+        // ── XLSX/XLS: use SheetJS ──
+        }else if(ext==='xlsx'||ext==='xls'){
+          const arrayBuf=await file.arrayBuffer();
+          if(!window.XLSX){
+            await new Promise((res,rej)=>{
+              const s=document.createElement('script');
+              s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+              s.onload=res;s.onerror=rej;
+              document.head.appendChild(s);
+            });
+          }
+          const wb=window.XLSX.read(arrayBuf,{type:'array'});
+          let text='';
+          wb.SheetNames.forEach(name=>{
+            const ws=wb.Sheets[name];
+            text+=`--- Aba: ${name} ---
+`;
+            text+=window.XLSX.utils.sheet_to_csv(ws)+'
+
+';
+          });
+          setRawFileContent(text);
+
+        // ── TXT/CSV/TSV: plain text ──
+        }else{
+          const reader=new FileReader();
+          reader.onload=ev=>setRawFileContent(ev.target.result);
+          reader.readAsText(file,'utf-8');
+        }
+      }catch(err){
+        alert('Erro ao ler o arquivo: '+err.message+'
+Tente converter para .txt ou .csv.');
+        setRawFileName('');
+      }
     };
     input.click();
   };
