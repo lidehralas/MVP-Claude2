@@ -1953,20 +1953,24 @@ REGRAS:
         body:JSON.stringify({prompt:promptData,max_tokens:2000})});
       const d1=await res1.json();
       if(!d1.error){
-        const rawJSON=(d1.content?.[0]?.text||'').replace(/```json|```/g,'').trim();
-        const parsed=JSON.parse(rawJSON);
-        if(parsed.respondentes&&Array.isArray(parsed.respondentes)){
-          structuredResponses=parsed.respondentes.map((r,i)=>({
-            shId:Date.now()+i,
-            name:r.name||`Respondente ${i+1}`,
-            role:r.role||'',
-            scores:Array.isArray(r.scores)?r.scores.map(s=>Math.max(-3,Math.min(3,parseInt(s)||0))):ms.competencias.map(()=>0),
-            overall:Math.max(-3,Math.min(3,parseInt(r.overall)||0)),
-            mudancas:r.mudancas||'',
-            sugestoes:r.sugestoes||'',
-            objetivos:r.objetivos||'',
-            freq:Array.isArray(r.freq)?r.freq:ms.competencias.map(()=>''),
-          }));
+        const raw=(d1.content?.[0]?.text||'');
+        // Extract JSON from anywhere in the response
+        const jsonMatch=raw.match(/\{[\s\S]*"respondentes"[\s\S]*\}/);
+        if(jsonMatch){
+          const parsed=JSON.parse(jsonMatch[0]);
+          if(parsed.respondentes&&Array.isArray(parsed.respondentes)&&parsed.respondentes.length>0){
+            structuredResponses=parsed.respondentes.map((r,i)=>({
+              shId:Date.now()+i,
+              name:r.name||`Respondente ${i+1}`,
+              role:r.role||'',
+              scores:Array.isArray(r.scores)?r.scores.map(s=>Math.max(-3,Math.min(3,parseInt(s)||0))):ms.competencias.map(()=>0),
+              overall:Math.max(-3,Math.min(3,parseInt(r.overall)||0)),
+              mudancas:r.mudancas||'',
+              sugestoes:r.sugestoes||'',
+              objetivos:r.objetivos||'',
+              freq:Array.isArray(r.freq)?r.freq:ms.competencias.map(()=>''),
+            }));
+          }
         }
       }
     }catch(e){console.warn('Structured extraction failed:',e);}
@@ -2020,7 +2024,9 @@ ESTRUTURA (use ## para seções):
       }));
       setDraftMS(text);
       setRawMSFileContent('');setRawMSFileName('');
-      const chartMsg=structuredResponses.length>0?` Gráfico gerado com ${structuredResponses.length} respondentes.`:'';
+      const chartMsg=structuredResponses.length>0
+        ?` Gráfico gerado com ${structuredResponses.length} respondente${structuredResponses.length!==1?'s':''}.`
+        :' Não foi possível extrair dados para o gráfico — apenas o relatório narrativo foi gerado.';
       alert('Relatório gerado!'+chartMsg+' Revise antes de aprovar.');
     }catch(e){alert('Erro ao gerar: '+e.message);}
     setAiLoadingMS(false);
