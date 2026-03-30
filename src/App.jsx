@@ -1509,36 +1509,7 @@ Tom: profissional, orientado ao desenvolvimento.`;
               </div>
             ))}
           </div>
-          <div style={{background:'#F9FAFB',border:'1px solid #E4E6EF',borderRadius:9,padding:'14px 16px',marginBottom:8}}>
-            <div style={{fontSize:11,fontWeight:600,letterSpacing:'1px',textTransform:'uppercase',color:'#A0A3B1',marginBottom:10}}>Upload de dados brutos</div>
-            <div style={{fontSize:12,color:'#6B6E8E',marginBottom:10}}>Suba a planilha gerada pelo Google Forms, Typeform ou outra fonte para gerar o relatório pela IA</div>
-            <label style={{cursor:'pointer',display:'inline-block'}}>
-              <input type="file" style={{display:'none'}} accept=".pdf,.docx,.doc,.xlsx,.xls,.csv,.txt"
-                onChange={async(e)=>{
-                  const file=e.target.files[0];if(!file)return;
-                  try{
-                    const path=await uploadFile(file,`raw360/${eng.id}/${Date.now()}_${file.name}`);
-                    onUpdate({raw360File:path,raw360FileName:file.name});
-                    alert('Arquivo enviado: '+file.name+'. Vá em Relatórios para gerar o relatório.');
-                  }catch(err){alert('Erro ao enviar: '+err.message);}
-                }}/>
-              <span className="btn btn-g btn-sm">↑ Upload dados brutos 360°</span>
-            </label>
-            {eng.raw360FileName&&(
-              <span style={{fontSize:12,color:'#059669',marginLeft:12}}>✓ {eng.raw360FileName}</span>
-            )}
-          </div>
-          {/* Upload dados brutos 360 */}
-          <div style={{marginBottom:10}}>
-            <UploadZone
-              accept=".xlsx,.xls,.csv,.docx,.doc,.pdf"
-              storagePath={`raw360/${eng.id}/dados_360`}
-              onUploaded={(path,name)=>onUpdate({raw360File:path,raw360FileName:name})}
-              currentFile={eng.raw360FileName||null}
-              onRemove={()=>onUpdate({raw360File:'',raw360FileName:''})}
-            />
-            {!eng.raw360FileName&&<div style={{fontSize:11,color:'#A0A3B1',marginTop:4}}>Opcional: suba a planilha bruta do 360° (Google Forms, TypeForm etc.) para uso pela IA</div>}
-          </div>
+
           {done360.length>0&&(
             <div style={{background:'#F9FAFB',border:'1px solid #E4E6EF',borderRadius:9,padding:'14px 16px',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
               <div style={{fontSize:13,color:'#6B6E8E'}}>{done360.length} resposta{done360.length!==1?'s':''} coletada{done360.length!==1?'s':''} — pronto para gerar relatório</div>
@@ -1896,36 +1867,31 @@ ESTRUTURA DO RELATÓRIO (use ## para seções principais):
 
       {/* AI Generation from raw file */}
       {!eng.report?.approved&&(
-        <div style={{background:'#F4F5F7',border:'1px solid #E4E6EF',borderRadius:10,padding:'14px 18px',marginBottom:16}}>
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-            <div>
-              <div style={{fontSize:13,fontWeight:600,color:'#1A1D2E'}}>✦ Gerar relatório com IA</div>
-              <div style={{fontSize:12,color:'#6B6E8E',marginTop:2}}>Suba os dados brutos do 360° (qualquer formato) e a IA gera o relatório</div>
+        <div style={{background:'#EEF1FF',border:'1px solid #D0D8F8',borderRadius:10,padding:'14px 18px',marginBottom:16}}>
+          <div style={{fontSize:13,fontWeight:600,color:'#1A1D2E',marginBottom:4}}>✦ Gerar relatório com IA</div>
+          <div style={{fontSize:12,color:'#6B6E8E',marginBottom:12}}>
+            Suba a planilha ou arquivo de dados brutos do 360° — a IA interpreta qualquer formato e gera o relatório no padrão MGSCC.
+          </div>
+
+          {/* File area — upload or show existing */}
+          {rawFileName?(
+            <div style={{background:'#fff',border:'1px solid #BBF7D0',borderRadius:8,padding:'10px 14px',display:'flex',alignItems:'center',gap:10,marginBottom:10}}>
+              <span style={{fontSize:13,color:'#059669'}}>📎 {rawFileName}</span>
+              <button className="btn btn-g btn-xs" style={{marginLeft:'auto'}} onClick={handleRawFileUpload}>Trocar arquivo</button>
             </div>
-            <button className="btn btn-p btn-sm" onClick={()=>setShowRawUpload(p=>!p)}>
-              {showRawUpload?'Cancelar':'Selecionar arquivo'}
+          ):(
+            <button className="btn btn-g" style={{width:'100%',marginBottom:10}} onClick={handleRawFileUpload}>
+              📎 Selecionar arquivo de dados brutos (.csv · .xlsx · .txt · .tsv)
+            </button>
+          )}
+
+          <div style={{display:'flex',justifyContent:'flex-end'}}>
+            <button className="btn btn-p" onClick={()=>generateFrom360Raw(rawFileContent,rawFileName)}
+              disabled={aiLoading360||!rawFileName}>
+              {aiLoading360?<Dots/>:'✦ Gerar relatório'}
             </button>
           </div>
-          {showRawUpload&&(
-            <div style={{marginTop:14,paddingTop:14,borderTop:'1px solid #E4E6EF'}}>
-              {!rawFileName?(
-                <button className="btn btn-g" style={{width:'100%'}} onClick={handleRawFileUpload}>
-                  📎 Clique para selecionar o arquivo de dados brutos (.csv, .xlsx, .txt)
-                </button>
-              ):(
-                <div style={{display:'flex',alignItems:'center',gap:10,background:'#EEF1FF',borderRadius:8,padding:'10px 14px'}}>
-                  <span style={{fontSize:13,color:'#4169FF'}}>📎 {rawFileName}</span>
-                  <button className="btn btn-g btn-xs" style={{marginLeft:'auto'}} onClick={handleRawFileUpload}>Trocar</button>
-                  <button className="btn btn-p btn-sm" onClick={()=>generateFrom360Raw(rawFileContent,rawFileName)} disabled={aiLoading360}>
-                    {aiLoading360?<Dots/>:'✦ Gerar relatório'}
-                  </button>
-                </div>
-              )}
-              <div style={{fontSize:11,color:'#A0A3B1',marginTop:8}}>
-                A IA interpreta qualquer formato de planilha ou arquivo de texto e gera o relatório no padrão MGSCC.
-              </div>
-            </div>
-          )}
+          {aiLoading360&&<div style={{fontSize:12,color:'#6B6E8E',marginTop:8,textAlign:'center'}}>Analisando dados e gerando relatório — pode levar até 30 segundos...</div>}
         </div>
       )}
 
