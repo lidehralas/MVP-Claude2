@@ -1691,49 +1691,44 @@ function TabRelatorios({eng,onUpdate}){
 
   const generateFrom360Raw=async(fileContent,fileName)=>{
     setAiLoading360(true);
-    const prompt=`Você é um especialista em coaching executivo com metodologia MGSCC (Marshall Goldsmith Stakeholder Centered Coaching).
+    const prompt=`Você é um especialista sênior em coaching executivo com metodologia MGSCC (Marshall Goldsmith Stakeholder Centered Coaching). Sua missão é gerar um relatório de desenvolvimento executivo de alta qualidade em português brasileiro.
 
-Analise os dados brutos de avaliação 360° abaixo e gere um relatório de desenvolvimento executivo completo em português brasileiro.
+CONTEXTO DO PROCESSO:
+- Coachee: ${eng.coachee.name} | ${eng.coachee.role} | ${eng.coachee.company}
+- Objetivo: ${eng.goal||'Desenvolvimento de liderança executiva'}
+- Competências trabalhadas: ${eng.competencias.map(c=>c.nome).join(', ')||'A serem definidas'}
 
-COACHEE: ${eng.coachee.name} | ${eng.coachee.role} | ${eng.coachee.company}
-OBJETIVO DO PROCESSO: ${eng.goal||'Desenvolvimento de liderança'}
-COMPETÊNCIAS TRABALHADAS: ${eng.competencias.map(c=>c.nome).join(', ')||'A definir'}
+DADOS DISPONÍVEIS (arquivo: ${fileName}):
+${fileContent.slice(0,10000)}
 
-DADOS BRUTOS DA AVALIAÇÃO 360° (arquivo: ${fileName}):
-${fileContent.slice(0,8000)}
+REGRAS ABSOLUTAS:
+1. Gere o relatório com as informações disponíveis, independentemente do formato ou qualidade dos dados
+2. Se os dados forem parciais ou incompletos, interprete o que existe e complemente com boas práticas de liderança executiva coerentes com o contexto
+3. NUNCA peça mais dados ou diga que os dados são insuficientes — sempre gere o relatório
+4. Se identificar padrões relevantes, destaque-os; se não houver dados suficientes para uma seção, escreva com base no contexto do coachee e do processo
+5. Mantenha tom profissional, respeitoso, orientado ao desenvolvimento — nunca julgador
 
-INSTRUÇÕES:
-- Interprete os dados independentemente do formato da planilha
-- Identifique padrões de feedback entre os respondentes
-- Se houver divergências significativas ou situações incomuns, destaque em uma seção "Pontos de Atenção"
-- Mantenha tom profissional, respeitoso e orientado ao desenvolvimento
-
-ESTRUTURA DO RELATÓRIO (use ## para seções principais):
+ESTRUTURA OBRIGATÓRIA (use ## para cada seção):
 
 ## Síntese do Perfil de Liderança
-(2-3 parágrafos sobre quem é este líder hoje, com base nos dados)
+(2-3 parágrafos: quem é este líder, seu contexto, desafios centrais)
 
 ## Pontos Fortes Consolidados
-(Top 3-5, numerados, com evidências dos dados)
+(Top 3-5 numerados com evidências ou inferências dos dados)
 
 ## Prioridades de Desenvolvimento
-(Top 3, numeradas, conectadas ao objetivo e competências)
+(Top 3 numeradas, conectadas ao objetivo e competências — estas serão usadas como base do plano de ações)
 
 ## Pontos de Atenção
-(Inclua apenas se houver padrões divergentes, comportamentos críticos ou situações que merecem atenção especial. Omita esta seção se não houver nada relevante.)
+(Inclua apenas se houver padrões críticos ou divergências significativas. Omita se não for relevante.)
 
 ## Plano de Ação
-**Parar de fazer:**
-(comportamentos concretos a eliminar)
-
-**Começar a fazer:**
-(comportamentos concretos a adotar)
-
-**Continuar fazendo:**
-(pontos fortes a preservar e ampliar)
+**Parar de fazer:** (comportamentos a eliminar)
+**Começar a fazer:** (comportamentos a adotar)
+**Continuar fazendo:** (pontos fortes a ampliar)
 
 ## Checklist de Comportamentos
-(5-7 itens com ☐ para acompanhamento diário)`;
+(5-7 itens práticos com ☐)`;
 
     try{
       const res=await fetch('/api/ai',{method:'POST',headers:{'Content-Type':'application/json'},
@@ -1742,12 +1737,19 @@ ESTRUTURA DO RELATÓRIO (use ## para seções principais):
       if(data.error) throw new Error(data.error);
       const text=data.content?.[0]?.text;
       if(!text) throw new Error('Resposta vazia');
-      if(!eng.report) onUpdate({report:{content:text,approved:false,sharedAt:null,reportFile:'',reportFileName:''}});
-      else onUpdate({report:{...eng.report,content:text}});
+      // Auto-extract priorities from report
+      let autoP='';
+      const prioMatch=text.match(/##\s*Prioridades de Desenvolvimento[\s\S]*?(?=##|$)/i);
+      if(prioMatch){
+        const lines=prioMatch[0].split('\n').filter(l=>l.match(/^\d+\.|^-|^•/)).slice(0,3);
+        autoP=lines.map(l=>l.replace(/^\d+\.\s*|^-\s*|^•\s*/,'')).join('\n');
+      }
+      if(!eng.report) onUpdate({report:{content:text,approved:false,sharedAt:null,reportFile:'',reportFileName:''},summary360Priorities:autoP||eng.summary360Priorities||''});
+      else onUpdate({report:{...eng.report,content:text},summary360Priorities:autoP||eng.summary360Priorities||''});
       setDraft360(text);
       setShowRawUpload(false);
       setRawFileContent('');setRawFileName('');
-      alert('Relatório gerado com sucesso! Revise o conteúdo antes de aprovar.');
+      alert('Relatório gerado! As prioridades foram extraídas automaticamente. Revise antes de aprovar.');
     }catch(e){alert('Erro ao gerar: '+e.message);}
     setAiLoading360(false);
   };
