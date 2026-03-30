@@ -1708,10 +1708,93 @@ function TabRelatorios({eng,onUpdate}){
   const [csvHeaders,setCsvHeaders]=useState(null);
   const [csvRows,setCsvRows]=useState([]);
   const [showMapper,setShowMapper]=useState(false);
+  const [aiLoading360,setAiLoading360]=useState(false);
+  const [showRawUpload,setShowRawUpload]=useState(false);
+  const [rawFileContent,setRawFileContent]=useState('');
+  const [rawFileName,setRawFileName]=useState('');
 
   const approve360=()=>{
     if(!safeConfirm('Aprovar e compartilhar o relatório 360° com o coachee?','Após a aprovação, o relatório ficará visível no portal do coachee.')) return;
     onUpdate({report:{...eng.report,approved:true,sharedAt:new Date().toISOString().split('T')[0]}});
+  };
+
+  const generateFrom360Raw=async(fileContent,fileName)=>{
+    setAiLoading360(true);
+    const prompt=`Você é um especialista em coaching executivo com metodologia MGSCC (Marshall Goldsmith Stakeholder Centered Coaching).
+
+Analise os dados brutos de avaliação 360° abaixo e gere um relatório de desenvolvimento executivo completo em português brasileiro.
+
+COACHEE: ${eng.coachee.name} | ${eng.coachee.role} | ${eng.coachee.company}
+OBJETIVO DO PROCESSO: ${eng.goal||'Desenvolvimento de liderança'}
+COMPETÊNCIAS TRABALHADAS: ${eng.competencias.map(c=>c.nome).join(', ')||'A definir'}
+
+DADOS BRUTOS DA AVALIAÇÃO 360° (arquivo: ${fileName}):
+${fileContent.slice(0,8000)}
+
+INSTRUÇÕES:
+- Interprete os dados independentemente do formato da planilha
+- Identifique padrões de feedback entre os respondentes
+- Se houver divergências significativas ou situações incomuns, destaque em uma seção "Pontos de Atenção"
+- Mantenha tom profissional, respeitoso e orientado ao desenvolvimento
+
+ESTRUTURA DO RELATÓRIO (use ## para seções principais):
+
+## Síntese do Perfil de Liderança
+(2-3 parágrafos sobre quem é este líder hoje, com base nos dados)
+
+## Pontos Fortes Consolidados
+(Top 3-5, numerados, com evidências dos dados)
+
+## Prioridades de Desenvolvimento
+(Top 3, numeradas, conectadas ao objetivo e competências)
+
+## Pontos de Atenção
+(Inclua apenas se houver padrões divergentes, comportamentos críticos ou situações que merecem atenção especial. Omita esta seção se não houver nada relevante.)
+
+## Plano de Ação
+**Parar de fazer:**
+(comportamentos concretos a eliminar)
+
+**Começar a fazer:**
+(comportamentos concretos a adotar)
+
+**Continuar fazendo:**
+(pontos fortes a preservar e ampliar)
+
+## Checklist de Comportamentos
+(5-7 itens com ☐ para acompanhamento diário)`;
+
+    try{
+      const res=await fetch('/api/ai',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({prompt,max_tokens:2000})});
+      const data=await res.json();
+      if(data.error) throw new Error(data.error);
+      const text=data.content?.[0]?.text;
+      if(!text) throw new Error('Resposta vazia');
+      if(!eng.report) onUpdate({report:{content:text,approved:false,sharedAt:null,reportFile:'',reportFileName:''}});
+      else onUpdate({report:{...eng.report,content:text}});
+      setDraft360(text);
+      setShowRawUpload(false);
+      setRawFileContent('');setRawFileName('');
+      alert('Relatório gerado com sucesso! Revise o conteúdo antes de aprovar.');
+    }catch(e){alert('Erro ao gerar: '+e.message);}
+    setAiLoading360(false);
+  };
+
+  const handleRawFileUpload=()=>{
+    const input=document.createElement('input');
+    input.type='file';
+    input.accept='.csv,.xlsx,.xls,.txt,.tsv';
+    input.onchange=e=>{
+      const file=e.target.files[0];if(!file)return;
+      const reader=new FileReader();
+      reader.onload=ev=>{
+        setRawFileContent(ev.target.result);
+        setRawFileName(file.name);
+      };
+      reader.readAsText(file,'utf-8');
+    };
+    input.click();
   };
   const save360=()=>{onUpdate({report:{...eng.report,content:draft360}});setEditing360(false);};
   const cancel360=()=>{
@@ -1801,22 +1884,58 @@ function TabRelatorios({eng,onUpdate}){
     alert(`${imported.length} resposta(s) importada(s) com sucesso!`);
   };
 
-  const Report360Section=({eng,onUpdate,editing360,setEditing360,draft360,setDraft360,approve360,save360,cancel360,handleTextUpload})=>(
+  const Report360Section=({eng,onUpdate,editing360,setEditing360,draft360,setDraft360,approve360,save360,cancel360,handleTextUpload,aiLoading360,showRawUpload,setShowRawUpload,rawFileContent,rawFileName,handleRawFileUpload,generateFrom360Raw})=>(
     <>
-      {/* 360 Summary - always show if there are responses */}
-      {eng.stakeholders360.filter(s=>s.status==='done'&&s.feedback).length>0&&(
+      {/* 360 Summary */}
+      {(eng.stakeholders360.filter(s=>s.status==='done'&&s.feedback).length>0||eng.report)&&(
         <div style={{marginBottom:20}}>
           <Tab360Summary eng={eng} onUpdate={onUpdate}/>
           <div className="divider"/>
         </div>
       )}
+
+      {/* AI Generation from raw file */}
+      {!eng.report?.approved&&(
+        <div style={{background:'#F4F5F7',border:'1px solid #E4E6EF',borderRadius:10,padding:'14px 18px',marginBottom:16}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+            <div>
+              <div style={{fontSize:13,fontWeight:600,color:'#1A1D2E'}}>✦ Gerar relatório com IA</div>
+              <div style={{fontSize:12,color:'#6B6E8E',marginTop:2}}>Suba os dados brutos do 360° (qualquer formato) e a IA gera o relatório</div>
+            </div>
+            <button className="btn btn-p btn-sm" onClick={()=>setShowRawUpload(p=>!p)}>
+              {showRawUpload?'Cancelar':'Selecionar arquivo'}
+            </button>
+          </div>
+          {showRawUpload&&(
+            <div style={{marginTop:14,paddingTop:14,borderTop:'1px solid #E4E6EF'}}>
+              {!rawFileName?(
+                <button className="btn btn-g" style={{width:'100%'}} onClick={handleRawFileUpload}>
+                  📎 Clique para selecionar o arquivo de dados brutos (.csv, .xlsx, .txt)
+                </button>
+              ):(
+                <div style={{display:'flex',alignItems:'center',gap:10,background:'#EEF1FF',borderRadius:8,padding:'10px 14px'}}>
+                  <span style={{fontSize:13,color:'#4169FF'}}>📎 {rawFileName}</span>
+                  <button className="btn btn-g btn-xs" style={{marginLeft:'auto'}} onClick={handleRawFileUpload}>Trocar</button>
+                  <button className="btn btn-p btn-sm" onClick={()=>generateFrom360Raw(rawFileContent,rawFileName)} disabled={aiLoading360}>
+                    {aiLoading360?<Dots/>:'✦ Gerar relatório'}
+                  </button>
+                </div>
+              )}
+              <div style={{fontSize:11,color:'#A0A3B1',marginTop:8}}>
+                A IA interpreta qualquer formato de planilha ou arquivo de texto e gera o relatório no padrão MGSCC.
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {!eng.report?(
         <div className="empty">
           <div className="ei">◌</div>
           Nenhum relatório 360° ainda.<br/>
-          <button className="btn btn-p btn-sm" style={{marginTop:12}}
+          <button className="btn btn-g btn-sm" style={{marginTop:12}}
             onClick={()=>{onUpdate({report:{content:'',approved:false,sharedAt:null,reportFile:'',reportFileName:''}});setEditing360(true);}}>
-            + Criar relatório
+            + Criar manualmente
           </button>
         </div>
       ):(
@@ -1993,7 +2112,7 @@ function TabRelatorios({eng,onUpdate}){
           <button key={s.id} className={`btn btn-sm ${section===s.id?'btn-p':'btn-g'}`} style={{border:'none'}} onClick={()=>setSection(s.id)}>{s.l}</button>
         ))}
       </div>
-      {section==='360'&&<Report360Section eng={eng} onUpdate={onUpdate} editing360={editing360} setEditing360={setEditing360} draft360={draft360} setDraft360={setDraft360} approve360={approve360} save360={save360} cancel360={cancel360} handleTextUpload={handleTextUpload}/>}
+      {section==='360'&&<Report360Section eng={eng} onUpdate={onUpdate} editing360={editing360} setEditing360={setEditing360} draft360={draft360} setDraft360={setDraft360} approve360={approve360} save360={save360} cancel360={cancel360} handleTextUpload={handleTextUpload} aiLoading360={aiLoading360} showRawUpload={showRawUpload} setShowRawUpload={setShowRawUpload} rawFileContent={rawFileContent} rawFileName={rawFileName} handleRawFileUpload={handleRawFileUpload} generateFrom360Raw={generateFrom360Raw}/>}
       {section==='ms'&&<MSSection eng={eng} selMS={selMS} setSelMS={setSelMS} editingMS={editingMS} setEditingMS={setEditingMS} draftMS={draftMS} setDraftMS={setDraftMS} updateMS={updateMS} approveMS={approveMS} saveMS={saveMS} cancelMS={cancelMS} handleTextUpload={handleTextUpload} handleCSVUpload={handleCSVUpload}/>}
     </div>
   );
