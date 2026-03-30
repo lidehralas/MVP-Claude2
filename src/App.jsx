@@ -1089,10 +1089,22 @@ function RoadmapTab({eng,onUpdate}){
                 <option value="semanal">Semanal</option><option value="quinzenal">Quinzenal</option><option value="mensal">Mensal</option><option value="outro">Outro (especificar)</option>
               </select>
             </div>
+            <div className="field">
+              <div className="flbl">Líder(es) do coachee</div>
+              {(profileDraft.leaders||[]).map((l,i)=>(
+                <div key={i} style={{display:'flex',gap:6,marginBottom:6,alignItems:'center'}}>
+                  <input className="finp" style={{flex:1}} placeholder="Nome" value={l.name} onChange={e=>{const ls=[...(profileDraft.leaders||[])];ls[i]={...ls[i],name:e.target.value,initials:ini(e.target.value)};setProfileDraft(p=>({...p,leaders:ls}));}}/>
+                  <input className="finp" style={{flex:1}} placeholder="E-mail" value={l.email||''} onChange={e=>{const ls=[...(profileDraft.leaders||[])];ls[i]={...ls[i],email:e.target.value};setProfileDraft(p=>({...p,leaders:ls}));}}/>
+                  <button className="btn btn-d btn-xs" onClick={()=>{const ls=(profileDraft.leaders||[]).filter((_,j)=>j!==i);setProfileDraft(p=>({...p,leaders:ls}));}}>×</button>
+                </div>
+              ))}
+              <button className="btn btn-g btn-sm" onClick={()=>setProfileDraft(p=>({...p,leaders:[...(p.leaders||[]),{id:Date.now(),name:'',email:'',initials:''}]}))}>+ Adicionar líder</button>
+            </div>
             <div className="modal-foot">
               <button className="btn btn-g" onClick={()=>setShowEditProfile(false)}>Cancelar</button>
               <button className="btn btn-p" onClick={()=>{
-                onUpdate({coachee:{...eng.coachee,name:profileDraft.name,email:profileDraft.email,role:profileDraft.role,company:profileDraft.company,initials:ini(profileDraft.name)},goal:profileDraft.goal,startDate:profileDraft.startDate,endDate:profileDraft.endDate,cadence:profileDraft.cadence});
+                const leaders=(profileDraft.leaders||[]).filter(l=>l.name.trim());
+                onUpdate({coachee:{...eng.coachee,name:profileDraft.name,email:profileDraft.email,role:profileDraft.role,company:profileDraft.company,initials:ini(profileDraft.name)},goal:profileDraft.goal,startDate:profileDraft.startDate,endDate:profileDraft.endDate,cadence:profileDraft.cadence,leaders});
                 setShowEditProfile(false);
               }}>Salvar</button>
             </div>
@@ -1100,7 +1112,7 @@ function RoadmapTab({eng,onUpdate}){
         </Overlay>
       )}
       <div style={{display:'flex',justifyContent:'flex-end',marginBottom:10}}>
-        <button className="btn btn-g btn-sm" onClick={()=>{setProfileDraft({name:eng.coachee.name,email:eng.coachee.email||'',role:eng.coachee.role,company:eng.coachee.company,goal:eng.goal,startDate:eng.startDate,endDate:eng.endDate,cadence:eng.cadence});setShowEditProfile(true);}}>Editar perfil do cliente</button>
+        <button className="btn btn-g btn-sm" onClick={()=>{setProfileDraft({name:eng.coachee.name,email:eng.coachee.email||'',role:eng.coachee.role,company:eng.coachee.company,goal:eng.goal,startDate:eng.startDate,endDate:eng.endDate,cadence:eng.cadence,leaders:[...(eng.leaders||[])]});setShowEditProfile(true);}}>Editar perfil do cliente</button>
       </div>
       <div className="igrid">
         {[{l:'Início',v:eng.startDate},{l:'Encerramento (previsto)',v:eng.endDate},{l:'Cadência',v:eng.cadence},
@@ -2556,7 +2568,10 @@ function EngDetail({id,engs,onBack,onUpdate,onDelete,onOpenPortal}){
 
   const portals=[
     {label:'Portal do Coachee',role:'coachee'},
-    ...(eng.leaders||[]).map(l=>({label:`Portal: ${l.name} (Líder)`,role:'lider',liderId:l.id})),
+    ...(eng.leaders&&eng.leaders.length>0
+      ? eng.leaders.map(l=>({label:`Portal: ${l.name} (Líder)`,role:'lider',liderId:l.id}))
+      : [{label:'Portal do Líder (sem líder cadastrado)',role:'lider',liderId:null,disabled:true}]
+    ),
     {label:'Portal do RH',role:'rh'},
   ];
 
@@ -2589,10 +2604,13 @@ function EngDetail({id,engs,onBack,onUpdate,onDelete,onOpenPortal}){
                   <div style={{position:'fixed',inset:0,zIndex:99}} onClick={()=>setShowPortalMenu(false)}/>
                   <div className="portal-menu">
                     {portals.map((p,i)=>(
-                      <button key={i} className="portal-menu-item" onClick={()=>{
-                        setShowPortalMenu(false);
-                        onOpenPortal(eng.id,p);
-                      }}>{p.label}</button>
+                      <button key={i} className="portal-menu-item"
+                        style={{opacity:p.disabled?0.4:1,cursor:p.disabled?'default':'pointer'}}
+                        onClick={()=>{
+                          if(p.disabled){alert('Cadastre um líder em Editar perfil do cliente para acessar o portal do líder.');return;}
+                          setShowPortalMenu(false);
+                          onOpenPortal(eng.id,p);
+                        }}>{p.label}</button>
                     ))}
                   </div>
                 </>
