@@ -1608,7 +1608,7 @@ function ReportFileBar({storagePath,fileName,filePath,onFileUploaded,onFileDelet
         </div>
       ):(
         <label style={{cursor:'pointer',display:'block'}}>
-          <input type="file" style={{display:'none'}} accept=".pdf,.docx,.doc,.pptx,.xlsx,.xls"
+          <input type="file" style={{display:'none'}} accept="*"
             onChange={async(e)=>{
               const file=e.target.files[0];if(!file)return;
               setUploading(true);
@@ -1621,7 +1621,7 @@ function ReportFileBar({storagePath,fileName,filePath,onFileUploaded,onFileDelet
           <div style={{background:'#fff',border:'1px dashed #D8DAE8',borderRadius:7,padding:'10px 14px',display:'flex',alignItems:'center',gap:10}}>
             {uploading?<><Dots/><span style={{fontSize:13,color:'#A0A3B1'}}>Enviando...</span></>
             :<><span style={{fontSize:13,color:'#A0A3B1'}}>📎 Clique para enviar o arquivo final</span>
-              <span style={{fontSize:11,color:'#C8CAD6',marginLeft:'auto'}}>.pdf · .docx · .pptx · .xlsx</span></>}
+              <span style={{fontSize:11,color:'#C8CAD6',marginLeft:'auto'}}>qualquer formato</span></>}
           </div>
         </label>
       )}
@@ -1929,6 +1929,15 @@ ESTRUTURA DO RELATÓRIO (use ## para seções principais):
                   })}>↑ Importar .txt/.md</button>
                 )}
                 {!editing360&&(
+                  <button className="btn btn-d btn-sm" onClick={()=>{
+                    const msg = eng.report.approved
+                      ? 'Apagar este relatório aprovado?\n\n⚠ Ele já foi compartilhado com o coachee e deixará de ser visível no portal dele.'
+                      : 'Apagar este relatório?';
+                    if(!window.confirm(msg)) return;
+                    onUpdate({report:null});
+                  }}>Apagar relatório</button>
+                )}
+                {!editing360&&(
                   <button className="btn btn-g btn-sm" onClick={()=>{setDraft360(eng.report.content);setEditing360(true);}}>
                     {eng.report.approved?'Ver texto':'Editar'}
                   </button>
@@ -2163,7 +2172,7 @@ function TabSessions({eng,onUpdate}){
             <div className="flbl">Upload de arquivo</div>
             <div style={{fontSize:11,color:'#A0A3B1',marginBottom:6}}>Anotações externas (.txt, .docx) ou transcrições (.pdf, .txt)</div>
             <UploadZone
-              accept=".txt,.md,.docx,.pdf"
+              accept="*"
               storagePath={`sessions/${eng.id}/${Date.now()}`}
               onUploaded={(path,name)=>setNewSession(p=>({...p,filePath:path,fileName:name}))}
               currentFile={newSession.fileName}
