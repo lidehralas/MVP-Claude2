@@ -1543,10 +1543,8 @@ Tom: profissional, orientado ao desenvolvimento.`;
                     <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:6}}>
                       <div style={{fontSize:13,fontWeight:600,color:'#1A1D2E'}}>{ms.label}</div>
                       <button className="btn btn-d btn-xs" style={{flexShrink:0}} onClick={()=>{
-                        if(!safeConfirm('Apagar "'+ms.label+'"?','O mini-survey e todas as respostas serão excluídos.')) return;
-                        const updated=eng.miniSurveys.filter(m=>m.id!==ms.id);
-                        onUpdate({miniSurveys:updated});
-                        if(updated.length>0) setSel(updated[updated.length-1]);
+                        if(!safeConfirm('Apagar "'+ms.label+'"?','O mini-survey e todas as respostas serão permanentemente excluídos.')) return;
+                        onUpdate({miniSurveys:eng.miniSurveys.filter(m=>m.id!==ms.id)});
                       }}>×</button>
                     </div>
                     <div style={{fontSize:11,color:'#A0A3B1',marginTop:2}}>{ms.sentAt} · {ms.responses.length} resposta{ms.responses.length!==1?'s':''}</div>
@@ -2189,7 +2187,12 @@ ESTRUTURA OBRIGATÓRIA (use ## para cada seção):
                 </div>
                 {selMS.responses.length>0
                   ?<ProgressChart miniSurveys={[selMS]}/>
-                  :<div style={{fontSize:13,color:'#A0A3B1',textAlign:'center',padding:'16px 0'}}>Sem respostas. Importe dados ou aguarde os stakeholders.</div>
+                  :<div style={{fontSize:13,color:'#A0A3B1',textAlign:'center',padding:'20px 0'}}>
+                    <div style={{fontSize:22,marginBottom:8}}>◌</div>
+                    <div>Nenhum dado estruturado disponível.</div>
+                    <div style={{fontSize:12,marginTop:4}}>Para ver os gráficos, cadastre stakeholders e aguarde as respostas,<br/>ou importe uma planilha com dados no formato do app.</div>
+                    {selMS.reportContent&&<div style={{fontSize:12,color:'#4169FF',marginTop:8}}>✓ Relatório narrativo gerado via IA — disponível na seção abaixo.</div>}
+                  </div>
                 }
               </div>
 
@@ -2779,6 +2782,10 @@ Responda APENAS com o JSON array, sem texto adicional.`;
             }}>{aiLoading?<Dots/>:'✦ Gerar com IA'}</button>
           )}
           {!readOnly&&<button className="btn btn-p btn-sm" onClick={()=>setShowAdd(p=>!p)}>+ Adicionar ação</button>}
+          {!readOnly&&acoes.length>0&&<button className="btn btn-d btn-xs" onClick={()=>{
+            if(!safeConfirm('Apagar todo o plano de ações?','Todas as ações e resultados serão excluídos. Use esta opção se quiser reconstruir o plano com competências atualizadas.')) return;
+            onUpdate({planoAcoes:[]});
+          }}>Apagar plano</button>}
         </div>
       </div>
 
