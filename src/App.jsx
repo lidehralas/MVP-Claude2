@@ -435,6 +435,51 @@ const INIT_ENGS = [
   },
 ];
 
+// ─── COACHABILITY ASSESSMENT ─────────────────────────────────────────────────
+const ASSESSMENT_QUESTIONS = [
+  {id:'c1',pillar:'coragem',pillar_label:'Coragem',text:'Comunicar aos stakeholders quais pontos você está trabalhando para melhorar como líder?',minimum_score:4,coach_action:'Explorar medos, trabalhar autoconfiança, iniciar com stakeholders de confiança.'},
+  {id:'c2',pillar:'coragem',pillar_label:'Coragem',text:'Pedir feedbacks e sugestões pessoais sobre seu próprio comportamento?',minimum_score:4,coach_action:'Abordar importância do feedback, praticar recepção em ambiente seguro, focar nos benefícios.'},
+  {id:'c3',pillar:'coragem',pillar_label:'Coragem',text:'Evitar procrastinar ou esperar um momento ideal para testar novos comportamentos?',minimum_score:3,coach_action:'Explorar causas da procrastinação, quebrar ações em passos menores, celebrar pequenas vitórias.'},
+  {id:'c4',pillar:'coragem',pillar_label:'Coragem',text:'Fazer uma análise honesta dos comportamentos que, se mudados, trariam benefícios para você?',minimum_score:4,coach_action:'Criar ambiente de confiança, usar ferramentas de autoavaliação, focar nos benefícios da mudança.'},
+  {id:'h1',pillar:'humildade',pillar_label:'Humildade',text:'Pedir ajuda a outras pessoas para que colaborem com seu desenvolvimento como líder?',minimum_score:3,coach_action:'Explorar crenças limitantes, reenquadrar pedir ajuda como força, identificar rede de apoio.'},
+  {id:'h2',pillar:'humildade',pillar_label:'Humildade',text:'Ouvir genuinamente feedbacks e sugestões sobre seus comportamentos de liderança?',minimum_score:4,coach_action:'Trabalhar inteligência emocional, ensinar escuta ativa, focar na intenção positiva do feedback.'},
+  {id:'h3',pillar:'humildade',pillar_label:'Humildade',text:'Demonstrar gratidão genuína por feedbacks e sugestões sobre sua liderança dizendo "Obrigado"?',minimum_score:3,coach_action:'Ajudar a entender impacto do "Obrigado", praticar expressão autêntica de gratidão.'},
+  {id:'h4',pillar:'humildade',pillar_label:'Humildade',text:'Manter o ego fora do caminho enquanto trabalha para melhorar suas habilidades de liderança?',minimum_score:4,coach_action:'Ajudar a reconhecer como o ego pode atrasar o crescimento, trabalhar autoconsciência.'},
+  {id:'d1',pillar:'disciplina',pillar_label:'Disciplina',text:'Manter uma rotina mensal de acompanhamento com as pessoas para quem você pediu apoio no seu desenvolvimento?',minimum_score:4,coach_action:'Criar sistema de lembretes, explorar barreiras para consistência, desenvolver estratégias.'},
+  {id:'d2',pillar:'disciplina',pillar_label:'Disciplina',text:'Evitar reações defensivas quando os outros apontarem algo que você não fez bem ou poderia melhorar?',minimum_score:4,coach_action:'Trabalhar autoconsciência sobre reações, ensinar técnicas de pausa e reflexão.'},
+  {id:'d3',pillar:'disciplina',pillar_label:'Disciplina',text:'Dedicar o tempo necessário para mudar um comportamento, mesmo que isso não seja confortável?',minimum_score:4,coach_action:'Ajudar a entender que desconforto é parte do crescimento, quebrar em etapas menores.'},
+  {id:'d4',pillar:'disciplina',pillar_label:'Disciplina',text:'Investir alguns minutos todos os dias para revisar o checklist do seu plano de ação em implementação?',minimum_score:3,coach_action:'Integrar revisão na rotina diária, explorar barreiras, desenvolver lembretes eficazes.'},
+];
+
+const PILLAR_DESCRIPTIONS = {
+  coragem:'Disposição para enfrentar desafios, sair da zona de conforto e buscar feedback construtivo.',
+  humildade:'Reconhecimento das próprias limitações, abertura para ouvir feedbacks e demonstrar gratidão.',
+  disciplina:'Comprometimento com o processo, consistência nas ações e persistência.',
+};
+
+function getClassification(avg){
+  if(avg<=2.0) return {key:'muito_baixa',label:'Muito Baixa',color:'#DC2626',bg:'#FEF2F2',rec:'Reconsidere iniciar o processo ou invista em sessões preliminares para fortalecer os pilares mais fracos.'};
+  if(avg<=3.0) return {key:'fragil',label:'Frágil',color:'#D97706',bg:'#FFFBEB',rec:'Priorize o fortalecimento dos pilares mais fracos. Esteja preparado para abordar resistências.'};
+  if(avg<=4.0) return {key:'solida',label:'Sólida',color:'#059669',bg:'#F0FDF4',rec:'O processo pode avançar. Continue atenção aos pilares com notas abaixo de 4.'};
+  return {key:'extraordinaria',label:'Extraordinária',color:'#4169FF',bg:'#EEF1FF',rec:'Avance com confiança. Foque em maximizar o potencial e impacto do coachee.'};
+}
+
+function calculateAssessmentResult(responses){
+  const pillars=['coragem','humildade','disciplina'];
+  const pillar_scores={};
+  pillars.forEach(pillar=>{
+    const pqs=ASSESSMENT_QUESTIONS.filter(q=>q.pillar===pillar);
+    const prs=responses.filter(r=>r.pillar===pillar);
+    const scores=prs.map(r=>r.score);
+    const avg=scores.reduce((a,b)=>a+b,0)/scores.length;
+    const below=prs.filter(r=>{const q=pqs.find(x=>x.id===r.question_id);return r.score<q.minimum_score;}).map(r=>r.question_id);
+    pillar_scores[pillar]={average:parseFloat(avg.toFixed(2)),scores,minimum_met:below.length===0,questions_below_minimum:below};
+  });
+  const all=responses.map(r=>r.score);
+  const overall_average=parseFloat((all.reduce((a,b)=>a+b,0)/all.length).toFixed(2));
+  return{pillar_scores,overall_average,classification:getClassification(overall_average)};
+}
+
 // ─── QUESTIONÁRIOS INICIAIS ───────────────────────────────────────────────────
 const Q_ALTA = [
   {section:'1 — Realidade Atual',questions:[
@@ -1268,6 +1313,9 @@ function RoadmapTab({eng,onUpdate}){
           {l:'Mini-surveys',v:eng.miniSurveys.length+' aplicado(s)'},
           {l:'Nível',v:eng.questionarioTipo==='media'?'Média liderança':'Alta liderança'}
         ].map(it=><div key={it.l} className="icard"><div className="ilbl">{it.l}</div><div className="ival">{it.v}</div></div>)}
+      {/* Assessment de Prontidão */}
+      <AssessmentCard eng={eng} onUpdate={onUpdate}/>
+
       {/* Impacto na entrega */}
       {(eng.impactoEntrega||eng.questionarioSubmitted)&&(
         <div style={{background:'#fff',border:'1px solid #E4E6EF',borderRadius:9,padding:'14px 16px',marginBottom:12}}>
@@ -3464,6 +3512,310 @@ function CoacheeRelatorios({eng}){
   );
 }
 
+// ─── ASSESSMENT FORM (candidate-facing public) ───────────────────────────────
+function AssessmentForm({assessmentData,coachName,onSubmit}){
+  const [step,setStep]=useState(0); // 0=welcome, 1=coragem, 2=humildade, 3=disciplina, 4=done
+  const [responses,setResponses]=useState({});
+  const [submitting,setSubmitting]=useState(false);
+  const pillars=['coragem','humildade','disciplina'];
+  const currentPillar=pillars[step-1];
+  const currentQs=step>=1&&step<=3?ASSESSMENT_QUESTIONS.filter(q=>q.pillar===currentPillar):[];
+  const allAnswered=currentQs.every(q=>responses[q.id]!==undefined);
+  const totalAnswered=ASSESSMENT_QUESTIONS.filter(q=>responses[q.id]!==undefined).length;
+
+  const handleSubmit=async()=>{
+    setSubmitting(true);
+    const respArray=ASSESSMENT_QUESTIONS.map(q=>({question_id:q.id,pillar:q.pillar,score:responses[q.id]}));
+    const result=calculateAssessmentResult(respArray);
+    await onSubmit(respArray,result);
+    setStep(4);
+    setSubmitting(false);
+  };
+
+  if(step===0) return (
+    <div style={{maxWidth:600,margin:'0 auto',padding:'32px 24px'}}>
+      <style>{CSS}</style>
+      <div style={{textAlign:'center',marginBottom:32}}>
+        <div style={{fontSize:28,fontWeight:700,color:'#1A1D2E',marginBottom:8}}>Avaliação de Prontidão</div>
+        <div style={{fontSize:15,color:'#6B6E8E'}}>Enviada por <strong>{coachName}</strong></div>
+      </div>
+      <div style={{background:'#F4F5F7',borderRadius:12,padding:'20px 24px',marginBottom:24,fontSize:14,color:'#3A3D58',lineHeight:1.7}}>
+        <p style={{margin:'0 0 12px'}}>Esta avaliação tem como objetivo entender sua disposição para um processo de coaching executivo. Não há respostas certas ou erradas — o que importa é sua honestidade.</p>
+        <p style={{margin:0}}>Para cada situação, indique seu grau de disposição usando a escala de <strong>1 a 5</strong>:</p>
+      </div>
+      <div style={{display:'flex',gap:8,marginBottom:28,justifyContent:'center',flexWrap:'wrap'}}>
+        {[1,2,3,4,5].map(n=>(
+          <div key={n} style={{textAlign:'center',padding:'10px 14px',background:'#fff',border:'1px solid #E4E6EF',borderRadius:8,minWidth:80}}>
+            <div style={{fontSize:20,fontWeight:700,color:'#4169FF'}}>{n}</div>
+            <div style={{fontSize:11,color:'#6B6E8E',marginTop:2}}>{n===1?'Nenhuma disposição':n===5?'Disposição total':''}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:28}}>
+        {['Coragem','Humildade','Disciplina'].map((p,i)=>(
+          <div key={p} style={{background:'#EEF1FF',borderRadius:9,padding:'14px 16px',textAlign:'center'}}>
+            <div style={{fontSize:13,fontWeight:600,color:'#4169FF'}}>{p}</div>
+            <div style={{fontSize:11,color:'#6B6E8E',marginTop:4}}>4 perguntas</div>
+          </div>
+        ))}
+      </div>
+      <button className="btn btn-p" style={{width:'100%',padding:'14px',fontSize:15}} onClick={()=>setStep(1)}>
+        Iniciar Avaliação →
+      </button>
+    </div>
+  );
+
+  if(step>=1&&step<=3) return (
+    <div style={{maxWidth:600,margin:'0 auto',padding:'32px 24px'}}>
+      <style>{CSS}</style>
+      {/* Progress */}
+      <div style={{marginBottom:24}}>
+        <div style={{display:'flex',justifyContent:'space-between',marginBottom:6}}>
+          <div style={{fontSize:12,color:'#A0A3B1'}}>Etapa {step} de 3</div>
+          <div style={{fontSize:12,color:'#A0A3B1'}}>{totalAnswered}/12 respondidas</div>
+        </div>
+        <div style={{background:'#E4E6EF',borderRadius:4,height:6}}>
+          <div style={{background:'#4169FF',borderRadius:4,height:6,width:`${(step-1)/3*100}%`,transition:'width .3s'}}/>
+        </div>
+      </div>
+      {/* Pillar header */}
+      <div style={{marginBottom:24}}>
+        <div style={{fontSize:20,fontWeight:700,color:'#1A1D2E',marginBottom:4}}>{currentPillar.charAt(0).toUpperCase()+currentPillar.slice(1)}</div>
+        <div style={{fontSize:13,color:'#6B6E8E',lineHeight:1.5}}>{PILLAR_DESCRIPTIONS[currentPillar]}</div>
+      </div>
+      {/* Questions */}
+      {currentQs.map((q,qi)=>(
+        <div key={q.id} style={{background:'#fff',border:'1px solid #E4E6EF',borderRadius:10,padding:'16px 18px',marginBottom:12}}>
+          <div style={{fontSize:13,color:'#1A1D2E',lineHeight:1.6,marginBottom:14,fontWeight:500}}>
+            {qi+1}. Qual é sua disposição para...{' '}<span style={{fontStyle:'italic'}}>{q.text}</span>
+          </div>
+          <div style={{display:'flex',gap:8,justifyContent:'center'}}>
+            {[1,2,3,4,5].map(n=>(
+              <button key={n} onClick={()=>setResponses(p=>({...p,[q.id]:n}))}
+                style={{width:48,height:48,borderRadius:8,border:`2px solid ${responses[q.id]===n?'#4169FF':'#E4E6EF'}`,
+                  background:responses[q.id]===n?'#4169FF':'#fff',
+                  color:responses[q.id]===n?'#fff':'#1A1D2E',
+                  fontSize:16,fontWeight:700,cursor:'pointer',transition:'all .1s'}}>
+                {n}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+      {/* Navigation */}
+      <div style={{display:'flex',gap:10,marginTop:20,justifyContent:'space-between'}}>
+        <button className="btn btn-g" onClick={()=>setStep(s=>s-1)} disabled={step===1}>← Anterior</button>
+        {step<3
+          ?<button className="btn btn-p" onClick={()=>setStep(s=>s+1)} disabled={!allAnswered}>Próximo →</button>
+          :<button className="btn btn-p" onClick={handleSubmit} disabled={!allAnswered||submitting}>
+            {submitting?<Dots/>:'Enviar Avaliação ✓'}
+          </button>
+        }
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{maxWidth:600,margin:'0 auto',padding:'48px 24px',textAlign:'center'}}>
+      <style>{CSS}</style>
+      <div style={{fontSize:40,marginBottom:16}}>✓</div>
+      <div style={{fontSize:20,fontWeight:700,color:'#059669',marginBottom:8}}>Avaliação enviada com sucesso!</div>
+      <div style={{fontSize:14,color:'#6B6E8E',lineHeight:1.7}}>Seu coach receberá os resultados e entrará em contato em breve.<br/>Obrigado pela sua participação.</div>
+    </div>
+  );
+}
+
+// ─── ASSESSMENT RESULT (coach-facing) ────────────────────────────────────────
+function AssessmentResult({assessment,onDecision,onUpdate}){
+  const [notes,setNotes]=useState(assessment.coach_notes||'');
+  const [saving,setSaving]=useState(false);
+  const result=assessment.pillar_scores;
+  const cls=getClassification(assessment.overall_average);
+  const pillarColors={coragem:'#4169FF',humildade:'#8B5CF6',disciplina:'#10B981'};
+
+  const saveDecision=async(decision)=>{
+    setSaving(true);
+    onUpdate({coach_decision:decision,coach_notes:notes});
+    setSaving(false);
+  };
+
+  return (
+    <div style={{marginTop:8}}>
+      {/* Block 1: Classification */}
+      <div style={{background:cls.bg,border:`1px solid ${cls.color}30`,borderRadius:10,padding:'16px 20px',marginBottom:16,display:'flex',alignItems:'center',gap:16}}>
+        <div>
+          <div style={{fontSize:11,fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',color:cls.color,marginBottom:4}}>Prontidão para Coaching</div>
+          <div style={{fontSize:24,fontWeight:700,color:cls.color}}>{cls.label}</div>
+          <div style={{fontSize:13,color:'#6B6E8E',marginTop:2}}>{assessment.overall_average.toFixed(2)} / 5,00</div>
+        </div>
+        <div style={{flex:1}}/>
+        <div style={{fontSize:11,color:'#A0A3B1',textAlign:'right'}}>
+          Preenchido em<br/><strong>{assessment.completed_at?new Date(assessment.completed_at).toLocaleDateString('pt-BR'):'-'}</strong>
+        </div>
+      </div>
+
+      {/* Block 2: Pillars */}
+      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:16}}>
+        {['coragem','humildade','disciplina'].map(p=>{
+          const ps=result?.[p];
+          if(!ps) return null;
+          const color=pillarColors[p];
+          return (
+            <div key={p} style={{background:'#fff',border:'1px solid #E4E6EF',borderRadius:10,padding:'14px'}}>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
+                <div style={{fontSize:12,fontWeight:700,color,textTransform:'capitalize'}}>{p}</div>
+                <div style={{fontSize:11,fontWeight:700,color:ps.minimum_met?'#059669':'#D97706'}}>{ps.minimum_met?'✓ OK':'⚠ Atenção'}</div>
+              </div>
+              <div style={{fontSize:22,fontWeight:700,color:'#1A1D2E',marginBottom:10}}>{ps.average.toFixed(2)}</div>
+              {/* Mini bar */}
+              <div style={{background:'#F4F5F7',borderRadius:4,height:4,marginBottom:8}}>
+                <div style={{background:color,borderRadius:4,height:4,width:`${(ps.average/5)*100}%`}}/>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Block 3: Detail per pillar */}
+      {['coragem','humildade','disciplina'].map(p=>{
+        const ps=result?.[p];
+        if(!ps) return null;
+        const pqs=ASSESSMENT_QUESTIONS.filter(q=>q.pillar===p);
+        return (
+          <div key={p} style={{background:'#fff',border:'1px solid #E4E6EF',borderRadius:10,padding:'16px',marginBottom:12}}>
+            <div style={{fontSize:12,fontWeight:700,color:pillarColors[p],letterSpacing:'1px',textTransform:'uppercase',marginBottom:12}}>{p.charAt(0).toUpperCase()+p.slice(1)}</div>
+            {pqs.map((q,qi)=>{
+              const score=ps.scores[qi];
+              const met=score>=q.minimum_score;
+              return (
+                <div key={q.id} style={{borderBottom:qi<pqs.length-1?'1px solid #F4F5F7':'none',paddingBottom:10,marginBottom:10}}>
+                  <div style={{display:'flex',alignItems:'flex-start',gap:10}}>
+                    <span style={{fontSize:14,flexShrink:0,marginTop:1}}>{met?'✅':'⚠️'}</span>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:12,color:'#3A3D58',lineHeight:1.5}}>{q.text}</div>
+                      <div style={{display:'flex',gap:8,marginTop:6,alignItems:'center'}}>
+                        <div style={{display:'flex',gap:4}}>
+                          {[1,2,3,4,5].map(n=>(
+                            <div key={n} style={{width:24,height:24,borderRadius:4,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:700,
+                              background:n===score?pillarColors[p]:'#F4F5F7',color:n===score?'#fff':'#A0A3B1'}}>
+                              {n}
+                            </div>
+                          ))}
+                        </div>
+                        <span style={{fontSize:11,color:met?'#059669':'#D97706',fontWeight:600}}>
+                          {met?`mín. ${q.minimum_score} ✓`:`mín. ${q.minimum_score} ⚠`}
+                        </span>
+                      </div>
+                      {!met&&<div style={{fontSize:11,color:'#6B6E8E',marginTop:6,background:'#FFFBEB',padding:'6px 8px',borderRadius:6,lineHeight:1.5}}>
+                        <strong>Dica:</strong> {q.coach_action}
+                      </div>}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
+
+      {/* Block 4: Decision */}
+      <div style={{background:'#F9FAFB',border:'1px solid #E4E6EF',borderRadius:10,padding:'16px',marginBottom:12}}>
+        <div style={{fontSize:12,fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',color:'#A0A3B1',marginBottom:8}}>Recomendação</div>
+        <div style={{fontSize:13,color:'#3A3D58',lineHeight:1.6,marginBottom:12}}>{cls.rec}</div>
+        <div className="field">
+          <div className="flbl">Observações do coach (opcional)</div>
+          <textarea className="finp" rows={2} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Registre suas observações sobre este candidato..."/>
+        </div>
+        {assessment.coach_decision&&assessment.coach_decision!=='pending_review'?(
+          <div style={{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',background:assessment.coach_decision==='accepted'?'#F0FDF4':'#FEF2F2',borderRadius:8}}>
+            <span style={{fontSize:13,fontWeight:600,color:assessment.coach_decision==='accepted'?'#059669':'#DC2626'}}>
+              {assessment.coach_decision==='accepted'?'✓ Cliente aceito':'✗ Não prosseguiu'}
+            </span>
+            <button className="btn btn-g btn-xs" style={{marginLeft:'auto'}} onClick={()=>onUpdate({coach_decision:'pending_review',coach_notes:notes})}>Alterar</button>
+          </div>
+        ):(
+          <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+            <button className="btn btn-p btn-sm" onClick={()=>saveDecision('accepted')} disabled={saving}>✓ Aceitar cliente</button>
+            <button className="btn btn-d btn-sm" onClick={()=>saveDecision('rejected')} disabled={saving}>✗ Não prosseguir</button>
+            <button className="btn btn-g btn-sm" onClick={()=>saveDecision('pending_review')} disabled={saving}>⏳ Aguardar / Revisar</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── ASSESSMENT CARD (coach view in RoadmapTab) ──────────────────────────────
+function AssessmentCard({eng,onUpdate}){
+  const [showResult,setShowResult]=useState(false);
+  const assessment=eng.assessment;
+
+  const genToken=()=>{
+    const token=Math.random().toString(36).slice(2)+Date.now().toString(36);
+    const newA={token,status:'pending',responses:null,pillar_scores:null,overall_average:null,classification:null,coach_decision:'pending_review',coach_notes:'',sent_at:new Date().toISOString(),completed_at:null};
+    onUpdate({assessment:newA});
+    return token;
+  };
+  const getLink=(token)=>`${window.location.origin}${window.location.pathname}?assess=${token}`;
+  const copyLink=()=>{
+    if(!assessment?.token){const t=genToken();setTimeout(()=>navigator.clipboard.writeText(getLink(t)),100);}
+    else{navigator.clipboard.writeText(getLink(assessment.token));}
+    alert('Link copiado! Envie ao candidato.');
+  };
+  const regenLink=()=>{
+    if(!safeConfirm('Gerar novo link?','O link anterior será invalidado.')) return;
+    genToken();
+    alert('Novo link gerado. Copie e envie ao candidato.');
+  };
+
+  const statusBadge=()=>{
+    if(!assessment||assessment.status==='pending') return {txt:'Aguardando preenchimento',color:'#D97706',bg:'#FFFBEB'};
+    if(assessment.status==='completed'){
+      const cls=getClassification(assessment.overall_average);
+      return {txt:`Concluída — ${cls.label}`,color:cls.color,bg:cls.bg};
+    }
+    if(assessment.status==='expired') return {txt:'Link expirado',color:'#A0A3B1',bg:'#F4F5F7'};
+    return {txt:'Não enviada',color:'#A0A3B1',bg:'#F4F5F7'};
+  };
+
+  const badge=statusBadge();
+
+  return (
+    <div style={{background:'#fff',border:'1px solid #E4E6EF',borderRadius:9,padding:'14px 16px',marginBottom:12}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:assessment?.status==='completed'?10:0}}>
+        <div>
+          <div style={{fontSize:11,fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',color:'#A0A3B1',marginBottom:4}}>Avaliação de Prontidão</div>
+          <div style={{display:'flex',alignItems:'center',gap:8}}>
+            <span style={{fontSize:12,fontWeight:600,padding:'3px 8px',borderRadius:4,background:badge.bg,color:badge.color}}>{badge.txt}</span>
+          </div>
+        </div>
+        <div style={{display:'flex',gap:6}}>
+          {assessment?.status==='completed'&&(
+            <button className="btn btn-g btn-sm" onClick={()=>setShowResult(p=>!p)}>
+              {showResult?'Ocultar resultado':'Ver resultado'}
+            </button>
+          )}
+          {(!assessment||assessment.status==='expired')&&(
+            <button className="btn btn-p btn-sm" onClick={copyLink}>📎 Copiar link</button>
+          )}
+          {assessment?.status==='pending'&&(
+            <>
+              <button className="btn btn-g btn-sm" onClick={copyLink}>📎 Copiar link</button>
+              <button className="btn btn-g btn-xs" onClick={regenLink}>Novo link</button>
+            </>
+          )}
+        </div>
+      </div>
+      {showResult&&assessment?.status==='completed'&&(
+        <AssessmentResult
+          assessment={assessment}
+          onUpdate={patch=>onUpdate({assessment:{...assessment,...patch}})}
+        />
+      )}
+    </div>
+  );
+}
+
 // ─── IMPACTO NA ENTREGA ──────────────────────────────────────────────────────
 function ImpactoField({eng,onUpdate,editable=false}){
   const [editing,setEditing]=useState(false);
@@ -4079,6 +4431,45 @@ function RHPortal({company,engs,onLogout,isCoachView,onBackToCoach}){
   );
 }
 
+// ─── PUBLIC ASSESSMENT VIEW ──────────────────────────────────────────────────
+function PublicAssessmentView({token,engs,onUpdate}){
+  // Find engagement with matching assessment token
+  const eng=engs.find(e=>e.assessment&&e.assessment.token===token);
+  const assessment=eng?.assessment;
+
+  if(!eng||!assessment) return (
+    <div className="done-page"><style>{CSS}</style>
+      <div className="done-icon">⚠</div>
+      <div className="done-title">Link inválido</div>
+      <div className="done-sub">Este link não foi encontrado. Verifique com seu coach.</div>
+    </div>
+  );
+  if(assessment.status==='completed') return (
+    <div className="done-page"><style>{CSS}</style>
+      <div className="done-icon">✓</div>
+      <div className="done-title">Avaliação já preenchida</div>
+      <div className="done-sub">Esta avaliação já foi enviada. Obrigado pela participação.</div>
+    </div>
+  );
+  if(assessment.status==='expired') return (
+    <div className="done-page"><style>{CSS}</style>
+      <div className="done-icon">⏱</div>
+      <div className="done-title">Link expirado</div>
+      <div className="done-sub">Este link expirou. Peça ao seu coach um novo link.</div>
+    </div>
+  );
+
+  const coachName='Marcio Rezende'; // fallback
+  const handleSubmit=async(responses,result)=>{
+    const updated={...assessment,status:'completed',responses,
+      pillar_scores:result.pillar_scores,overall_average:result.overall_average,
+      classification:result.classification.key,completed_at:new Date().toISOString()};
+    onUpdate(eng.id,{assessment:updated});
+  };
+
+  return <AssessmentForm assessmentData={assessment} coachName={coachName} onSubmit={handleSubmit}/>;
+}
+
 // ─── ARCHIVE MODAL ────────────────────────────────────────────────────────────
 const ARCHIVE_REASONS = ['Cliente desistiu','Questões financeiras / budget','Questões pessoais do coachee','Mudança de prioridades da empresa','Conclusão antecipada','Outros'];
 
@@ -4207,12 +4598,15 @@ export default function App(){
   const [view,setView]=useState('dash');
   const [activeEng,setActiveEng]=useState(null);
   const [navItem,setNavItem]=useState('processos');
+  const [assessToken,setAssessToken]=useState(null);
   const [loading,setLoading]=useState(true);
   const [saveErr,setSaveErr]=useState('');
 
   // Load session on mount — also handle ?code= URL param for stakeholders
   useEffect(()=>{
     const params = new URLSearchParams(window.location.search);
+    const assessToken = params.get('assess');
+    if(assessToken){setView('assess');setAssessToken(assessToken);setLoading(false);return;}
     const code = params.get('code');
     if(code){
       const c=code.trim().toUpperCase();
@@ -4332,6 +4726,11 @@ export default function App(){
 
   if(user.role==='lider'){
     return <LeaderPortal engId={activeEng} liderId={user.liderId} engs={engs} onLogout={logout} onUpdate={updateEng} isCoachView={user.isCoachView} onBackToCoach={()=>{setUser({...user._coach,role:'coach'});setView('eng');}}/>;
+  }
+
+  // Public assessment form view
+  if(view==='assess'){
+    return <PublicAssessmentView token={assessToken} engs={engs} onUpdate={updateEng}/>;
   }
 
   if(user.role==='rh'){
