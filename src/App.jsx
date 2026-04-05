@@ -3351,16 +3351,12 @@ function SuggestCompetencias({eng,onUpdate}){
     setLoading(true);setSuggestion('');
     const respostas=eng.questionarioRespostas||{};
     const questions=(eng.questionarioTipo==='alta'?Q_ALTA:Q_MEDIA).flatMap(s=>s.questions);
-    const qText=questions.map(q=>`${q.text}
-Resposta: ${respostas[q.id]||'(sem resposta)'}`).join('
-
-');
+    const qText=questions.map(q=>`${q.text}\nResposta: ${respostas[q.id]||'(sem resposta)'}`).join('\n\n');
 
     const feedbacks360=eng.stakeholders360.filter(s=>s.feedback).map(s=>{
       const f=s.feedback;
       return `${s.name} (${s.role}): positivos=[${[f.pos1,f.pos2,f.pos3].filter(Boolean).join(', ')}] | parar=[${[f.par1,f.par2].filter(Boolean).join(', ')}] | começar=[${[f.inic1,f.inic2].filter(Boolean).join(', ')}]`;
-    }).join('
-');
+    }).join('\n');
 
     const prompt=`Você é especialista em coaching executivo MGSCC com profundo conhecimento do framework Korn Ferry de competências de liderança.
 
