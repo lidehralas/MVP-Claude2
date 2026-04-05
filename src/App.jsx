@@ -435,6 +435,68 @@ const INIT_ENGS = [
   },
 ];
 
+// ─── QUESTIONÁRIOS INICIAIS ───────────────────────────────────────────────────
+const Q_ALTA = [
+  {section:'1 — Realidade Atual',questions:[
+    {id:'q1',text:'Atualmente, onde você acredita que, como líder, está gerando resultado — e onde claramente não está? Cite pelo menos 1 ponto forte e 1 ponto de fricção.'},
+    {id:'q2',text:'Quais decisões difíceis, mudanças ou conflitos estão na sua mesa neste momento?'},
+    {id:'q3',text:'Se eu perguntasse ao seu time, pares e ao board: "o que está faltando neste líder hoje?", o que eles provavelmente diriam?'},
+    {id:'q4',text:'Descreva uma situação que retrata seu desafio atual (dificuldade, problema ou oportunidade).'},
+  ]},
+  {section:'2 — Padrões e Desafios',questions:[
+    {id:'q5',text:'Que comportamentos seus podem estar limitando seu impacto e resultado?'},
+    {id:'q6',text:'Que tipo de feedback você tende a minimizar, justificar ou discordar internamente?'},
+    {id:'q7',text:'Onde você sente que está evitando conversas, decisões ou reposicionamentos necessários?'},
+  ]},
+  {section:'3 — Consequências',questions:[
+    {id:'q8',text:'Se você continuar liderando exatamente como hoje pelos próximos 6-12 meses, onde podem surgir problemas (para você, seu time e resultados da área ou empresa)?'},
+  ]},
+  {section:'4 — Resultados do Coaching',questions:[
+    {id:'q9',text:'Se este processo funcionar muito bem, o que seu time e seu líder (caso haja) perceberão de diferente em você e na maneira como lidera?'},
+    {id:'q10',text:'Quais impactos isso teria nos resultados que você precisa entregar?',isImpacto:true},
+  ]},
+  {section:'5 — Funcionamento sob Pressão',questions:[
+    {id:'q11',text:'Quando você está sob forte pressão, que versão sua aparece — e qual é o custo disso para quem trabalha com você?'},
+  ]},
+  {section:'6 — Impacto Pessoal',questions:[
+    {id:'q12',text:'Que diferença real essa evolução como líder pode fazer na sua vida — profissional e pessoal — nos próximos anos?'},
+  ]},
+  {section:'7 — Objetivo Declarado',questions:[
+    {id:'q13',text:'Diante de todas essas respostas, como você descreveria, em uma frase, seu objetivo com o processo de coaching / mentoria?'},
+  ]},
+];
+
+const Q_MEDIA = [
+  {section:'1 — Realidade Atual',questions:[
+    {id:'q1',text:'Atualmente, onde você acredita que, como líder, está gerando resultado — e onde você sabe que está deixando a desejar? Cite pelo menos 1 ponto forte e 1 ponto de fricção.'},
+    {id:'q2',text:'Em quais situações você sente que perde influência, clareza ou presença como líder?'},
+    {id:'q3',text:'Se sua equipe respondesse anonimamente "o que este/a líder precisa melhorar urgentemente?", o que poderia aparecer?'},
+    {id:'q4',text:'Se seus pares respondessem anonimamente "o que este/a líder precisa melhorar urgentemente?", o que poderia aparecer?'},
+    {id:'q5',text:'Descreva uma situação que retrata seu desafio atual (dificuldade, problema ou oportunidade).'},
+  ]},
+  {section:'2 — Padrões e Desafios',questions:[
+    {id:'q6',text:'Que comportamentos ou reações suas mais atrapalham quando a pressão aumenta?'},
+    {id:'q7',text:'Que tipo de situação você costuma evitar (conflitos, feedbacks difíceis, decisões impopulares, exposição, cobrança, etc.)?'},
+    {id:'q8',text:'Que feedback você já recebeu mais de uma vez — e ainda não mudou completamente?'},
+  ]},
+  {section:'3 — Consequências',questions:[
+    {id:'q9',text:'Se você continuar liderando exatamente como hoje pelos próximos 6-12 meses, onde podem surgir problemas (para você, seu time e resultados da área ou empresa)?'},
+  ]},
+  {section:'4 — Resultados do Coaching',questions:[
+    {id:'q10',text:'Se este processo funcionar muito bem, o que seu time e seu líder perceberão de diferente em você?'},
+    {id:'q11',text:'Quais impactos isso teria nos resultados que você precisa entregar?',isImpacto:true},
+  ]},
+  {section:'5 — Funcionamento Pessoal',questions:[
+    {id:'q12',text:'O que normalmente te tira do seu melhor estado como líder?'},
+  ]},
+  {section:'6 — Impacto Pessoal',questions:[
+    {id:'q13',text:'Que diferença concreta seu progresso como líder pode fazer na sua vida, carreira e bem-estar?'},
+  ]},
+  {section:'7 — Objetivo Declarado',questions:[
+    {id:'q14',text:'Diante de todas essas respostas, como você descreveria, em uma frase, seu objetivo com o processo de coaching / mentoria?'},
+  ]},
+];
+
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 const ini = n => n.split(' ').filter(Boolean).slice(0,2).map(w=>w[0].toUpperCase()).join('');
 function Dots(){ return <div className="ldots"><div className="ldot"/><div className="ldot"/><div className="ldot"/></div>; }
@@ -513,7 +575,7 @@ function ProgressChart({miniSurveys}){
       const k=t.toLowerCase().trim().slice(0,30);
       if(seen.has(k)) return false;
       seen.add(k); return true;
-    }).slice(0,4);
+    }).slice(0,3);
   };
 
   const globalMudancas=dedup(ms.responses.map(r=>r.mudancas).filter(Boolean));
@@ -752,7 +814,7 @@ function NewEngModal({onSave,onClose}){
     const color=colors[Math.floor(Math.random()*colors.length)];
     onSave({id:Date.now(),title:"Desenvolvimento de Liderança",
       coachee:{name:f.name,initials:ini(f.name),color,role:f.role,company:f.company,email:f.email},
-      leaders:[],rh:[],goal:f.goal,startDate:f.start,endDate:f.end,cadence:f.cadence,totalSessions:10,phase:1,
+      leaders:[],rh:[],goal:f.goal,startDate:f.start,endDate:f.end,cadence:f.cadence,totalSessions:10,phase:1,questionarioTipo:f.questionarioTipo||'alta',questionarioRespostas:{},questionarioSubmitted:false,impactoEntrega:'',
       competencias:[],hasAssessment:f.assessment,assessmentType:f.assessmentType,assessmentFile:'',
       stakeholders360:[],report:null,miniSurveys:[],stakeholdersMS:[],sessions:[],notifications:[],actionStatuses:{},
     });
@@ -778,6 +840,12 @@ function NewEngModal({onSave,onClose}){
         <div className="field"><div className="flbl">Cadência das sessões</div>
           <select className="fsel" value={f.cadence} onChange={e=>set('cadence',e.target.value)}>
             <option value="semanal">Semanal</option><option value="quinzenal">Quinzenal</option><option value="mensal">Mensal</option><option value="outro">Outro</option>
+          </select>
+        </div>
+        <div className="field"><div className="flbl">Nível de liderança do coachee</div>
+          <select className="fsel" value={f.questionarioTipo||'alta'} onChange={e=>set('questionarioTipo',e.target.value)}>
+            <option value="alta">Alta liderança (CEO, C-level, Diretores)</option>
+            <option value="media">Média liderança (Gerentes, Coordenadores)</option>
           </select>
         </div>
         <label className="fcheck" style={{marginBottom:10}}><input type="checkbox" checked={f.assessment} onChange={e=>set('assessment',e.target.checked)}/> Incluir assessment de perfil</label>
@@ -987,6 +1055,7 @@ function RoadmapTab({eng,onUpdate}){
   const [selStage,setSelStage]=useState(0);
   const [showEditProfile,setShowEditProfile]=useState(false);
   const [profileDraft,setProfileDraft]=useState({});
+  const [showQuestionnaire,setShowQuestionnaire]=useState(false);
 
   // actionStatuses stored in eng — manual overrides
   const as = eng.actionStatuses || {};
@@ -1101,8 +1170,16 @@ function RoadmapTab({eng,onUpdate}){
         {[{l:'Início',v:eng.startDate},{l:'Encerramento (previsto)',v:eng.endDate},{l:'Cadência',v:eng.cadence},
           {l:'Assessment',v:eng.hasAssessment?eng.assessmentType:'Não aplicável'},
           {l:'Competências',v:eng.competencias.length>0?eng.competencias.length+' definida(s)':'A definir'},
-          {l:'Mini-surveys',v:eng.miniSurveys.length+' aplicado(s)'}
+          {l:'Mini-surveys',v:eng.miniSurveys.length+' aplicado(s)'},
+          {l:'Nível',v:eng.questionarioTipo==='media'?'Média liderança':'Alta liderança'}
         ].map(it=><div key={it.l} className="icard"><div className="ilbl">{it.l}</div><div className="ival">{it.v}</div></div>)}
+      {/* Impacto na entrega */}
+      {(eng.impactoEntrega||eng.questionarioSubmitted)&&(
+        <div style={{background:'#fff',border:'1px solid #E4E6EF',borderRadius:9,padding:'14px 16px',marginBottom:12}}>
+          <div style={{fontSize:11,fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',color:'#A0A3B1',marginBottom:8}}>Impacto esperado na entrega</div>
+          <ImpactoField eng={eng} onUpdate={onUpdate} editable={true}/>
+        </div>
+      )}
       <div style={{background:'#F9FAFB',border:'1px dashed #D8DAE8',borderRadius:9,padding:'12px 16px',marginBottom:12,display:'flex',alignItems:'center',gap:10}}>
         <span style={{fontSize:13,color:'#A0A3B1'}}>📅 Cronograma automático do processo</span>
         <span style={{fontSize:11,fontWeight:600,color:'#BCC4F0',background:'#EEF1FF',padding:'3px 8px',borderRadius:4,marginLeft:'auto'}}>Em breve</span>
@@ -1135,6 +1212,24 @@ function RoadmapTab({eng,onUpdate}){
       )}
 
       <CompEditor competencias={eng.competencias} onChange={comps=>onUpdate({competencias:comps})}/>
+
+      {/* Competency AI suggestion */}
+      {eng.questionarioSubmitted&&(
+        <SuggestCompetencias eng={eng} onUpdate={onUpdate}/>
+      )}
+
+      {/* Questionnaire view for coach */}
+      {eng.questionarioRespostas&&Object.keys(eng.questionarioRespostas).length>0&&(
+        <div style={{marginBottom:20}}>
+          <div className="sec" style={{marginBottom:12}}>
+            <span className="sec-lbl">Questionário inicial {eng.questionarioSubmitted?'✓ enviado pelo coachee':'(rascunho — não enviado ainda)'}</span>
+            <button className="btn btn-g btn-sm" onClick={()=>setShowQuestionnaire(p=>!p)}>
+              {showQuestionnaire?'Ocultar':'Ver respostas'}
+            </button>
+          </div>
+          {showQuestionnaire&&<QuestionarioForm eng={eng} onUpdate={onUpdate} isCoach={true}/>}
+        </div>
+      )}
 
       <div className="sec-lbl" style={{marginBottom:12}}>Mapa da Jornada</div>
       <div className="roadmap">
@@ -3220,6 +3315,231 @@ function CoacheeRelatorios({eng}){
   );
 }
 
+// ─── IMPACTO NA ENTREGA ──────────────────────────────────────────────────────
+function ImpactoField({eng,onUpdate,editable=false}){
+  const [editing,setEditing]=useState(false);
+  const [draft,setDraft]=useState(eng.impactoEntrega||'');
+
+  return (
+    <div>
+      {editing?(
+        <>
+          <textarea className="finp" rows={2} value={draft} onChange={e=>setDraft(e.target.value)} placeholder="Descreva o impacto esperado nos resultados que precisa entregar..."/>
+          <div style={{display:'flex',gap:6,marginTop:6}}>
+            <button className="btn btn-g btn-xs" onClick={()=>setEditing(false)}>Cancelar</button>
+            <button className="btn btn-p btn-xs" onClick={()=>{onUpdate({impactoEntrega:draft});setEditing(false);}}>Salvar</button>
+          </div>
+        </>
+      ):(
+        <div style={{display:'flex',alignItems:'flex-start',gap:10}}>
+          <div style={{flex:1,fontSize:13,color:eng.impactoEntrega?'#3A3D58':'#A0A3B1',lineHeight:1.6,fontStyle:eng.impactoEntrega?'normal':'italic'}}>
+            {eng.impactoEntrega||'Será preenchido após o envio do questionário ou manualmente.'}
+          </div>
+          {editable&&<button className="btn btn-g btn-xs" style={{flexShrink:0}} onClick={()=>{setDraft(eng.impactoEntrega||'');setEditing(true);}}>Editar</button>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── SUGERIR COMPETÊNCIAS COM IA ─────────────────────────────────────────────
+function SuggestCompetencias({eng,onUpdate}){
+  const [loading,setLoading]=useState(false);
+  const [suggestion,setSuggestion]=useState('');
+
+  const suggest=async()=>{
+    setLoading(true);setSuggestion('');
+    const respostas=eng.questionarioRespostas||{};
+    const questions=(eng.questionarioTipo==='alta'?Q_ALTA:Q_MEDIA).flatMap(s=>s.questions);
+    const qText=questions.map(q=>`${q.text}
+Resposta: ${respostas[q.id]||'(sem resposta)'}`).join('
+
+');
+
+    const feedbacks360=eng.stakeholders360.filter(s=>s.feedback).map(s=>{
+      const f=s.feedback;
+      return `${s.name} (${s.role}): positivos=[${[f.pos1,f.pos2,f.pos3].filter(Boolean).join(', ')}] | parar=[${[f.par1,f.par2].filter(Boolean).join(', ')}] | começar=[${[f.inic1,f.inic2].filter(Boolean).join(', ')}]`;
+    }).join('
+');
+
+    const prompt=`Você é especialista em coaching executivo MGSCC com profundo conhecimento do framework Korn Ferry de competências de liderança.
+
+COACHEE: ${eng.coachee.name} | ${eng.coachee.role} | ${eng.coachee.company}
+OBJETIVO: ${eng.goal}
+
+RESPOSTAS DO QUESTIONÁRIO INICIAL:
+${qText}
+
+${feedbacks360?`DADOS DO 360° (${eng.stakeholders360.filter(s=>s.feedback).length} respondentes):
+${feedbacks360}`:'(sem dados de 360° disponíveis ainda)'}
+
+Com base nas informações acima, identifique 2 competências prioritárias de desenvolvimento (máximo 3 se houver evidência clara de um terceiro tema).
+
+Para cada competência:
+1. Nome: curto e direto (máx 4 palavras), preferencialmente alinhado ao vocabulário Korn Ferry
+2. Justificativa: 2-3 linhas explicando por que esta competência emergiu dos dados — cite pontos de convergência entre questionário e 360° (se disponível), ou divergências relevantes
+3. Impacto esperado: 1 linha sobre o que muda quando desenvolvida
+
+Formato de resposta:
+**1. [Nome da competência]**
+Justificativa: [texto]
+Impacto esperado: [texto]
+
+**2. [Nome da competência]**
+...`;
+
+    try{
+      const res=await fetch('/api/ai',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({prompt,max_tokens:800})});
+      const data=await res.json();
+      if(data.error) throw new Error(data.error);
+      setSuggestion(data.content?.[0]?.text||'');
+    }catch(e){alert('Erro ao gerar sugestão: '+e.message);}
+    setLoading(false);
+  };
+
+  return (
+    <div style={{background:'#EEF1FF',border:'1px solid #D0D8F8',borderRadius:10,padding:'16px 18px',marginBottom:20}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:suggestion?12:0}}>
+        <div>
+          <div style={{fontSize:13,fontWeight:600,color:'#1A1D2E'}}>✦ Sugerir competências com IA</div>
+          <div style={{fontSize:12,color:'#6B6E8E',marginTop:2}}>Cruza o questionário inicial {eng.stakeholders360.filter(s=>s.feedback).length>0?'+ dados do 360°':''} para sugerir prioridades</div>
+        </div>
+        <button className="btn btn-p btn-sm" onClick={suggest} disabled={loading}>
+          {loading?<Dots/>:'✦ Gerar sugestão'}
+        </button>
+      </div>
+      {loading&&<div style={{fontSize:12,color:'#6B6E8E',marginTop:8}}>Analisando dados — pode levar até 20 segundos...</div>}
+      {suggestion&&(
+        <>
+          <div style={{background:'#fff',border:'1px solid #D0D8F8',borderRadius:8,padding:'14px 16px',marginTop:8,fontSize:13,color:'#1A1D2E',lineHeight:1.7,whiteSpace:'pre-wrap'}}>
+            {suggestion}
+          </div>
+          <div style={{fontSize:11,color:'#A0A3B1',marginTop:8}}>
+            Use estas sugestões como referência para definir as competências abaixo. Você pode aceitar, adaptar ou ignorar.
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── QUESTIONÁRIO INICIAL ────────────────────────────────────────────────────
+function QuestionarioForm({eng,onUpdate,isCoach=false}){
+  const tipo = eng.questionarioTipo || 'alta';
+  const questions = tipo==='alta' ? Q_ALTA : Q_MEDIA;
+  const respostas = eng.questionarioRespostas || {};
+  const submitted = eng.questionarioSubmitted || false;
+  const [draft,setDraft] = useState(respostas);
+  const [saving,setSaving] = useState(false);
+
+  const allIds = questions.flatMap(s=>s.questions.map(q=>q.id));
+  const answered = allIds.filter(id=>draft[id]?.trim()).length;
+  const total = allIds.length;
+  const pct = Math.round(answered/total*100);
+
+  const save = async(submit=false) => {
+    setSaving(true);
+    const patch = {questionarioRespostas:draft};
+    if(submit){
+      patch.questionarioSubmitted=true;
+      // Auto-extract impacto from relevant question
+      const impactoQ = questions.flatMap(s=>s.questions).find(q=>q.isImpacto);
+      if(impactoQ&&draft[impactoQ.id]) patch.impactoEntrega=draft[impactoQ.id];
+    }
+    onUpdate(patch);
+    setSaving(false);
+  };
+
+  if(submitted&&!isCoach) return (
+    <div style={{textAlign:'center',padding:'32px 0'}}>
+      <div style={{fontSize:32,marginBottom:12}}>✓</div>
+      <div style={{fontSize:16,fontWeight:600,color:'#059669',marginBottom:8}}>Questionário enviado!</div>
+      <div style={{fontSize:13,color:'#6B6E8E'}}>O coach recebeu suas respostas e dará continuidade ao processo.</div>
+    </div>
+  );
+
+  return (
+    <div>
+      {/* Header */}
+      <div style={{background:'#EEF1FF',border:'1px solid #D0D8F8',borderRadius:10,padding:'16px 18px',marginBottom:20}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
+          <div>
+            <div style={{fontSize:14,fontWeight:700,color:'#1A1D2E'}}>Questionário Inicial de Coaching</div>
+            <div style={{fontSize:12,color:'#6B6E8E',marginTop:2}}>
+              {tipo==='alta'?'Versão Alta Liderança · ~40 min':'Versão Média Liderança · ~25 min'}
+            </div>
+          </div>
+          <div style={{textAlign:'right'}}>
+            <div style={{fontSize:20,fontWeight:700,color:'#4169FF'}}>{pct}%</div>
+            <div style={{fontSize:11,color:'#A0A3B1'}}>{answered}/{total} respondidas</div>
+          </div>
+        </div>
+        {/* Progress bar */}
+        <div style={{background:'#D0D8F8',borderRadius:4,height:6}}>
+          <div style={{background:'#4169FF',borderRadius:4,height:6,width:`${pct}%`,transition:'width .3s'}}/>
+        </div>
+        {submitted&&<div style={{fontSize:12,color:'#059669',marginTop:8,fontWeight:600}}>✓ Enviado ao coach</div>}
+      </div>
+
+      {/* Disclaimer */}
+      {!isCoach&&!submitted&&(
+        <div style={{background:'#FFFBEB',border:'1px solid #FDE68A',borderRadius:9,padding:'12px 16px',marginBottom:20,fontSize:12,color:'#92400E',lineHeight:1.6}}>
+          <strong>Importante:</strong> Este questionário não busca respostas perfeitas — busca respostas honestas.<br/>
+          Respostas objetivas e concretas são mais úteis do que respostas amplas e genéricas.
+        </div>
+      )}
+
+      {/* Questions */}
+      {questions.map((section,si)=>(
+        <div key={si} style={{marginBottom:24}}>
+          <div style={{fontSize:11,fontWeight:700,letterSpacing:'1.2px',textTransform:'uppercase',color:'#4169FF',marginBottom:14,paddingBottom:6,borderBottom:'1px solid #E4E6EF'}}>
+            {section.section}
+          </div>
+          {section.questions.map((q,qi)=>(
+            <div key={q.id} style={{marginBottom:16}}>
+              <div style={{fontSize:13,color:'#1A1D2E',lineHeight:1.6,marginBottom:8,fontWeight:500}}>
+                {allIds.indexOf(q.id)+1}. {q.text}
+                {q.isImpacto&&<span style={{fontSize:10,background:'#EEF1FF',color:'#4169FF',padding:'2px 6px',borderRadius:4,marginLeft:8,fontWeight:600}}>Impacto na entrega</span>}
+              </div>
+              {(isCoach||submitted)
+                ?(
+                  <div style={{background:'#F9FAFB',border:'1px solid #E4E6EF',borderRadius:8,padding:'10px 14px',fontSize:13,color:'#3A3D58',lineHeight:1.6,minHeight:40,whiteSpace:'pre-wrap'}}>
+                    {respostas[q.id]||<span style={{color:'#A0A3B1',fontStyle:'italic'}}>Sem resposta</span>}
+                  </div>
+                ):(
+                  <textarea
+                    className="finp" rows={3}
+                    placeholder="Responda de forma objetiva e concreta..."
+                    value={draft[q.id]||''}
+                    onChange={e=>setDraft(p=>({...p,[q.id]:e.target.value}))}
+                    style={{resize:'vertical'}}
+                  />
+                )
+              }
+            </div>
+          ))}
+        </div>
+      ))}
+
+      {/* Actions */}
+      {!isCoach&&!submitted&&(
+        <div style={{display:'flex',gap:10,justifyContent:'flex-end',marginTop:8,paddingTop:16,borderTop:'1px solid #E4E6EF'}}>
+          <button className="btn btn-g" onClick={()=>save(false)} disabled={saving}>
+            {saving?'Salvando...':'Salvar rascunho'}
+          </button>
+          <button className="btn btn-p" onClick={()=>{
+            if(!window.confirm('Enviar o questionário ao coach? Após o envio, as respostas não poderão ser editadas.')) return;
+            save(true);
+          }} disabled={saving||answered<Math.ceil(total*0.7)}>
+            {answered<Math.ceil(total*0.7)?`Responda mais ${Math.ceil(total*0.7)-answered} pergunta(s)`:'Enviar ao coach'}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── PROGRESS CHART COACHEE (all surveys + selector) ─────────────────────────
 function ProgressChartCoachee({miniSurveys}){
   const [selId,setSelId]=useState(null); // null = most recent
@@ -3262,7 +3582,16 @@ function CoacheePortal({eng,onLogout,onUpdate,isCoachView,onBackToCoach}){
   const c=eng.coachee;
   const notifs=eng.notifications||[];
 
-  const TABS=[{id:'jornada',l:'Minha Jornada'},{id:'stk',l:`Stakeholders${notifs.length>0?` (${notifs.length})`:''}`},{id:'relatorios',l:'Relatórios'},{id:'plano',l:`Plano de Ações${(eng.planoAcoes||[]).length>0?' ('+(eng.planoAcoes||[]).length+')':''}`},{id:'progresso',l:'Progresso'}];
+  const qSubmitted=eng.questionarioSubmitted;
+  const qAnswered=Object.keys(eng.questionarioRespostas||{}).filter(k=>(eng.questionarioRespostas[k]||'').trim()).length;
+  const TABS=[
+    {id:'questionario',l:`Questionário${qSubmitted?' ✓':qAnswered>0?' (rascunho)':''}`},
+    {id:'jornada',l:'Minha Jornada'},
+    {id:'stk',l:`Stakeholders${notifs.length>0?` (${notifs.length})`:''}`},
+    {id:'relatorios',l:'Relatórios'},
+    {id:'plano',l:`Plano de Ações${(eng.planoAcoes||[]).length>0?' ('+(eng.planoAcoes||[]).length+')':''}`},
+    {id:'progresso',l:'Progresso'},
+  ];
 
   return (
     <div className="portal-page">
@@ -3302,6 +3631,9 @@ function CoacheePortal({eng,onLogout,onUpdate,isCoachView,onBackToCoach}){
         </div>
         <div className="tabs">{TABS.map(t=><div key={t.id} className={`tab${tab===t.id?' on':''}`} onClick={()=>setTab(t.id)}>{t.l}</div>)}</div>
         <div style={{paddingTop:24}}>
+          {tab==='questionario'&&(
+            <QuestionarioForm eng={eng} onUpdate={upd=>onUpdate(eng.id,upd)} isCoach={false}/>
+          )}
           {tab==='jornada'&&(
             <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10}}>
               {[1,2,3,4].map(p=>{
