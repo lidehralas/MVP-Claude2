@@ -377,7 +377,7 @@ const INIT_ENGS = [
     report:{content:`## Relatório de Desenvolvimento de Liderança\n**Coachee:** Vagner Moreira | Diretor de Operações | Dimas Construções\n\n### Síntese do Perfil de Liderança\nVagner é reconhecido como referência técnica de alto valor, com comprometimento genuíno e integridade que constroem confiança em múltiplos níveis da organização. O desafio central está na transição para um perfil mais estratégico — ocupar o espaço executivo com mais presença e assertividade.\n\n### Pontos Fortes Consolidados\n1. **Conhecimento técnico elevado** — referência reconhecida, adapta linguagem para diferentes públicos\n2. **Comprometimento e proatividade** — não procrastina, acompanha indicadores com afinco\n3. **Integridade e relacionamento** — percebido como justo, ético e acessível\n\n### Prioridades de Desenvolvimento\n1. **Posicionamento estratégico** — comunicação mais assertiva e presença executiva\n2. **Delegação estruturada** — matriz A/B/C, treinar sucessores, criar autonomia no time\n3. **Processo de decisão** — ouvir todas as partes antes de concluir\n\n### Plano de Ação\n**Parar de fazer:**\n- Posturas defensivas em reuniões estratégicas\n- Conclusões rápidas com informações parciais\n- Microgerenciamento de tarefas operacionais\n\n**Começar a fazer:**\n- Comunicação assertiva e objetiva em reuniões\n- Delegar usando matriz: A (eu faço), B (delego), C (quando der)\n- Silêncio de 5-10s após a fala do outro antes de responder\n\n### Checklist Diário de Comportamentos\n☐ Antes de responder, ouvi completamente?\n☐ Tomei alguma decisão baseada em dados, não em percepção?\n☐ Deleguei pelo menos uma tarefa que poderia ter feito eu mesmo?\n☐ Fiz pelo menos uma interação proativa com meu time hoje?\n☐ Minha comunicação em reuniões foi objetiva e estratégica?`,approved:true,sharedAt:"2024-11-15"},
     miniSurveys:[{
       id:1,label:"Mini-Survey 1",period:"1° trim 2025",sentAt:"2025-01-15",
-      competencias:["Posicionamento estratégico e presença executiva","Delegação e gestão de pessoas"],
+      competencias:[{id:1,nome:"Posicionamento estratégico e presença executiva",detalhe:"",status:"aprovada"},{id:2,nome:"Delegação e gestão de pessoas",detalhe:"",status:"aprovada"}],
       responses:[
         {shId:1,name:"Valerio Costa",role:"Líder direto",scores:[2,1],overall:2,mudancas:"Evolução clara na assertividade.",sugestoes:"Continuar avançando na delegação.",freq:["Moderado (2x/mês)","Moderado (2x/mês)"],objetivos:"Sim"},
         {shId:2,name:"João Silva",role:"Liderado",scores:[1,1],overall:1,mudancas:"Começou a dar mais espaço ao time.",sugestoes:"Manter a agenda regular.",freq:["Um pouco (ao menos 1x/mês)","Um pouco (ao menos 1x/mês)"],objetivos:"Sim"},
@@ -582,7 +582,7 @@ function ProgressChart({miniSurveys}){
   const globalSugestoes=dedup(ms.responses.map(r=>r.sugestoes).filter(Boolean));
 
   const allRows=[
-    ...ms.competencias.map((c,ci)=>({label:c,scores:ms.responses.map(r=>r.scores[ci]||0),isGeral:false})),
+    ...ms.competencias.map((c,ci)=>({label:typeof c==='object'?c.nome:c,scores:ms.responses.map(r=>r.scores[ci]||0),isGeral:false})),
     {label:'Efetividade como líder (geral)',scores:ms.responses.map(r=>r.overall||0),isGeral:true},
   ];
 
@@ -743,55 +743,144 @@ function Login({onLogin}){
 }
 
 // ─── COMPETENCIAS EDITOR ─────────────────────────────────────────────────────
-function CompEditor({competencias,onChange}){
+function CompEditor({competencias,onChange,locked=false,role='coach'}){
   const [showAdd,setShowAdd]=useState(false);
   const [nome,setNome]=useState('');
   const [detalhe,setDetalhe]=useState('');
   const [editId,setEditId]=useState(null);
+  const [coacheeNote,setCoacheeNote]=useState('');
+  const [showNote,setShowNote]=useState(null); // competencia id
 
   const save=()=>{
     if(!nome.trim())return;
     if(editId!==null){
-      onChange(competencias.map(c=>c.id===editId?{...c,nome:nome.slice(0,40),detalhe:detalhe.slice(0,80)}:c));
+      onChange(competencias.map(c=>c.id===editId?{...c,nome,detalhe}:c));
       setEditId(null);
     } else {
-      onChange([...competencias,{id:Date.now(),nome:nome.slice(0,40),detalhe:detalhe.slice(0,80)}]);
+      onChange([...competencias,{id:Date.now(),nome,detalhe,status:'pendente'}]);
     }
     setNome('');setDetalhe('');setShowAdd(false);
   };
 
   const startEdit=(c)=>{setNome(c.nome);setDetalhe(c.detalhe);setEditId(c.id);setShowAdd(true);};
-  const remove=(id)=>{if(safeConfirm('Remover esta competência?','A competência será removida do processo.')) onChange(competencias.filter(c=>c.id!==id));};
+  const remove=(id)=>{
+    if(safeConfirm('Remover esta competência?','A competência será removida do processo.'))
+      onChange(competencias.filter(c=>c.id!==id));
+  };
+  const submitNote=(c)=>{
+    onChange(competencias.map(x=>x.id===c.id?{...x,coacheeNote:coacheeNote,status:'revisao'}:x));
+    setShowNote(null);setCoacheeNote('');
+  };
+  const approve=(id)=>{
+    onChange(competencias.map(c=>c.id===id?{...c,status:'aprovada',coacheeNote:c.coacheeNote}:c));
+  };
+  const reject=(id)=>{
+    onChange(competencias.map(c=>c.id===id?{...c,status:'pendente'}:c));
+  };
+
+  const statusBadge=(s)=>{
+    if(s==='aprovada') return {txt:'Aprovada',bg:'#F0FDF4',color:'#059669'};
+    if(s==='revisao') return {txt:'Em revisão',bg:'#FEF3C7',color:'#D97706'};
+    return {txt:'Pendente revisão',bg:'#F4F5F7',color:'#6B6E8E'};
+  };
+
+  const allApproved = competencias.length>0 && competencias.every(c=>c.status==='aprovada');
 
   return (
     <div className="comp-editor">
       <div className="sec" style={{marginBottom:12}}>
         <span className="sec-lbl">Competências em desenvolvimento ({competencias.length})</span>
-        {competencias.length<3&&<button className="btn btn-p btn-sm" onClick={()=>{setShowAdd(true);setEditId(null);setNome('');setDetalhe('');}}>+ Adicionar</button>}
+        {!locked&&role==='coach'&&competencias.length<3&&(
+          <button className="btn btn-p btn-sm" onClick={()=>{setShowAdd(true);setEditId(null);setNome('');setDetalhe('');}}>+ Adicionar</button>
+        )}
       </div>
-      {competencias.length===0&&<div style={{fontSize:13,color:'#A0A3B1',marginBottom:8}}>Nenhuma competência definida. Adicione ao menos uma para avançar.</div>}
-      {competencias.map((c,i)=>(
-        <div key={c.id} className="comp-item">
-          <div className="comp-num">Competência {i+1}</div>
-          <div className="comp-name">{c.nome}</div>
-          {c.detalhe&&<div className="comp-detail">{c.detalhe}</div>}
-          <div style={{display:'flex',gap:6,marginTop:8}}>
-            <button className="btn btn-g btn-xs" onClick={()=>startEdit(c)}>Editar</button>
-            <button className="btn btn-d btn-xs" onClick={()=>remove(c.id)}>Remover</button>
-          </div>
+
+      {/* Status banner */}
+      {competencias.length>0&&(
+        <div style={{background:allApproved?'#F0FDF4':'#FFFBEB',border:`1px solid ${allApproved?'#BBF7D0':'#FDE68A'}`,borderRadius:8,padding:'10px 14px',marginBottom:12,fontSize:12,color:allApproved?'#059669':'#92400E',display:'flex',alignItems:'center',gap:8}}>
+          {allApproved
+            ?'✓ Todas as competências aprovadas — plano de ações e mini-surveys habilitados.'
+            :`${competencias.filter(c=>c.status==='aprovada').length}/${competencias.length} competências aprovadas. ${role==='coachee'?'Revise e confirme ou sugira ajustes.':role==='lider'?'Valide as competências definidas pelo coach.':'Aguardando revisão do coachee e aprovação do líder.'}`
+          }
         </div>
-      ))}
-      {showAdd&&(
+      )}
+
+      {competencias.length===0&&<div style={{fontSize:13,color:'#A0A3B1',marginBottom:8}}>Nenhuma competência definida ainda.</div>}
+
+      {competencias.map((c,i)=>{
+        const badge=statusBadge(c.status||'pendente');
+        const isRevisao=c.status==='revisao';
+        const isAprovada=c.status==='aprovada';
+        return (
+          <div key={c.id} className="comp-item" style={{borderLeft:`3px solid ${isAprovada?'#059669':isRevisao?'#D97706':'#D8DAE8'}`}}>
+            <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:8,marginBottom:6}}>
+              <div>
+                <div className="comp-num">Competência {i+1}</div>
+                <div className="comp-name">{c.nome}</div>
+                {c.detalhe&&<div className="comp-detail">{c.detalhe}</div>}
+              </div>
+              <span style={{fontSize:11,fontWeight:600,padding:'3px 8px',borderRadius:4,background:badge.bg,color:badge.color,whiteSpace:'nowrap',flexShrink:0}}>{badge.txt}</span>
+            </div>
+
+            {/* Coachee note */}
+            {c.coacheeNote&&(
+              <div style={{background:'#FFFBEB',border:'1px solid #FDE68A',borderRadius:6,padding:'8px 10px',fontSize:12,color:'#92400E',marginBottom:8}}>
+                <strong>Observação do coachee:</strong> {c.coacheeNote}
+              </div>
+            )}
+
+            {/* Actions by role */}
+            <div style={{display:'flex',gap:6,flexWrap:'wrap',marginTop:4}}>
+              {/* Coach actions */}
+              {role==='coach'&&!isAprovada&&(
+                <>
+                  <button className="btn btn-g btn-xs" onClick={()=>startEdit(c)}>Editar</button>
+                  <button className="btn btn-p btn-xs" onClick={()=>approve(c.id)}>✓ Aprovar</button>
+                  <button className="btn btn-d btn-xs" onClick={()=>remove(c.id)}>Remover</button>
+                </>
+              )}
+              {role==='coach'&&isAprovada&&(
+                <>
+                  <button className="btn btn-g btn-xs" onClick={()=>reject(c.id)}>Reabrir</button>
+                </>
+              )}
+
+              {/* Coachee actions */}
+              {role==='coachee'&&!isAprovada&&(
+                showNote===c.id?(
+                  <div style={{width:'100%'}}>
+                    <textarea className="finp" rows={2} placeholder="Sugestão ou comentário (opcional)..." value={coacheeNote} onChange={e=>setCoacheeNote(e.target.value)}/>
+                    <div style={{display:'flex',gap:6,marginTop:6}}>
+                      <button className="btn btn-g btn-xs" onClick={()=>setShowNote(null)}>Cancelar</button>
+                      <button className="btn btn-p btn-xs" onClick={()=>submitNote(c)}>Confirmar revisão</button>
+                    </div>
+                  </div>
+                ):(
+                  <button className="btn btn-g btn-xs" onClick={()=>{setShowNote(c.id);setCoacheeNote(c.coacheeNote||'');}}>
+                    {c.coacheeNote?'Editar comentário':'Revisar / comentar'}
+                  </button>
+                )
+              )}
+
+              {/* Leader actions */}
+              {role==='lider'&&!isAprovada&&(
+                <button className="btn btn-p btn-xs" onClick={()=>approve(c.id)}>✓ Validar</button>
+              )}
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Add form (coach only, not locked) */}
+      {showAdd&&!locked&&role==='coach'&&(
         <div style={{background:'#fff',border:'1px solid #BCC4F0',borderRadius:9,padding:16,marginTop:8}}>
           <div className="field">
-            <div className="flbl">Nome da competência<span className="flbl-hint">(máx. 40 caracteres — aparece no formulário)</span></div>
+            <div className="flbl">Nome da competência</div>
             <input className="finp" maxLength={500} placeholder="Ex: Comunicação estratégica" value={nome} onChange={e=>setNome(e.target.value)}/>
-            <div className="char-count">{nome.length}/500</div>
           </div>
           <div className="field">
-            <div className="flbl">Mais informações<span className="flbl-hint">(máx. 80 caracteres)</span></div>
+            <div className="flbl">Mais informações</div>
             <input className="finp" maxLength={500} placeholder="Ex: Assertividade, presença executiva, visão de farol alto" value={detalhe} onChange={e=>setDetalhe(e.target.value)}/>
-            <div className="char-count">{detalhe.length}/500</div>
           </div>
           <div style={{display:'flex',gap:8}}>
             <button className="btn btn-g btn-sm" onClick={()=>{setShowAdd(false);setEditId(null);}}>Cancelar</button>
@@ -2031,7 +2120,7 @@ Verifique internamente: todos os pontos citados estão nos dados? Os prioritári
     if(!ms){alert('Selecione um mini-survey primeiro.');return;}
     setAiLoadingMS(true);
 
-    const compList=ms.competencias.map((c,i)=>`${i}. ${c}`).join('\n');
+    const compList=ms.competencias.map((c,i)=>`${i}. ${typeof c==='object'?c.nome:c}`).join('\n');
 
     // Step 1: Extract structured data for charts
     const promptData=`Analise os dados brutos desta pesquisa de progresso e extraia as informações em formato JSON.
@@ -2097,7 +2186,7 @@ REGRAS:
 
 COACHEE: ${eng.coachee.name} | ${eng.coachee.role} | ${eng.coachee.company}
 PERÍODO: ${ms.label}${ms.period?' ('+ms.period+')':''}
-COMPETÊNCIAS AVALIADAS: ${ms.competencias.join(', ')}
+COMPETÊNCIAS AVALIADAS: ${ms.competencias.map(c=>typeof c==='object'?c.nome:c).join(', ')}
 RESPONDENTES EXTRAÍDOS: ${structuredResponses.length>0?structuredResponses.length+' respondentes':'conforme dados'}
 
 DADOS BRUTOS (arquivo: ${fileName}):
@@ -2986,6 +3075,25 @@ function TabPlanoAcoes({eng,onUpdate,isCoach=false,readOnly=false}){
 
   const statusIcon={'Não iniciada':'○','Em andamento':'→','Concluída':'✓'};
 
+  const allCompsApproved=(eng.competencias||[]).length>0&&(eng.competencias||[]).every(c=>c.status==='aprovada');
+  const noComps=(eng.competencias||[]).length===0;
+
+  if(!allCompsApproved&&isCoach) return (
+    <div style={{marginTop:20}}>
+      <div style={{background:'#FFFBEB',border:'1px solid #FDE68A',borderRadius:10,padding:'20px 24px',textAlign:'center'}}>
+        <div style={{fontSize:22,marginBottom:8}}>⏳</div>
+        <div style={{fontSize:14,fontWeight:600,color:'#92400E',marginBottom:6}}>
+          {noComps?'Competências não definidas':'Competências aguardando aprovação'}
+        </div>
+        <div style={{fontSize:13,color:'#6B6E8E'}}>
+          {noComps
+            ?'Defina as competências na aba Jornada antes de criar o plano de ações.'
+            :'O plano de ações será habilitado após todas as competências serem aprovadas (coach, coachee e líder).'}
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div style={{marginTop:20}}>
       <div className="sec">
@@ -3621,9 +3729,11 @@ function CoacheePortal({eng,onLogout,onUpdate,isCoachView,onBackToCoach}){
 
   const qSubmitted=eng.questionarioSubmitted;
   const qAnswered=Object.keys(eng.questionarioRespostas||{}).filter(k=>(eng.questionarioRespostas[k]||'').trim()).length;
+  const compsAprovadas=eng.competencias.filter(c=>c.status==='aprovada').length;
   const TABS=[
     {id:'questionario',l:`Questionário${qSubmitted?' ✓':qAnswered>0?' (rascunho)':''}`},
     {id:'jornada',l:'Minha Jornada'},
+    {id:'competencias',l:`Competências${compsAprovadas>0?' ('+compsAprovadas+' aprovada'+(compsAprovadas!==1?'s':'')+')':''}`},
     {id:'stk',l:`Stakeholders${notifs.length>0?` (${notifs.length})`:''}`},
     {id:'relatorios',l:'Relatórios'},
     {id:'plano',l:`Plano de Ações${(eng.planoAcoes||[]).length>0?' ('+(eng.planoAcoes||[]).length+')':''}`},
@@ -3695,6 +3805,18 @@ function CoacheePortal({eng,onLogout,onUpdate,isCoachView,onBackToCoach}){
             </div>
           )}
 
+          {tab==='competencias'&&(
+            <div>
+              <div style={{fontSize:13,color:'#6B6E8E',marginBottom:16,lineHeight:1.6}}>
+                Abaixo estão as competências definidas pelo seu coach para este processo.
+                Você pode revisar e adicionar comentários antes da aprovação final.
+              </div>
+              {eng.competencias.length===0
+                ?<div className="empty"><div className="ei">◌</div>As competências ainda não foram definidas pelo coach.</div>
+                :<CompEditor competencias={eng.competencias} onChange={comps=>onUpdate(eng.id,{competencias:comps})} role="coachee"/>
+              }
+            </div>
+          )}
           {tab==='stk'&&(
             <>
               {notifs.length>0&&(
@@ -3763,6 +3885,7 @@ function CoacheePortal({eng,onLogout,onUpdate,isCoachView,onBackToCoach}){
 // ─── LEADER PORTAL ────────────────────────────────────────────────────────────
 function LeaderPortal({engId,liderId,engs,onLogout,onUpdate,isCoachView,onBackToCoach}){
   const [tab,setTab]=useState('visao');
+  const compsAprovadas=(eng.competencias||[]).filter(c=>c.status==='aprovada').length;
   const [invalidModal,setInvalidModal]=useState(null);
   const [suggestModal,setSuggestModal]=useState(false);
   const [listType,setListType]=useState('360');
@@ -3799,7 +3922,7 @@ function LeaderPortal({engId,liderId,engs,onLogout,onUpdate,isCoachView,onBackTo
     alert('Lista validada!');
   };
 
-  const TABS=[{id:'visao',l:'Visão Geral'},{id:'listas',l:'Listas de Stakeholders'},{id:'plano',l:'Plano de Ações'},{id:'progresso',l:'Progresso'}];
+  const TABS=[{id:'visao',l:'Visão Geral'},{id:'competencias',l:`Competências${compsAprovadas>0?' ('+compsAprovadas+')':''}`},{id:'listas',l:'Listas de Stakeholders'},{id:'plano',l:'Plano de Ações'},{id:'progresso',l:'Progresso'}];
 
   return (
     <div className="portal-page">
@@ -3826,6 +3949,18 @@ function LeaderPortal({engId,liderId,engs,onLogout,onUpdate,isCoachView,onBackTo
         </div>
         <div className="tabs">{TABS.map(t=><div key={t.id} className={`tab${tab===t.id?' on':''}`} onClick={()=>setTab(t.id)}>{t.l}</div>)}</div>
         <div style={{paddingTop:24}}>
+          {tab==='competencias'&&(
+            <div>
+              <div style={{fontSize:13,color:'#6B6E8E',marginBottom:16,lineHeight:1.6}}>
+                Valide as competências definidas pelo coach para o desenvolvimento de {eng.coachee.name}.
+                Sua aprovação confirma o alinhamento com as expectativas da liderança.
+              </div>
+              {(eng.competencias||[]).length===0
+                ?<div className="empty"><div className="ei">◌</div>Competências ainda não definidas pelo coach.</div>
+                :<CompEditor competencias={eng.competencias||[]} onChange={comps=>onUpdate(eng.id,{competencias:comps})} role="lider"/>
+              }
+            </div>
+          )}
           {tab==='visao'&&(
             <>
               <div style={{background:'#fff',border:'1px solid #E4E6EF',borderRadius:9,padding:'14px 18px',marginBottom:16,display:'flex',gap:24}}>
