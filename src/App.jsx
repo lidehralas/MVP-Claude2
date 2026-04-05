@@ -1141,6 +1141,12 @@ function RoadmapTab({eng,onUpdate}){
                 <option value="semanal">Semanal</option><option value="quinzenal">Quinzenal</option><option value="mensal">Mensal</option><option value="outro">Outro (especificar)</option>
               </select>
             </div>
+            <div className="field"><div className="flbl">Nível de liderança</div>
+              <select className="fsel" value={profileDraft.questionarioTipo||'alta'} onChange={e=>setProfileDraft(p=>({...p,questionarioTipo:e.target.value}))}>
+                <option value="alta">Alta liderança (CEO, C-level, Diretores)</option>
+                <option value="media">Média liderança (Gerentes, Coordenadores)</option>
+              </select>
+            </div>
             <div className="field">
               <div className="flbl">Líder(es) do coachee</div>
               {(profileDraft.leaders||[]).map((l,i)=>(
@@ -1156,7 +1162,7 @@ function RoadmapTab({eng,onUpdate}){
               <button className="btn btn-g" onClick={()=>setShowEditProfile(false)}>Cancelar</button>
               <button className="btn btn-p" onClick={()=>{
                 const leaders=(profileDraft.leaders||[]).filter(l=>l.name.trim());
-                onUpdate({coachee:{...eng.coachee,name:profileDraft.name,email:profileDraft.email,role:profileDraft.role,company:profileDraft.company,initials:ini(profileDraft.name)},goal:profileDraft.goal,startDate:profileDraft.startDate,endDate:profileDraft.endDate,cadence:profileDraft.cadence,leaders});
+                onUpdate({coachee:{...eng.coachee,name:profileDraft.name,email:profileDraft.email,role:profileDraft.role,company:profileDraft.company,initials:ini(profileDraft.name)},goal:profileDraft.goal,startDate:profileDraft.startDate,endDate:profileDraft.endDate,cadence:profileDraft.cadence,leaders,questionarioTipo:profileDraft.questionarioTipo||'alta'});
                 setShowEditProfile(false);
               }}>Salvar</button>
             </div>
@@ -1164,7 +1170,7 @@ function RoadmapTab({eng,onUpdate}){
         </Overlay>
       )}
       <div style={{display:'flex',justifyContent:'flex-end',marginBottom:10}}>
-        <button className="btn btn-g btn-sm" onClick={()=>{setProfileDraft({name:eng.coachee.name,email:eng.coachee.email||'',role:eng.coachee.role,company:eng.coachee.company,goal:eng.goal,startDate:eng.startDate,endDate:eng.endDate,cadence:eng.cadence,leaders:[...(eng.leaders||[])]});setShowEditProfile(true);}}>Editar perfil do cliente</button>
+        <button className="btn btn-g btn-sm" onClick={()=>{setProfileDraft({name:eng.coachee.name,email:eng.coachee.email||'',role:eng.coachee.role,company:eng.coachee.company,goal:eng.goal,startDate:eng.startDate,endDate:eng.endDate,cadence:eng.cadence,leaders:[...(eng.leaders||[])],questionarioTipo:eng.questionarioTipo||'alta'});setShowEditProfile(true);}}>Editar perfil do cliente</button>
       </div>
       <div className="igrid">
         {[{l:'Início',v:eng.startDate},{l:'Encerramento (previsto)',v:eng.endDate},{l:'Cadência',v:eng.cadence},
@@ -1824,53 +1830,69 @@ function TabRelatorios({eng,onUpdate}){
 
   const generateFrom360Raw=async(fileContent,fileName)=>{
     setAiLoading360(true);
-    const prompt=`Você é um especialista sênior em coaching executivo com metodologia MGSCC (Marshall Goldsmith Stakeholder Centered Coaching). Gere um relatório de desenvolvimento executivo em português brasileiro.
+    const prompt=`Você é um especialista em coaching executivo e análise de feedback 360°, com profundo conhecimento em liderança organizacional e desenvolvimento de pessoas. Seu papel é transformar dados brutos de avaliações 360° em um relatório de devolutiva profissional, analítico e orientado ao desenvolvimento do coachee.
 
-CONTEXTO:
-- Coachee: ${eng.coachee.name} | ${eng.coachee.role} | ${eng.coachee.company}
-- Objetivo: ${eng.goal||'Desenvolvimento de liderança executiva'}
+COACHEE: ${eng.coachee.name} | ${eng.coachee.role} | ${eng.coachee.company}
+OBJETIVO DO PROCESSO: ${eng.goal||'Desenvolvimento de liderança executiva'}
 
-DADOS DO 360° (arquivo: ${fileName}):
-${fileContent.slice(0,10000)}
+DADOS BRUTOS DO 360° (arquivo: ${fileName}):
+${fileContent.slice(0,12000)}
 
-REGRAS:
-1. Gere sempre o relatório com os dados disponíveis — nunca peça mais informações
-2. Se dados forem parciais, complemente com base no contexto e boas práticas executivas
-3. Tom: profissional, direto, orientado ao desenvolvimento. Nunca julgador
-4. Linguagem: objetiva e executiva. Frases curtas e acionáveis
+AGRUPAMENTO DOS RESPONDENTES:
+Antes de qualquer análise, agrupe as respostas por tipo de interação: Líder direto | Pares | Liderados diretos | Outra área ou externo | Autoavaliação | Outro. Se houver mais de um respondente em um grupo, consolide as percepções antes de redigir.
 
-REFERÊNCIA PARA NOMENCLATURA DAS PRIORIDADES (Korn Ferry — use como referência, não copie):
-Garante a prestação de contas | Orientado para a ação | Gerencia a ambiguidade | Visão de negócios | Colabora | Comunica-se efetivamente | Gerencia a complexidade | Gerencia conflitos | Coragem | Foco no cliente | Qualidade da decisão | Desenvolve talentos | Direciona o trabalho | Impulsiona o engajamento | Perspicácia financeira | Cultiva a inovação | Conhecimento interpessoal | Constrói redes | Aprendizado ágil | Conhecimento organizacional | Convence | Planos e alinhamentos | Ser resiliente | Impulsiona resultados | Demonstra autoconsciência | Autodesenvolvimento | Adaptabilidade situacional | Equilibra as partes interessadas | Mentalidade estratégica | Constrói equipes eficazes | Instila confiança | Impulsiona a visão e o propósito | Otimiza processos de trabalho
+REGRAS ABSOLUTAS:
+1. Use APENAS informações presentes nos dados. Nunca invente, suponha ou extrapole.
+2. Quando um grupo tiver poucas respostas, sinalize com elegância ("A perspectiva deste grupo foi representada por um único respondente").
+3. Exemplos dos dados podem ser referenciados de forma genérica e anonimizada. Nunca atribua exemplos a respondentes específicos.
+4. Padrões e convergências devem basear-se na frequência real dos temas — não em inferências subjetivas.
+5. Gere o relatório com os dados disponíveis — nunca peça mais informações.
 
-DIRETRIZES PARA AS PRIORIDADES DE DESENVOLVIMENTO:
-- Defina EXATAMENTE 2 prioridades. Inclua uma 3ª apenas se os dados apontarem claramente um terceiro tema
-- Para cada prioridade: (a) escolha ou adapte um nome da lista Korn Ferry — máximo 4 palavras, direto e reconhecível; (b) escreva 2-3 linhas explicando o que esse tema significa especificamente para este líder, com base nos dados reais do 360°
-- A explicação NÃO é a definição Korn Ferry — é a interpretação contextualizada para este profissional
-- Exemplo de formato:
-  **1. Presença executiva**
-  Vagner demonstra sólido conhecimento técnico, mas ainda ocupa os espaços de liderança de forma tímida em reuniões estratégicas. Desenvolver posicionamento claro e assertividade executiva é o principal alavancador de impacto neste momento.
+TOM E ESTILO:
+- Corporativo, objetivo e assertivo. Direto sem ser áspero. Respeitoso sem ser condescendente.
+- Evite linguagem acusatória. Prefira enquadramento de observação a julgamento.
+- Use terceira pessoa ao longo de todo o relatório.
+- Evite superlativos e adjetivos vazios ("excelente", "incrível", "fantástico").
+- Evite termos como "notável", "impressionante", "crítico". Prefira "relevante", "expressivo", "significativo".
 
-ESTRUTURA (use ## para seções):
+ESTRUTURA DO RELATÓRIO (use ## para seções principais, ### para subseções):
 
-## Síntese do Perfil
-(2 parágrafos: quem é este líder hoje e qual é o desafio central do processo)
+## 1. Sumário Executivo
+### 1.1 Metodologia
+(Breve descrição dos grupos avaliadores e da abordagem)
+### 1.2 Perfil Consolidado
+(3 pontos fortes reconhecidos transversalmente por múltiplos grupos)
+### 1.3 Tabela de Convergências e Divergências
+(Tabela com temas × grupos avaliadores, sinalizando ✓ alinhamento ou △ gap de percepção)
+### 1.4 Pontos Prioritários de Desenvolvimento
+(2 pontos — ou 3 apenas se emergir com frequência e intensidade clara — cada um com título e 2-3 linhas de justificativa. Use nomenclatura Korn Ferry como referência: Garante a prestação de contas | Orientado para a ação | Gerencia a ambiguidade | Visão de negócios | Colabora | Comunica-se efetivamente | Gerencia a complexidade | Gerencia conflitos | Coragem | Qualidade da decisão | Desenvolve talentos | Direciona o trabalho | Impulsiona o engajamento | Mentalidade estratégica | Instila confiança | Impulsiona resultados | Demonstra autoconsciência)
+### 1.5 Foco do Processo
+(2-3 linhas sobre o que o processo de coaching vai endereçar)
 
-## Pontos Fortes
-(Top 3-5, numerados, com evidência concreta dos dados)
+## 2. Detalhamento
+### 2.1 Autoavaliação
+(Pontos fortes autopercebidos | O que deve continuar fazendo | Áreas de desenvolvimento reconhecidas | Prioridades identificadas pelo coachee)
+### 2.2 Análise por Grupo Avaliador
+(Para cada grupo com respondentes: pontos fortes | desafios | prioridades apontadas. Estrutura homogênea para todos os grupos.)
+### 2.3 Análise Comparativa: Autoavaliação vs. 360°
+(1. Convergências — temas de alinhamento; 2. Divergências — gaps com descrição do que o coachee percebe vs. o que os stakeholders reportam; 3. Síntese consolidadora)
 
-## Prioridades de Desenvolvimento
-(2 prioridades — ou 3 se os dados justificarem. Use o formato do exemplo acima.)
+## 3. Foco do Processo de Coaching
+(Para cada ponto prioritário: comportamento atual observado | impacto identificado pelos stakeholders | direção de desenvolvimento esperada | indicadores de sucesso | modelo de engajamento dos stakeholders)
 
-## Pontos de Atenção
-(Inclua apenas se houver padrões críticos ou divergências importantes. Omita se não for relevante.)
+## 4. Ações Propostas
+### 4.1 Quick Wins — Primeiras 3 Semanas
+(Exatamente 5 ou 6 ações concretas, observáveis, de baixo esforço e alto impacto. Para cada ação: nome | descrição em 1-2 linhas | resultado esperado em até 3 semanas)
+### 4.2 Checklist Diário de Comportamentos
+(8 a 10 comportamentos concretos e mensuráveis. Afirmações positivas de ação, frases curtas. Ex: "Encerro cada reunião com decisão, responsável e prazo definidos.")
 
-## Plano de Ação
-**Parar de fazer:** (3-4 comportamentos concretos)
-**Começar a fazer:** (3-4 comportamentos concretos)
-**Continuar fazendo:** (2-3 pontos fortes a ampliar)
+## 5. Próximos Passos
+(Em terceira pessoa. Dois blocos separados:
+- Ações do coachee: 5-7 itens
+- Ações do coach: 3-5 itens)
 
-## Checklist de Comportamentos
-(5-7 itens práticos com ☐)`;
+REVISÃO OBRIGATÓRIA ANTES DE ENTREGAR:
+Verifique internamente: todos os pontos citados estão nos dados? Os prioritários refletem os temas mais frequentes? A tabela de convergências/divergências é fiel? Nenhum exemplo foi atribuído a respondente específico? Tom corporativo e assertivo? Quick wins derivados dos prioritários? Checklist em afirmações positivas? Terceira pessoa em todo o documento?`;
 
     try{
       const res=await fetch('/api/ai',{method:'POST',headers:{'Content-Type':'application/json'},
@@ -2071,33 +2093,52 @@ REGRAS:
     }catch(e){console.warn('Structured extraction failed:',e);}
 
     // Step 2: Generate narrative report
-    const promptNarr=`Você é especialista em coaching executivo MGSCC. Com base nos dados abaixo, gere um relatório de acompanhamento em português brasileiro.
+    const promptNarr=`Você está analisando resultados de um mini-survey de acompanhamento de processo de coaching executivo baseado na metodologia Stakeholder Centered Coaching. Esta pesquisa foi aplicada aos stakeholders do líder em desenvolvimento para medir percepção de progresso e mudanças comportamentais.
 
-CONTEXTO:
-- Coachee: ${eng.coachee.name} | ${eng.coachee.role} | ${eng.coachee.company}
-- Período: ${ms.label}${ms.period?' ('+ms.period+')':''}
-- Competências: ${ms.competencias.join(', ')}
-- Respondentes: ${structuredResponses.length>0?structuredResponses.length+' extraídos':'conforme dados'}
+COACHEE: ${eng.coachee.name} | ${eng.coachee.role} | ${eng.coachee.company}
+PERÍODO: ${ms.label}${ms.period?' ('+ms.period+')':''}
+COMPETÊNCIAS AVALIADAS: ${ms.competencias.join(', ')}
+RESPONDENTES EXTRAÍDOS: ${structuredResponses.length>0?structuredResponses.length+' respondentes':'conforme dados'}
 
 DADOS BRUTOS (arquivo: ${fileName}):
 ${fileContent.slice(0,8000)}
 
-ESTRUTURA (use ## para seções):
+OBJETIVOS DA ANÁLISE:
+Principal: verificar a percepção dos stakeholders em relação ao progresso nas competências-alvo e na efetividade geral de liderança.
+Secundário: avaliar se o coachee está cumprindo as etapas do processo (comunicando objetivos, solicitando feedbacks).
 
-## Contexto da Pesquisa
-(Período, respondentes, competências avaliadas)
+INSTRUÇÕES:
+- Extraia as informações diretamente dos dados — não invente o que não está nos dados
+- Linguagem corporativa, sem dramatismo, sem palavras em caixa alta para chamar atenção, sem cores vermelhas
+- Evite afirmações absolutistas — prefira "os dados sugerem que..." ou "indica que..."
+- Não utilize médias aritméticas — foque em distribuições de frequência, contagens e percentuais por faixa da escala
+- Evite termos como "notável", "impressionante", "crítico" — prefira "relevante", "expressivo", "significativo"
+- Este processo é confidencial — não exponha respondentes individualmente
 
-## Resultados por Competência
-(Para cada competência: síntese da percepção de evolução com base nos dados)
+ESTRUTURA DO RELATÓRIO (use ## para seções):
 
-## O que Melhorou
-(Compilação dos comentários dos respondentes)
+## I. Sumário Executivo
+(150-250 palavras com: contexto da avaliação, competências trabalhadas, número e tipo de respondentes, principais resultados com dados quantitativos, transformação comportamental mais evidente, oportunidades prioritárias identificadas, qualidade do engajamento no processo, análise autopercepção vs percepção externa, síntese estratégica)
 
-## Próximos Desafios
-(Compilação dos comentários dos respondentes)
+## II. Perfil dos Respondentes
+(Tabela: Grupo | Quantidade | Representatividade. Avalie diversidade de perspectivas. Separe claramente autoavaliação.)
 
-## Recomendações para o Próximo Ciclo
-(Máximo 3 recomendações concretas e acionáveis geradas pela IA com base nos dados)`;
+## III. Qualidade do Engajamento do Coachee
+(Por grupo e consolidado: % que recebeu comunicação dos objetivos, % que recebeu o plano de ação, frequência de solicitação de feedback. Base de cálculo = APENAS stakeholders, excluindo autoavaliação. Sempre explicite o denominador: "X de Y stakeholders = Z%".)
+
+## IV. Percepção de Progresso por Competência
+(Para cada competência e para efetividade geral:
+- Distribuição de frequência dos stakeholders: contagem por ponto da escala -3 a +3, % positivas, % neutras/negativas, % progresso significativo >=+2
+- Distribuição por grupo de stakeholders
+- Comparação stakeholders vs autoavaliação: gap de percepção e interpretação
+- Interpretação integrada: qual competência teve progresso mais perceptível, há consistência entre grupos?)
+
+## V. Análise Qualitativa
+(Mudanças comportamentais observadas: 3-5 temas principais, agrupados por padrões recorrentes.
+Sugestões para desenvolvimento: categorizadas por frequência, priorizadas, distinguindo quick wins de desenvolvimento de longo prazo.)
+
+## VI. Síntese Estratégica e Recomendações para o Próximo Ciclo
+(O progresso percebido justifica o esforço investido? Onde o coachee está gerando mais impacto? Quais stakeholders percebem menos mudança e por quê? O engajamento está adequado? Há desalinhamento autopercepção vs percepção externa que requer atenção? Máximo 3 recomendações concretas e acionáveis para o próximo ciclo.)`;
 
     try{
       const res2=await fetch('/api/ai',{method:'POST',headers:{'Content-Type':'application/json'},
