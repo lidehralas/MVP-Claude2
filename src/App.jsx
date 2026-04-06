@@ -4433,11 +4433,30 @@ function RHPortal({company,engs,onLogout,isCoachView,onBackToCoach}){
 
 // ─── PUBLIC ASSESSMENT VIEW ──────────────────────────────────────────────────
 function PublicAssessmentView({token,engs,onUpdate}){
-  // Find engagement with matching assessment token
-  const eng=engs.find(e=>e.assessment&&e.assessment.token===token);
+  const [eng,setEng]=useState(()=>engs.find(e=>e.assessment&&e.assessment.token===token)||null);
+  const [loadState,setLoadState]=useState(eng?'ok':'loading');
+
+  useEffect(()=>{
+    if(eng) return;
+    // Load all engagements from Supabase to find the one with this token
+    supabase.from('engagements').select('app_id,data').then(({data:rows,error})=>{
+      if(error||!rows){setLoadState('invalid');return;}
+      const all=[...rows.map(r=>({...r.data,id:r.app_id})),...INIT_ENGS];
+      const found=all.find(e=>e.assessment&&e.assessment.token===token);
+      if(found){setEng(found);setLoadState('ok');}
+      else setLoadState('invalid');
+    });
+  },[]);
+
   const assessment=eng?.assessment;
 
-  if(!eng||!assessment) return (
+  if(loadState==='loading') return (
+    <div className="done-page"><style>{CSS}</style>
+      <div className="done-icon"><Dots/></div>
+      <div className="done-title">Carregando...</div>
+    </div>
+  );
+  if(loadState==='invalid'||!eng||!assessment) return (
     <div className="done-page"><style>{CSS}</style>
       <div className="done-icon">⚠</div>
       <div className="done-title">Link inválido</div>
