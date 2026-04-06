@@ -4708,6 +4708,10 @@ export default function App(){
     else{setView('dash');loadEngsFromDB();}
   };
 
+  // Public assessment — no auth needed
+  const _assessParam = new URLSearchParams(window.location.search).get('assess');
+  if(_assessParam) return <PublicAssessmentView token={_assessParam} engs={engs} onUpdate={updateEng}/>;
+
   if(loading) return (
     <div style={{minHeight:'100vh',background:'#F4F5F7',display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:16,fontFamily:"'Poppins',sans-serif"}}>
       <style>{CSS}</style>
