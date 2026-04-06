@@ -437,18 +437,18 @@ const INIT_ENGS = [
 
 // ─── COACHABILITY ASSESSMENT ─────────────────────────────────────────────────
 const ASSESSMENT_QUESTIONS = [
-  {id:'c1',pillar:'coragem',pillar_label:'Coragem',text:'Comunicar aos stakeholders quais pontos você está trabalhando para melhorar como líder?',minimum_score:4,coach_action:'Explorar medos, trabalhar autoconfiança, iniciar com stakeholders de confiança.'},
-  {id:'c2',pillar:'coragem',pillar_label:'Coragem',text:'Pedir feedbacks e sugestões pessoais sobre seu próprio comportamento?',minimum_score:4,coach_action:'Abordar importância do feedback, praticar recepção em ambiente seguro, focar nos benefícios.'},
-  {id:'c3',pillar:'coragem',pillar_label:'Coragem',text:'Evitar procrastinar ou esperar um momento ideal para testar novos comportamentos?',minimum_score:3,coach_action:'Explorar causas da procrastinação, quebrar ações em passos menores, celebrar pequenas vitórias.'},
-  {id:'c4',pillar:'coragem',pillar_label:'Coragem',text:'Fazer uma análise honesta dos comportamentos que, se mudados, trariam benefícios para você?',minimum_score:4,coach_action:'Criar ambiente de confiança, usar ferramentas de autoavaliação, focar nos benefícios da mudança.'},
-  {id:'h1',pillar:'humildade',pillar_label:'Humildade',text:'Pedir ajuda a outras pessoas para que colaborem com seu desenvolvimento como líder?',minimum_score:3,coach_action:'Explorar crenças limitantes, reenquadrar pedir ajuda como força, identificar rede de apoio.'},
-  {id:'h2',pillar:'humildade',pillar_label:'Humildade',text:'Ouvir genuinamente feedbacks e sugestões sobre seus comportamentos de liderança?',minimum_score:4,coach_action:'Trabalhar inteligência emocional, ensinar escuta ativa, focar na intenção positiva do feedback.'},
-  {id:'h3',pillar:'humildade',pillar_label:'Humildade',text:'Demonstrar gratidão genuína por feedbacks e sugestões sobre sua liderança dizendo "Obrigado"?',minimum_score:3,coach_action:'Ajudar a entender impacto do "Obrigado", praticar expressão autêntica de gratidão.'},
-  {id:'h4',pillar:'humildade',pillar_label:'Humildade',text:'Manter o ego fora do caminho enquanto trabalha para melhorar suas habilidades de liderança?',minimum_score:4,coach_action:'Ajudar a reconhecer como o ego pode atrasar o crescimento, trabalhar autoconsciência.'},
-  {id:'d1',pillar:'disciplina',pillar_label:'Disciplina',text:'Manter uma rotina mensal de acompanhamento com as pessoas para quem você pediu apoio no seu desenvolvimento?',minimum_score:4,coach_action:'Criar sistema de lembretes, explorar barreiras para consistência, desenvolver estratégias.'},
-  {id:'d2',pillar:'disciplina',pillar_label:'Disciplina',text:'Evitar reações defensivas quando os outros apontarem algo que você não fez bem ou poderia melhorar?',minimum_score:4,coach_action:'Trabalhar autoconsciência sobre reações, ensinar técnicas de pausa e reflexão.'},
-  {id:'d3',pillar:'disciplina',pillar_label:'Disciplina',text:'Dedicar o tempo necessário para mudar um comportamento, mesmo que isso não seja confortável?',minimum_score:4,coach_action:'Ajudar a entender que desconforto é parte do crescimento, quebrar em etapas menores.'},
-  {id:'d4',pillar:'disciplina',pillar_label:'Disciplina',text:'Investir alguns minutos todos os dias para revisar o checklist do seu plano de ação em implementação?',minimum_score:3,coach_action:'Integrar revisão na rotina diária, explorar barreiras, desenvolver lembretes eficazes.'},
+  {id:'c1',pillar:'coragem',pillar_label:'Coragem',text:'Comunicar aos stakeholders quais pontos você está trabalhando para melhorar como líder?',minimum_score:4,coach_action:'Explorar medos, trabalhar autoconfiança, iniciar com stakeholders de maior confiança.'},
+  {id:'c2',pillar:'coragem',pillar_label:'Coragem',text:'Pedir ativamente feedbacks sobre seu próprio comportamento de liderança, sem esperar que alguém os ofereça?',minimum_score:4,coach_action:'Abordar a importância do feedback proativo, praticar recepção em ambiente seguro.'},
+  {id:'c3',pillar:'coragem',pillar_label:'Coragem',text:'Evitar procrastinar a prática de novos comportamentos?',minimum_score:4,coach_action:'Explorar causas da procrastinação, quebrar ações em passos menores, celebrar pequenas vitórias.'},
+  {id:'c4',pillar:'coragem',pillar_label:'Coragem',text:'Fazer uma análise honesta e objetiva dos comportamentos que, se mudados, trariam mais resultado para você e para o seu time?',minimum_score:4,coach_action:'Criar ambiente de confiança, usar ferramentas de autoavaliação, focar nos benefícios da mudança.'},
+  {id:'h1',pillar:'humildade',pillar_label:'Humildade',text:'Pedir ajuda a outras pessoas para apoiarem ativamente o seu desenvolvimento como líder?',minimum_score:3,coach_action:'Explorar crenças limitantes, reenquadrar pedir ajuda como sinal de força, identificar rede de apoio.'},
+  {id:'h2',pillar:'humildade',pillar_label:'Humildade',text:'Ouvir feedbacks sobre seus comportamentos sem interromper, justificar ou minimizar o que está sendo dito?',minimum_score:4,coach_action:'Trabalhar inteligência emocional, praticar escuta ativa, focar na intenção positiva do feedback.'},
+  {id:'h3',pillar:'humildade',pillar_label:'Humildade',text:'Reconhecer e agradecer genuinamente quando alguém aponta algo que você pode melhorar?',minimum_score:3,coach_action:'Ajudar a perceber o impacto do reconhecimento genuíno, praticar expressão autêntica de gratidão.'},
+  {id:'h4',pillar:'humildade',pillar_label:'Humildade',text:'Manter o ego fora do caminho enquanto trabalha para melhorar suas habilidades de liderança?',minimum_score:5,coach_action:'Ajudar a reconhecer como o ego pode atrasar o crescimento, aprofundar o trabalho de autoconsciência.'},
+  {id:'d1',pillar:'disciplina',pillar_label:'Disciplina',text:'Solicitar feedbacks mensais para as pessoas que concordaram em apoiar seu desenvolvimento para desenvolver os novos comportamentos?',minimum_score:4,coach_action:'Criar sistema de lembretes, explorar barreiras para consistência, estruturar ritual mensal.'},
+  {id:'d2',pillar:'disciplina',pillar_label:'Disciplina',text:'Revisar diariamente, mesmo que por poucos minutos, as ações que você se comprometeu a praticar?',minimum_score:3,coach_action:'Integrar revisão na rotina diária, explorar barreiras, criar lembretes eficazes.'},
+  {id:'d3',pillar:'disciplina',pillar_label:'Disciplina',text:'Continuar praticando novos comportamentos mesmo quando os resultados ainda não são visíveis ou quando o processo se torna desconfortável?',minimum_score:4,coach_action:'Ajudar a compreender que o desconforto é parte do crescimento, dividir o processo em etapas menores.'},
+  {id:'d4',pillar:'disciplina',pillar_label:'Disciplina',text:'Assumir responsabilidade pessoal pelo seu progresso, sem atribuir à falta de tempo, contexto ou apoio externo?',minimum_score:4,coach_action:'Trabalhar protagonismo e ownership, explorar narrativas de auto-sabotagem, fortalecer comprometimento.'},
 ];
 
 const PILLAR_DESCRIPTIONS = {
@@ -1212,6 +1212,7 @@ function RoadmapTab({eng,onUpdate}){
 
   const stages=[
     {id:'diagnostico',label:'Diagnóstico',phase:1,actions:[
+      {id:'prontidao',     label:`Avaliação de prontidão${eng.assessment?.status==='completed'?' ✓':''}`,         who:'coach'},
       {id:'onboarding',     label:'Onboarding do coachee',                          who:'coach'},
       {id:'cronograma',     label:'Cronograma gerado e compartilhado',               who:'app'},
       {id:'assessment',     label:`Assessment de perfil${eng.hasAssessment?' ('+eng.assessmentType+')':' (não aplicável)'}`, who:'coach'},
@@ -4483,6 +4484,8 @@ function PublicAssessmentView({token,engs,onUpdate}){
     const updated={...assessment,status:'completed',responses,
       pillar_scores:result.pillar_scores,overall_average:result.overall_average,
       classification:result.classification.key,completed_at:new Date().toISOString()};
+    // Save directly to Supabase since we may not have auth context
+    await supabase.from('engagements').update({data:{...eng,assessment:updated}}).eq('app_id',eng.id);
     onUpdate(eng.id,{assessment:updated});
   };
 
