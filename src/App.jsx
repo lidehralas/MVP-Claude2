@@ -458,10 +458,80 @@ const PILLAR_DESCRIPTIONS = {
 };
 
 function getClassification(avg){
-  if(avg<=2.0) return {key:'muito_baixa',label:'Muito Baixa',color:'#DC2626',bg:'#FEF2F2',rec:'Reconsidere iniciar o processo ou invista em sessões preliminares para fortalecer os pilares mais fracos.'};
-  if(avg<=3.0) return {key:'fragil',label:'Frágil',color:'#D97706',bg:'#FFFBEB',rec:'Priorize o fortalecimento dos pilares mais fracos. Esteja preparado para abordar resistências.'};
-  if(avg<=4.0) return {key:'solida',label:'Sólida',color:'#059669',bg:'#F0FDF4',rec:'O processo pode avançar. Continue atenção aos pilares com notas abaixo de 4.'};
-  return {key:'extraordinaria',label:'Extraordinária',color:'#4169FF',bg:'#EEF1FF',rec:'Avance com confiança. Foque em maximizar o potencial e impacto do coachee.'};
+  if(avg<=2.0) return {key:'muito_baixa',label:'Muito Baixa',color:'#DC2626',bg:'#FEF2F2',rec:'Prontidão insuficiente para iniciar o processo. Recomenda-se sessões preliminares para fortalecer os pilares mais fracos antes de qualquer compromisso.'};
+  if(avg<=3.0) return {key:'fragil',label:'Frágil',color:'#D97706',bg:'#FFFBEB',rec:'Base razoável, mas com lacunas importantes. Priorize o alinhamento dos pilares mais fracos. Esteja preparado para trabalhar resistências desde o início.'};
+  if(avg<=4.0) return {key:'solida',label:'Sólida',color:'#059669',bg:'#F0FDF4',rec:'Prontidão substancial. O processo pode avançar com atenção contínua aos itens que não atingiram o mínimo recomendado.'};
+  return {key:'excelente',label:'Excelente',color:'#4169FF',bg:'#EEF1FF',rec:'Prontidão elevada. Avance com confiança. Foque em maximizar o potencial e o impacto do coachee.'};
+}
+
+// Score color per question: green/yellow/red
+function questionColor(score, minScore){
+  if(score>=minScore) return {bg:'#F0FDF4',color:'#059669',border:'#BBF7D0'};
+  if(score===minScore-1) return {bg:'#FFFBEB',color:'#D97706',border:'#FDE68A'};
+  return {bg:'#FEF2F2',color:'#DC2626',border:'#FCD4D4'};
+}
+
+// Radar/Spider SVG
+function RadarChart({pillarScores}){
+  const pillars=['coragem','humildade','disciplina'];
+  const labels={coragem:'Coragem',humildade:'Humildade',disciplina:'Disciplina'};
+  const colors={coragem:'#4169FF',humildade:'#8B5CF6',disciplina:'#10B981'};
+  const cx=120,cy=120,r=85;
+  const angles=pillars.map((_,i)=>(-Math.PI/2)+(2*Math.PI*i/3));
+  const toXY=(angle,dist)=>({x:cx+dist*Math.cos(angle),y:cy+dist*Math.sin(angle)});
+  const scaleR=(val)=>(val/5)*r;
+  // Grid lines at 1,2,3,4,5
+  const gridLevels=[1,2,3,4,5];
+  const gridPolygon=(val)=>{
+    const pts=angles.map(a=>{const p=toXY(a,scaleR(val));return `${p.x},${p.y}`;});
+    return pts.join(' ');
+  };
+  // Data polygon
+  const dataPoints=angles.map((a,i)=>{
+    const val=pillarScores?.[pillars[i]]?.average||0;
+    const p=toXY(a,scaleR(val));
+    return `${p.x},${p.y}`;
+  });
+  // Min reference polygon (avg of minimums per pillar)
+  const minPoints=angles.map((a,i)=>{
+    const pqs=ASSESSMENT_QUESTIONS.filter(q=>q.pillar===pillars[i]);
+    const avgMin=pqs.reduce((s,q)=>s+q.minimum_score,0)/pqs.length;
+    const p=toXY(a,scaleR(avgMin));
+    return `${p.x},${p.y}`;
+  });
+  return (
+    <svg viewBox="0 0 240 240" style={{width:'100%',maxWidth:240,display:'block',margin:'0 auto'}}>
+      {/* Grid */}
+      {gridLevels.map(v=>(
+        <polygon key={v} points={gridPolygon(v)} fill="none" stroke="#E4E6EF" strokeWidth={v===5?1.5:0.8}/>
+      ))}
+      {/* Axes */}
+      {angles.map((a,i)=>{
+        const end=toXY(a,r);
+        return <line key={i} x1={cx} y1={cy} x2={end.x} y2={end.y} stroke="#E4E6EF" strokeWidth={1}/>;
+      })}
+      {/* Min reference */}
+      <polygon points={minPoints.join(' ')} fill="rgba(255,200,0,0.08)" stroke="#F59E0B" strokeWidth={1.5} strokeDasharray="4,3"/>
+      {/* Data */}
+      <polygon points={dataPoints.join(' ')} fill="rgba(65,105,255,0.12)" stroke="#4169FF" strokeWidth={2}/>
+      {/* Data dots */}
+      {angles.map((a,i)=>{
+        const val=pillarScores?.[pillars[i]]?.average||0;
+        const p=toXY(a,scaleR(val));
+        return <circle key={i} cx={p.x} cy={p.y} r={4} fill={colors[pillars[i]]} stroke="#fff" strokeWidth={1.5}/>;
+      })}
+      {/* Labels */}
+      {angles.map((a,i)=>{
+        const p=toXY(a,r+18);
+        return <text key={i} x={p.x} y={p.y} textAnchor="middle" dominantBaseline="middle" fontSize={10} fontWeight={700} fill={colors[pillars[i]]}>{labels[pillars[i]]}</text>;
+      })}
+      {/* Scale labels */}
+      {[1,3,5].map(v=>{
+        const p=toXY(-Math.PI/2,scaleR(v));
+        return <text key={v} x={p.x+4} y={p.y} fontSize={8} fill="#A0A3B1">{v}</text>;
+      })}
+    </svg>
+  );
 }
 
 function calculateAssessmentResult(responses){
@@ -3541,7 +3611,7 @@ function AssessmentForm({assessmentData,coachName,onSubmit}){
         <div style={{fontSize:15,color:'#6B6E8E'}}>Enviada por <strong>{coachName}</strong></div>
       </div>
       <div style={{background:'#F4F5F7',borderRadius:12,padding:'20px 24px',marginBottom:24,fontSize:14,color:'#3A3D58',lineHeight:1.7}}>
-        <p style={{margin:'0 0 12px'}}>Esta avaliação tem como objetivo entender sua disposição para um processo de coaching executivo. Não há respostas certas ou erradas — o que importa é sua honestidade.</p>
+        <p style={{margin:'0 0 12px'}}>Esta avaliação tem como objetivo entender seu grau de prontidão e coachability para um processo de coaching de liderança eficaz, focando em 3 critérios: Coragem, Humildade e Disciplina. Não há respostas certas ou erradas — o que importa é sua honestidade.</p>
         <p style={{margin:0}}>Para cada situação, indique seu grau de disposição usando a escala de <strong>1 a 5</strong>:</p>
       </div>
       <div style={{display:'flex',gap:8,marginBottom:28,justifyContent:'center',flexWrap:'wrap'}}>
@@ -3627,91 +3697,115 @@ function AssessmentForm({assessmentData,coachName,onSubmit}){
 }
 
 // ─── ASSESSMENT RESULT (coach-facing) ────────────────────────────────────────
-function AssessmentResult({assessment,onDecision,onUpdate}){
+function AssessmentResult({assessment,onUpdate}){
   const [notes,setNotes]=useState(assessment.coach_notes||'');
-  const [saving,setSaving]=useState(false);
   const result=assessment.pillar_scores;
-  const cls=getClassification(assessment.overall_average);
   const pillarColors={coragem:'#4169FF',humildade:'#8B5CF6',disciplina:'#10B981'};
+  const pillarLabels={coragem:'Coragem',humildade:'Humildade',disciplina:'Disciplina'};
 
-  const saveDecision=async(decision)=>{
-    setSaving(true);
+  // 3-layer logic: check all individual questions first
+  const allQuestions=ASSESSMENT_QUESTIONS.map((q,idx)=>{
+    const pillar=q.pillar;
+    const ps=result?.[pillar];
+    const pqs=ASSESSMENT_QUESTIONS.filter(x=>x.pillar===pillar);
+    const qIdx=pqs.indexOf(q);
+    const score=ps?.scores?.[qIdx]??0;
+    const qc=questionColor(score,q.minimum_score);
+    return {...q,score,qColor:qc};
+  });
+  const hasRed=allQuestions.some(q=>q.qColor.color==='#DC2626');
+  const hasYellow=allQuestions.some(q=>q.qColor.color==='#D97706');
+  const anyBelow=hasRed||hasYellow;
+
+  // Overall only shown if all individual met
+  const cls=getClassification(assessment.overall_average);
+
+  const saveDecision=(decision)=>{
     onUpdate({coach_decision:decision,coach_notes:notes});
-    setSaving(false);
   };
 
   return (
     <div style={{marginTop:8}}>
-      {/* Block 1: Classification */}
-      <div style={{background:cls.bg,border:`1px solid ${cls.color}30`,borderRadius:10,padding:'16px 20px',marginBottom:16,display:'flex',alignItems:'center',gap:16}}>
+      {/* Radar + Pillar summary */}
+      <div style={{display:'grid',gridTemplateColumns:'240px 1fr',gap:16,marginBottom:16,alignItems:'start'}}>
+        <div style={{background:'#fff',border:'1px solid #E4E6EF',borderRadius:10,padding:'16px'}}>
+          <div style={{fontSize:11,fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',color:'#A0A3B1',marginBottom:10,textAlign:'center'}}>Visão Geral</div>
+          <RadarChart pillarScores={result}/>
+          <div style={{fontSize:10,color:'#A0A3B1',textAlign:'center',marginTop:6}}>— — linha de referência mínima</div>
+        </div>
         <div>
-          <div style={{fontSize:11,fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',color:cls.color,marginBottom:4}}>Prontidão para Coaching</div>
-          <div style={{fontSize:24,fontWeight:700,color:cls.color}}>{cls.label}</div>
-          <div style={{fontSize:13,color:'#6B6E8E',marginTop:2}}>{assessment.overall_average.toFixed(2)} / 5,00</div>
-        </div>
-        <div style={{flex:1}}/>
-        <div style={{fontSize:11,color:'#A0A3B1',textAlign:'right'}}>
-          Preenchido em<br/><strong>{assessment.completed_at?new Date(assessment.completed_at).toLocaleDateString('pt-BR'):'-'}</strong>
-        </div>
-      </div>
-
-      {/* Block 2: Pillars */}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:16}}>
-        {['coragem','humildade','disciplina'].map(p=>{
-          const ps=result?.[p];
-          if(!ps) return null;
-          const color=pillarColors[p];
-          return (
-            <div key={p} style={{background:'#fff',border:'1px solid #E4E6EF',borderRadius:10,padding:'14px'}}>
-              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
-                <div style={{fontSize:12,fontWeight:700,color,textTransform:'capitalize'}}>{p}</div>
-                <div style={{fontSize:11,fontWeight:700,color:ps.minimum_met?'#059669':'#D97706'}}>{ps.minimum_met?'✓ OK':'⚠ Atenção'}</div>
+          {/* Pillar cards */}
+          {['coragem','humildade','disciplina'].map(p=>{
+            const ps=result?.[p];if(!ps) return null;
+            const color=pillarColors[p];
+            const allMet=ps.minimum_met;
+            return (
+              <div key={p} style={{background:'#fff',border:`1px solid ${allMet?'#BBF7D0':'#FDE68A'}`,borderRadius:9,padding:'12px 14px',marginBottom:8}}>
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                  <div style={{fontSize:13,fontWeight:700,color}}>{pillarLabels[p]}</div>
+                  <div style={{display:'flex',alignItems:'center',gap:8}}>
+                    <span style={{fontSize:18,fontWeight:700,color:'#1A1D2E'}}>{ps.average.toFixed(1)}<span style={{fontSize:11,fontWeight:400,color:'#A0A3B1'}}>/5</span></span>
+                    <span style={{fontSize:11,fontWeight:700,padding:'2px 7px',borderRadius:4,background:allMet?'#F0FDF4':'#FFFBEB',color:allMet?'#059669':'#D97706'}}>{allMet?'✓ OK':'⚠ Atenção'}</span>
+                  </div>
+                </div>
+                <div style={{background:'#F4F5F7',borderRadius:3,height:4,marginTop:8}}>
+                  <div style={{background:color,borderRadius:3,height:4,width:`${(ps.average/5)*100}%`}}/>
+                </div>
               </div>
-              <div style={{fontSize:22,fontWeight:700,color:'#1A1D2E',marginBottom:10}}>{ps.average.toFixed(2)}</div>
-              {/* Mini bar */}
-              <div style={{background:'#F4F5F7',borderRadius:4,height:4,marginBottom:8}}>
-                <div style={{background:color,borderRadius:4,height:4,width:`${(ps.average/5)*100}%`}}/>
+            );
+          })}
+          {/* Overall badge — shown always but with caveat if items below */}
+          <div style={{background:cls.bg,border:`1px solid ${cls.color}30`,borderRadius:9,padding:'12px 14px',marginTop:4}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+              <div>
+                <div style={{fontSize:10,fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',color:cls.color}}>Classificação geral</div>
+                <div style={{fontSize:18,fontWeight:700,color:cls.color,marginTop:2}}>{cls.label}</div>
               </div>
+              <div style={{fontSize:20,fontWeight:700,color:cls.color}}>{assessment.overall_average.toFixed(2)}<span style={{fontSize:11,fontWeight:400,color:'#A0A3B1'}}>/5</span></div>
             </div>
-          );
-        })}
+            {anyBelow&&<div style={{fontSize:11,color:'#D97706',marginTop:6}}>⚠ Há itens abaixo do mínimo — veja o detalhamento abaixo antes de prosseguir.</div>}
+          </div>
+        </div>
       </div>
 
-      {/* Block 3: Detail per pillar */}
+      {/* Detail per pillar with 3-layer color coding */}
       {['coragem','humildade','disciplina'].map(p=>{
-        const ps=result?.[p];
-        if(!ps) return null;
+        const ps=result?.[p];if(!ps) return null;
         const pqs=ASSESSMENT_QUESTIONS.filter(q=>q.pillar===p);
+        const pillarOK=ps.minimum_met;
         return (
-          <div key={p} style={{background:'#fff',border:'1px solid #E4E6EF',borderRadius:10,padding:'16px',marginBottom:12}}>
-            <div style={{fontSize:12,fontWeight:700,color:pillarColors[p],letterSpacing:'1px',textTransform:'uppercase',marginBottom:12}}>{p.charAt(0).toUpperCase()+p.slice(1)}</div>
+          <div key={p} style={{background:'#fff',border:`1px solid ${pillarOK?'#E4E6EF':'#FDE68A'}`,borderRadius:10,padding:'16px',marginBottom:10}}>
+            <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:12}}>
+              <div style={{fontSize:12,fontWeight:700,color:pillarColors[p],letterSpacing:'1px',textTransform:'uppercase'}}>{pillarLabels[p]}</div>
+              {!pillarOK&&<span style={{fontSize:11,background:'#FFFBEB',color:'#D97706',padding:'2px 7px',borderRadius:4,fontWeight:600}}>⚠ Requer atenção do coach</span>}
+            </div>
             {pqs.map((q,qi)=>{
               const score=ps.scores[qi];
-              const met=score>=q.minimum_score;
+              const qc=questionColor(score,q.minimum_score);
+              const needsAction=qc.color!=='#059669';
               return (
-                <div key={q.id} style={{borderBottom:qi<pqs.length-1?'1px solid #F4F5F7':'none',paddingBottom:10,marginBottom:10}}>
+                <div key={q.id} style={{borderRadius:7,border:`1px solid ${qc.border}`,background:qc.bg,padding:'10px 12px',marginBottom:8}}>
                   <div style={{display:'flex',alignItems:'flex-start',gap:10}}>
-                    <span style={{fontSize:14,flexShrink:0,marginTop:1}}>{met?'✅':'⚠️'}</span>
                     <div style={{flex:1}}>
-                      <div style={{fontSize:12,color:'#3A3D58',lineHeight:1.5}}>{q.text}</div>
-                      <div style={{display:'flex',gap:8,marginTop:6,alignItems:'center'}}>
-                        <div style={{display:'flex',gap:4}}>
-                          {[1,2,3,4,5].map(n=>(
-                            <div key={n} style={{width:24,height:24,borderRadius:4,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:700,
-                              background:n===score?pillarColors[p]:'#F4F5F7',color:n===score?'#fff':'#A0A3B1'}}>
-                              {n}
-                            </div>
-                          ))}
-                        </div>
-                        <span style={{fontSize:11,color:met?'#059669':'#D97706',fontWeight:600}}>
-                          {met?`mín. ${q.minimum_score} ✓`:`mín. ${q.minimum_score} ⚠`}
+                      <div style={{fontSize:12,color:'#3A3D58',lineHeight:1.5,marginBottom:6}}>{q.text}</div>
+                      <div style={{display:'flex',gap:4,alignItems:'center',flexWrap:'wrap'}}>
+                        {[1,2,3,4,5].map(n=>(
+                          <div key={n} style={{width:26,height:26,borderRadius:5,display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:700,
+                            background:n===score?qc.color:'#F4F5F7',color:n===score?'#fff':'#A0A3B1',border:n===score?'none':'1px solid #E4E6EF'}}>
+                            {n}
+                          </div>
+                        ))}
+                        <span style={{fontSize:11,color:qc.color,fontWeight:600,marginLeft:4}}>
+                          mín. {q.minimum_score} {score>=q.minimum_score?'✓':score===q.minimum_score-1?'⚠':'✗'}
                         </span>
                       </div>
-                      {!met&&<div style={{fontSize:11,color:'#6B6E8E',marginTop:6,background:'#FFFBEB',padding:'6px 8px',borderRadius:6,lineHeight:1.5}}>
-                        <strong>Dica:</strong> {q.coach_action}
-                      </div>}
                     </div>
                   </div>
+                  {needsAction&&(
+                    <div style={{fontSize:11,color:'#6B6E8E',marginTop:8,paddingTop:8,borderTop:`1px solid ${qc.border}`,lineHeight:1.5}}>
+                      <strong style={{color:qc.color}}>Ação do coach:</strong> {q.coach_action}
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -3719,26 +3813,28 @@ function AssessmentResult({assessment,onDecision,onUpdate}){
         );
       })}
 
-      {/* Block 4: Decision */}
-      <div style={{background:'#F9FAFB',border:'1px solid #E4E6EF',borderRadius:10,padding:'16px',marginBottom:12}}>
-        <div style={{fontSize:12,fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',color:'#A0A3B1',marginBottom:8}}>Recomendação</div>
+      {/* Decision block */}
+      <div style={{background:'#F9FAFB',border:'1px solid #E4E6EF',borderRadius:10,padding:'16px',marginBottom:4}}>
+        <div style={{fontSize:12,fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',color:'#A0A3B1',marginBottom:8}}>Recomendação e Decisão</div>
         <div style={{fontSize:13,color:'#3A3D58',lineHeight:1.6,marginBottom:12}}>{cls.rec}</div>
         <div className="field">
-          <div className="flbl">Observações do coach (opcional)</div>
+          <div className="flbl">Observações do coach</div>
           <textarea className="finp" rows={2} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Registre suas observações sobre este candidato..."/>
         </div>
         {assessment.coach_decision&&assessment.coach_decision!=='pending_review'?(
-          <div style={{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',background:assessment.coach_decision==='accepted'?'#F0FDF4':'#FEF2F2',borderRadius:8}}>
-            <span style={{fontSize:13,fontWeight:600,color:assessment.coach_decision==='accepted'?'#059669':'#DC2626'}}>
-              {assessment.coach_decision==='accepted'?'✓ Cliente aceito':'✗ Não prosseguiu'}
+          <div style={{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',
+            background:assessment.coach_decision==='accepted'?'#F0FDF4':assessment.coach_decision==='not_recommended'?'#FEF2F2':'#FEF2F2',borderRadius:8}}>
+            <span style={{fontSize:13,fontWeight:600,
+              color:assessment.coach_decision==='accepted'?'#059669':'#DC2626'}}>
+              {assessment.coach_decision==='accepted'?'✓ Cliente aceito':assessment.coach_decision==='not_recommended'?'✗ Processo não recomendado':'✗ Não prosseguiu'}
             </span>
             <button className="btn btn-g btn-xs" style={{marginLeft:'auto'}} onClick={()=>onUpdate({coach_decision:'pending_review',coach_notes:notes})}>Alterar</button>
           </div>
         ):(
           <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-            <button className="btn btn-p btn-sm" onClick={()=>saveDecision('accepted')} disabled={saving}>✓ Aceitar cliente</button>
-            <button className="btn btn-d btn-sm" onClick={()=>saveDecision('rejected')} disabled={saving}>✗ Não prosseguir</button>
-            <button className="btn btn-g btn-sm" onClick={()=>saveDecision('pending_review')} disabled={saving}>⏳ Aguardar / Revisar</button>
+            <button className="btn btn-p btn-sm" onClick={()=>saveDecision('accepted')}>✓ Aceitar cliente</button>
+            <button className="btn btn-d btn-sm" onClick={()=>saveDecision('not_recommended')}>✗ Processo não recomendado</button>
+            <button className="btn btn-g btn-sm" onClick={()=>{onUpdate({coach_notes:notes});}}>💾 Salvar notas</button>
           </div>
         )}
       </div>
@@ -3760,40 +3856,47 @@ function AssessmentCard({eng,onUpdate}){
   const getLink=(token)=>`${window.location.origin}${window.location.pathname}?assess=${token}`;
   const copyLink=()=>{
     if(!assessment?.token){const t=genToken();setTimeout(()=>navigator.clipboard.writeText(getLink(t)),100);}
-    else{navigator.clipboard.writeText(getLink(assessment.token));}
+    else navigator.clipboard.writeText(getLink(assessment.token));
     alert('Link copiado! Envie ao candidato.');
   };
   const regenLink=()=>{
     if(!safeConfirm('Gerar novo link?','O link anterior será invalidado.')) return;
-    genToken();
-    alert('Novo link gerado. Copie e envie ao candidato.');
+    genToken();alert('Novo link gerado.');
+  };
+  const markCompleted=()=>{
+    if(!safeConfirm('Marcar avaliação como concluída manualmente?','Use apenas se o candidato preencheu e o status não atualizou automaticamente.')) return;
+    onUpdate({assessment:{...assessment,status:'completed',completed_at:new Date().toISOString()}});
+  };
+  const deleteAssessment=()=>{
+    if(!safeConfirm('Excluir esta avaliação de prontidão?','Todos os dados serão removidos. Um novo link poderá ser gerado.')) return;
+    onUpdate({assessment:null});
+    setShowResult(false);
   };
 
   const statusBadge=()=>{
-    if(!assessment||assessment.status==='pending') return {txt:'Aguardando preenchimento',color:'#D97706',bg:'#FFFBEB'};
+    if(!assessment) return {txt:'Não iniciada',color:'#A0A3B1',bg:'#F4F5F7'};
+    if(assessment.status==='pending') return {txt:'Aguardando preenchimento',color:'#D97706',bg:'#FFFBEB'};
     if(assessment.status==='completed'){
       const cls=getClassification(assessment.overall_average);
       return {txt:`Concluída — ${cls.label}`,color:cls.color,bg:cls.bg};
     }
     if(assessment.status==='expired') return {txt:'Link expirado',color:'#A0A3B1',bg:'#F4F5F7'};
-    return {txt:'Não enviada',color:'#A0A3B1',bg:'#F4F5F7'};
+    return {txt:'Não iniciada',color:'#A0A3B1',bg:'#F4F5F7'};
   };
 
   const badge=statusBadge();
 
   return (
     <div style={{background:'#fff',border:'1px solid #E4E6EF',borderRadius:9,padding:'14px 16px',marginBottom:12}}>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:assessment?.status==='completed'?10:0}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:showResult?12:0}}>
         <div>
           <div style={{fontSize:11,fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',color:'#A0A3B1',marginBottom:4}}>Avaliação de Prontidão</div>
-          <div style={{display:'flex',alignItems:'center',gap:8}}>
-            <span style={{fontSize:12,fontWeight:600,padding:'3px 8px',borderRadius:4,background:badge.bg,color:badge.color}}>{badge.txt}</span>
-          </div>
+          <span style={{fontSize:12,fontWeight:600,padding:'3px 8px',borderRadius:4,background:badge.bg,color:badge.color}}>{badge.txt}</span>
         </div>
-        <div style={{display:'flex',gap:6}}>
+        <div style={{display:'flex',gap:6,flexWrap:'wrap',justifyContent:'flex-end'}}>
           {assessment?.status==='completed'&&(
             <button className="btn btn-g btn-sm" onClick={()=>setShowResult(p=>!p)}>
-              {showResult?'Ocultar resultado':'Ver resultado'}
+              {showResult?'Ocultar':'Ver resultado'}
             </button>
           )}
           {(!assessment||assessment.status==='expired')&&(
@@ -3803,7 +3906,11 @@ function AssessmentCard({eng,onUpdate}){
             <>
               <button className="btn btn-g btn-sm" onClick={copyLink}>📎 Copiar link</button>
               <button className="btn btn-g btn-xs" onClick={regenLink}>Novo link</button>
+              <button className="btn btn-g btn-xs" onClick={markCompleted}>✓ Marcar concluída</button>
             </>
+          )}
+          {assessment&&(
+            <button className="btn btn-d btn-xs" onClick={deleteAssessment}>Excluir</button>
           )}
         </div>
       </div>
