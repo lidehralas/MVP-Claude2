@@ -802,6 +802,10 @@ function Login({onLogin}){
   const [pass,setPass]=useState('');
   const [code,setCode]=useState('');
   const [err,setErr]=useState('');
+  const [recovering,setRecovering]=useState(false);
+  const [recoveryEmail,setRecoveryEmail]=useState('');
+  const [recoverySent,setRecoverySent]=useState(false);
+  const [recLoading,setRecLoading]=useState(false);
 
   const ROLES=[
     {id:'coach',name:'Sou Coach',desc:'Acesso completo — gerenciar todos os processos'},
@@ -833,6 +837,17 @@ function Login({onLogin}){
     }
   };
 
+  const sendRecovery=async()=>{
+    if(!recoveryEmail.trim()){setErr('Digite o e-mail cadastrado.');return;}
+    setRecLoading(true);
+    const{error}=await supabase.auth.resetPasswordForEmail(recoveryEmail,{
+      redirectTo:`${window.location.origin}${window.location.pathname}`
+    });
+    setRecLoading(false);
+    if(error){setErr('Erro ao enviar. Verifique o e-mail e tente novamente.');}
+    else{setRecoverySent(true);}
+  };
+
   const hints={coach:'Use o e-mail e senha cadastrados no Supabase',coachee:'CE-1 (Vagner) · CE-2 (Gabriel)',lider:'LD-1-1 · LD-2-1',rh:'RH-dimas',stk:'ST-1-1 · ST-1-2 · ST-1-3'};
 
   return (
@@ -840,18 +855,55 @@ function Login({onLogin}){
       <div className="login-box">
         <div className="login-logo">Lidehra</div>
         <div className="login-tagline">Coach Platform Lidehra</div>
-        <div className="role-cards">
-          {ROLES.map(r=><div key={r.id} className={`role-card${role===r.id?' sel':''}`} onClick={()=>{setRole(r.id);setErr('');}}>
-            <div className="role-name">{r.name}</div><div className="role-desc">{r.desc}</div>
-          </div>)}
-        </div>
-        {role==='coach'?<>
-          <input className="login-inp" type="email" placeholder="E-mail" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==='Enter'&&submit()}/>
-          <input className="login-inp" type="password" placeholder="Senha" value={pass} onChange={e=>setPass(e.target.value)} onKeyDown={e=>e.key==='Enter'&&submit()}/>
-        </>:<input className="login-inp" placeholder={`Código (ex: ${hints[role]?.split('·')[0]?.trim()})`} value={code} onChange={e=>setCode(e.target.value)} onKeyDown={e=>e.key==='Enter'&&submit()}/>}
-        <button className="login-btn" onClick={submit}>Entrar</button>
-        {err&&<div className="login-err">{err}</div>}
-        <div className="login-hint">{hints[role]}</div>
+
+        {recovering?(
+          <>
+            <div style={{fontSize:14,fontWeight:600,color:'#1A1D2E',marginBottom:4}}>Recuperar senha</div>
+            <div style={{fontSize:12,color:'#6B6E8E',marginBottom:16,lineHeight:1.5}}>
+              Digite o e-mail da sua conta. Você receberá um link para redefinir a senha.
+            </div>
+            {recoverySent?(
+              <div style={{background:'#F0FDF4',border:'1px solid #BBF7D0',borderRadius:8,padding:'12px 14px',fontSize:13,color:'#059669',marginBottom:16}}>
+                ✓ Link enviado para <strong>{recoveryEmail}</strong>. Verifique sua caixa de entrada.
+              </div>
+            ):(
+              <>
+                <input className="login-inp" type="email" placeholder="Seu e-mail" value={recoveryEmail}
+                  onChange={e=>setRecoveryEmail(e.target.value)}
+                  onKeyDown={e=>e.key==='Enter'&&sendRecovery()}/>
+                {err&&<div className="login-err">{err}</div>}
+                <button className="login-btn" onClick={sendRecovery} disabled={recLoading}>
+                  {recLoading?'Enviando...':'Enviar link de recuperação'}
+                </button>
+              </>
+            )}
+            <button style={{background:'none',border:'none',color:'#4169FF',fontSize:13,cursor:'pointer',marginTop:8}}
+              onClick={()=>{setRecovering(false);setRecoverySent(false);setErr('');setRecoveryEmail('');}}>
+              ← Voltar ao login
+            </button>
+          </>
+        ):(
+          <>
+            <div className="role-cards">
+              {ROLES.map(r=><div key={r.id} className={`role-card${role===r.id?' sel':''}`} onClick={()=>{setRole(r.id);setErr('');}}>
+                <div className="role-name">{r.name}</div><div className="role-desc">{r.desc}</div>
+              </div>)}
+            </div>
+            {role==='coach'?<>
+              <input className="login-inp" type="email" placeholder="E-mail" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==='Enter'&&submit()}/>
+              <input className="login-inp" type="password" placeholder="Senha" value={pass} onChange={e=>setPass(e.target.value)} onKeyDown={e=>e.key==='Enter'&&submit()}/>
+            </>:<input className="login-inp" placeholder={`Código (ex: ${hints[role]?.split('·')[0]?.trim()})`} value={code} onChange={e=>setCode(e.target.value)} onKeyDown={e=>e.key==='Enter'&&submit()}/>}
+            <button className="login-btn" onClick={submit}>Entrar</button>
+            {err&&<div className="login-err">{err}</div>}
+            <div className="login-hint">{hints[role]}</div>
+            {role==='coach'&&(
+              <button style={{background:'none',border:'none',color:'#4169FF',fontSize:12,cursor:'pointer',marginTop:8,opacity:0.8}}
+                onClick={()=>{setRecovering(true);setRecoveryEmail(email);setErr('');}}>
+                Esqueceu a senha?
+              </button>
+            )}
+          </>
+        )}
       </div>
     </div>
   );
