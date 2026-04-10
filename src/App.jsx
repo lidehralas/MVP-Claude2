@@ -803,6 +803,7 @@ function Login({onLogin}){
   const [code,setCode]=useState('');
   const [err,setErr]=useState('');
   const [recovering,setRecovering]=useState(false);
+  const [showPass,setShowPass]=useState(false);
   const [recoveryEmail,setRecoveryEmail]=useState('');
   const [recoverySent,setRecoverySent]=useState(false);
   const [recLoading,setRecLoading]=useState(false);
@@ -891,7 +892,12 @@ function Login({onLogin}){
             </div>
             {role==='coach'?<>
               <input className="login-inp" type="email" placeholder="E-mail" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==='Enter'&&submit()}/>
-              <input className="login-inp" type="password" placeholder="Senha" value={pass} onChange={e=>setPass(e.target.value)} onKeyDown={e=>e.key==='Enter'&&submit()}/>
+              <div style={{position:'relative'}}>
+              <input className="login-inp" type={showPass?'text':'password'} placeholder="Senha" value={pass} onChange={e=>setPass(e.target.value)} onKeyDown={e=>e.key==='Enter'&&submit()} style={{paddingRight:40,marginBottom:0}}/>
+              <button type="button" onClick={()=>setShowPass(p=>!p)} style={{position:'absolute',right:10,top:'50%',transform:'translateY(-50%)',background:'none',border:'none',cursor:'pointer',fontSize:16,color:'#A0A3B1',padding:'4px',lineHeight:1}}>
+                {showPass?'🙈':'👁'}
+              </button>
+            </div>
             </>:<input className="login-inp" placeholder={`Código (ex: ${hints[role]?.split('·')[0]?.trim()})`} value={code} onChange={e=>setCode(e.target.value)} onKeyDown={e=>e.key==='Enter'&&submit()}/>}
             <button className="login-btn" onClick={submit}>Entrar</button>
             {err&&<div className="login-err">{err}</div>}
@@ -3806,17 +3812,29 @@ function AssessmentResult({assessment,onUpdate}){
               </div>
             );
           })}
-          {/* Overall badge — shown always but with caveat if items below */}
-          <div style={{background:cls.bg,border:`1px solid ${cls.color}30`,borderRadius:9,padding:'12px 14px',marginTop:4}}>
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-              <div>
-                <div style={{fontSize:10,fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',color:cls.color}}>Classificação geral</div>
-                <div style={{fontSize:18,fontWeight:700,color:cls.color,marginTop:2}}>{cls.label}</div>
+          {/* Overall badge */}
+          {anyBelow?(
+            <div style={{background:'#FFFBEB',border:'1px solid #FDE68A',borderRadius:9,padding:'12px 14px',marginTop:4}}>
+              <div style={{fontSize:10,fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',color:'#D97706',marginBottom:4}}>Classificação geral</div>
+              <div style={{fontSize:15,fontWeight:700,color:'#D97706',marginBottom:6}}>Avaliação final depende de análise</div>
+              <div style={{fontSize:12,color:'#92400E',lineHeight:1.6}}>
+                Os seguintes itens não atingiram a nota mínima e requerem atenção do coach antes de prosseguir:
               </div>
-              <div style={{fontSize:20,fontWeight:700,color:cls.color}}>{assessment.overall_average.toFixed(2)}<span style={{fontSize:11,fontWeight:400,color:'#A0A3B1'}}>/5</span></div>
+              <ul style={{margin:'6px 0 0',paddingLeft:16}}>
+                {allQuestions.filter(q=>q.qColor.color!=='#059669').map(q=>(
+                  <li key={q.id} style={{fontSize:12,color:'#92400E',marginBottom:3,lineHeight:1.5}}>
+                    <strong>{q.pillar_label}:</strong> {q.text.slice(0,60)}{q.text.length>60?'...':''} — nota {q.score}, mín. {q.minimum_score}
+                  </li>
+                ))}
+              </ul>
             </div>
-            {anyBelow&&<div style={{fontSize:11,color:'#D97706',marginTop:6}}>⚠ Há itens abaixo do mínimo — veja o detalhamento abaixo antes de prosseguir.</div>}
-          </div>
+          ):(
+            <div style={{background:cls.bg,border:`1px solid ${cls.color}30`,borderRadius:9,padding:'12px 14px',marginTop:4}}>
+              <div style={{fontSize:10,fontWeight:700,letterSpacing:'1px',textTransform:'uppercase',color:cls.color,marginBottom:4}}>Classificação geral</div>
+              <div style={{fontSize:18,fontWeight:700,color:cls.color}}>{cls.label}</div>
+              <div style={{fontSize:12,color:'#6B6E8E',marginTop:4,lineHeight:1.5}}>{cls.rec}</div>
+            </div>
+          )}
         </div>
       </div>
 
