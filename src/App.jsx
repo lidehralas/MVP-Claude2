@@ -3040,7 +3040,11 @@ function EngDetail({id,engs,onBack,onUpdate,onDelete,onOpenPortal}){
   const rawEng=engs.find(e=>e.id===id);
   if(!rawEng)return null;
   const eng=rawEng.ciclos?rawEng:migrateToCiclos(rawEng);
-  if(!rawEng.ciclos){onUpdate(id,{ciclos:eng.ciclos,activeCicloId:eng.activeCicloId});}
+  // Migrate once - only if not already migrated (check _migrated flag to avoid loop)
+  if(!rawEng.ciclos && !rawEng._migrated){
+    // Use setTimeout to avoid render-loop
+    setTimeout(()=>onUpdate(id,{ciclos:eng.ciclos,activeCicloId:eng.activeCicloId,_migrated:true}),50);
+  }
   const upd=patch=>onUpdate(id,patch);
   const activeCiclo=getActiveCiclo(eng)||eng.ciclos[0];
   const updCiclo=patch=>onUpdate(id,updateCiclo(eng,activeCiclo.id,patch));
@@ -3135,9 +3139,18 @@ function EngDetail({id,engs,onBack,onUpdate,onDelete,onOpenPortal}){
               {eng.archiveReason&&<div style={{fontSize:12,color:'#6B6E8E',marginTop:2}}>Motivo: {eng.archiveReason}</div>}
               {eng.archiveObs&&<div style={{fontSize:12,color:'#6B6E8E',marginTop:2,fontStyle:'italic'}}>"{eng.archiveObs}"</div>}
             </div>
-            <button className="btn btn-g btn-sm" style={{marginLeft:'auto'}} onClick={()=>{if(safeConfirm('Reativar este processo?','Ele voltará para a lista de processos ativos.')) upd({archived:false,archiveType:null,archiveReason:null,archiveObs:null,archivedAt:null});}}>
-              Reativar
-            </button>
+            <div style={{display:'flex',gap:8,marginLeft:'auto'}}>
+              <button className="btn btn-g btn-sm" onClick={()=>{if(safeConfirm('Reativar este processo?','Ele voltará para a lista de processos ativos.')) upd({archived:false,archiveType:null,archiveReason:null,archiveObs:null,archivedAt:null});}}>
+                Reativar
+              </button>
+              <button className="btn btn-d btn-xs" onClick={()=>{
+                if(!window.confirm('Apagar permanentemente este processo arquivado?')) return;
+                if(!window.confirm('Confirma? Todos os dados de '+eng.coachee.name+' serão excluídos permanentemente.')) return;
+                const nome=window.prompt('Digite o nome do coachee para confirmar:');
+                if(nome?.trim()===eng.coachee.name.trim()){onDelete(eng.id);onBack();}
+                else alert('Nome incorreto. Processo não apagado.');
+              }}>Apagar definitivamente</button>
+            </div>
           </div>
         )}
         {/* Ciclo selector + checkpoint */}
@@ -3710,23 +3723,23 @@ function CoacheeRelatorios({eng}){
 
       {sub==='360'&&(
         <>
-          {!eng.report?.approved
+          {!engC.report?.approved
             ?<div className="warn-box">Seu relatório 360° está sendo preparado pelo coach.</div>
             :<div>
               <div style={{background:'#F0FDF4',border:'1px solid #BBF7D0',borderRadius:9,padding:'14px 16px',marginBottom:12,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                 <div>
                   <div style={{fontSize:13,fontWeight:600,color:'#059669'}}>✓ Relatório de Desenvolvimento disponível</div>
-                  <div style={{fontSize:12,color:'#6B6E8E',marginTop:2}}>Aprovado em {eng.report.sharedAt}</div>
+                  <div style={{fontSize:12,color:'#6B6E8E',marginTop:2}}>Aprovado em {engC.report.sharedAt}</div>
                 </div>
                 <div style={{display:'flex',gap:8}}>
-                  {eng.report.reportFile&&<button className="btn btn-p btn-sm" onClick={async()=>{
-                    const url=await getFileUrl(eng.report.reportFile);
+                  {engC.report.reportFile&&<button className="btn btn-p btn-sm" onClick={async()=>{
+                    const url=await getFileUrl(engC.report.reportFile);
                     if(url) window.open(url,'_blank'); else alert('Arquivo não encontrado.');
                   }}>↓ Baixar relatório completo</button>}
-                  {eng.report.content&&<button className="btn btn-g btn-sm" onClick={()=>generateDOCX(eng.report.content,`Relatório 360° - ${eng.coachee?.name||''}`)}>↓ Baixar .doc</button>}
+                  {engC.report.content&&<button className="btn btn-g btn-sm" onClick={()=>generateDOCX(engC.report.content,`Relatório 360° - ${eng.coachee?.name||''}`)}>↓ Baixar .doc</button>}
                 </div>
               </div>
-              {eng.report.content&&<div className="report-view"><div className="report-text" style={{fontSize:13}}>{eng.report.content}</div></div>}
+              {engC.report.content&&<div className="report-view"><div className="report-text" style={{fontSize:13}}>{engC.report.content}</div></div>}
             </div>
           }
         </>
@@ -4551,19 +4564,22 @@ function CoacheePortal({eng:rawEng,onLogout,onUpdate,isCoachView,onBackToCoach})
 // ─── LEADER PORTAL ────────────────────────────────────────────────────────────
 function LeaderPortal({engId,liderId,engs,onLogout,onUpdate,isCoachView,onBackToCoach}){
   const [tab,setTab]=useState('visao');
-  const compsAprovadas=(eng.competencias||[]).filter(c=>c.status==='aprovada').length;
   const [invalidModal,setInvalidModal]=useState(null);
   const [suggestModal,setSuggestModal]=useState(false);
   const [listType,setListType]=useState('360');
-  const eng=engs.find(e=>e.id===engId);
-  const lider=eng?.leaders.find(l=>l.id===liderId) || eng?.leaders?.[0] || {id:liderId,name:'Líder',initials:'L'};
+  const rawLdrEng=engs.find(e=>e.id===engId);
+  const eng=rawLdrEng?.ciclos?rawLdrEng:rawLdrEng?migrateToCiclos(rawLdrEng):null;
   if(!eng) return <div className="done-page"><style>{CSS}</style><div className="done-icon">⚠</div><div className="done-title">Processo não encontrado</div></div>;
+  const ldrActiveCiclo=getActiveCiclo(eng)||eng.ciclos[0];
+  const ldrEngC={...eng,...ldrActiveCiclo};
+  const lider=eng?.leaders?.find(l=>l.id===liderId) || eng?.leaders?.[0] || {id:liderId,name:'Líder',initials:'L'};
+  const compsAprovadas=(ldrActiveCiclo.competencias||[]).filter(c=>c.status==='aprovada').length;
 
   const doInvalidate=(sh,tipo,msg)=>{
     const notif={msg:`Líder solicitou revisão de "${sh.name}" na lista de ${tipo==='360'?'Avaliação 360°':'Mini-survey'}. Mensagem: ${msg}`,date:new Date().toLocaleDateString('pt-BR')};
     if(tipo==='360'){
       onUpdate(eng.id,{
-        stakeholders360:eng.stakeholders360.map(s=>s.id===sh.id?{...s,invalid:true,leaderMsg:msg}:s),
+        stakeholders360:ldrEngC.stakeholders360.map(s=>s.id===sh.id?{...s,invalid:true,leaderMsg:msg}:s),
         notifications:[...(eng.notifications||[]),notif]
       });
     } else {
@@ -4583,7 +4599,7 @@ function LeaderPortal({engId,liderId,engs,onLogout,onUpdate,isCoachView,onBackTo
   };
 
   const validateAll=(tipo)=>{
-    if(tipo==='360') onUpdate(eng.id,{stakeholders360:eng.stakeholders360.map(s=>({...s,validatedByLeader:true}))});
+    if(tipo==='360') onUpdate(eng.id,{stakeholders360:ldrEngC.stakeholders360.map(s=>({...s,validatedByLeader:true}))});
     else onUpdate(eng.id,{stakeholdersMS:eng.stakeholdersMS.map(s=>({...s,validatedByLeader:true}))});
     alert('Lista validada!');
   };
@@ -4621,9 +4637,9 @@ function LeaderPortal({engId,liderId,engs,onLogout,onUpdate,isCoachView,onBackTo
                 Valide as competências definidas pelo coach para o desenvolvimento de {eng.coachee.name}.
                 Sua aprovação confirma o alinhamento com as expectativas da liderança.
               </div>
-              {(eng.competencias||[]).length===0
+              {(ldrActiveCiclo.competencias||[]).length===0
                 ?<div className="empty"><div className="ei">◌</div>Competências ainda não definidas pelo coach.</div>
-                :<CompEditor competencias={eng.competencias||[]} onChange={comps=>onUpdate(eng.id,{competencias:comps})} role="lider"/>
+                :<CompEditor competencias={ldrActiveCiclo.competencias||[]} onChange={comps=>onUpdate(eng.id,{competencias:comps})} role="lider"/>
               }
             </div>
           )}
@@ -4633,7 +4649,7 @@ function LeaderPortal({engId,liderId,engs,onLogout,onUpdate,isCoachView,onBackTo
                 <div><div style={{fontSize:10,color:'#A0A3B1',letterSpacing:'1.5px',textTransform:'uppercase',fontWeight:600,marginBottom:4}}>Sessão atual</div><div style={{fontSize:22,fontWeight:600,color:'#4169FF'}}>{eng.sessions.length}<span style={{fontSize:13,color:'#A0A3B1',fontWeight:400}}>/10</span></div></div>
                 <div><div style={{fontSize:10,color:'#A0A3B1',letterSpacing:'1.5px',textTransform:'uppercase',fontWeight:600,marginBottom:4}}>Etapa atual</div><div style={{fontSize:15,fontWeight:600,color:'#1A1D2E'}}>{STAGES[eng.phase-1]}</div></div>
                 <div><div style={{fontSize:10,color:'#A0A3B1',letterSpacing:'1.5px',textTransform:'uppercase',fontWeight:600,marginBottom:4}}>Cadência</div><div style={{fontSize:15,fontWeight:600,color:'#1A1D2E',textTransform:'capitalize'}}>{eng.cadence}</div></div>
-                <div><div style={{fontSize:10,color:'#A0A3B1',letterSpacing:'1.5px',textTransform:'uppercase',fontWeight:600,marginBottom:4}}>Mini-Surveys</div><div style={{fontSize:15,fontWeight:600,color:'#1A1D2E'}}>{eng.miniSurveys.length} aplicado{eng.miniSurveys.length!==1?'s':''}</div></div>
+                <div><div style={{fontSize:10,color:'#A0A3B1',letterSpacing:'1.5px',textTransform:'uppercase',fontWeight:600,marginBottom:4}}>Mini-Surveys</div><div style={{fontSize:15,fontWeight:600,color:'#1A1D2E'}}>{ldrEngC.miniSurveys.length} aplicado{ldrEngC.miniSurveys.length!==1?'s':''}</div></div>
               </div>
               <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8}}>
                 {[1,2,3,4].map(p=>{
@@ -4655,10 +4671,10 @@ function LeaderPortal({engId,liderId,engs,onLogout,onUpdate,isCoachView,onBackTo
                 <button className="btn btn-y btn-sm" style={{marginLeft:'auto'}} onClick={()=>setSuggestModal(true)}>+ Sugerir nome</button>
                 <button className="btn btn-p btn-sm" onClick={()=>validateAll(listType)}>✓ Validar lista</button>
               </div>
-              {(listType==='360'?eng.stakeholders360:eng.stakeholdersMS).length===0
+              {(listType==='360'?ldrEngC.stakeholders360:eng.stakeholdersMS).length===0
                 ?<div className="empty"><div className="ei">◌</div>Aguardando coachee cadastrar a lista.</div>
                 :<div className="sh-list">
-                  {(listType==='360'?eng.stakeholders360:eng.stakeholdersMS).map(s=>(
+                  {(listType==='360'?ldrEngC.stakeholders360:eng.stakeholdersMS).map(s=>(
                     <div key={s.id} className={`sh-item ${s.invalid?'sh-invalid':''}`}>
                       <div className="sh-av">{s.initials}</div>
                       <div style={{flex:1}}>
@@ -4677,7 +4693,7 @@ function LeaderPortal({engId,liderId,engs,onLogout,onUpdate,isCoachView,onBackTo
             </>
           )}
           {tab==='plano'&&<TabPlanoAcoes eng={eng} onUpdate={()=>{}} isCoach={false} readOnly={true}/>}
-          {tab==='progresso'&&<ProgressChart miniSurveys={eng.miniSurveys}/>}
+          {tab==='progresso'&&<ProgressChart miniSurveys={ldrEngC.miniSurveys}/>}
         </div>
       </div>
     </div>
@@ -4717,7 +4733,7 @@ function RHPortal({company,engs,onLogout,isCoachView,onBackToCoach}){
                   <div style={{display:'flex',gap:12,marginBottom:8}}>
                     <span style={{fontSize:11,color:'#6B6E8E'}}>Sessão <strong style={{color:'#1A1D2E'}}>{e.sessions.length}</strong>/10</span>
                     <span style={{fontSize:11,color:'#6B6E8E'}}>{STAGES[e.phase-1]}</span>
-                    <span style={{fontSize:11,color:'#6B6E8E'}}>{e.miniSurveys.length} mini-survey{e.miniSurveys.length!==1?'s':''}</span>
+                    <span style={{fontSize:11,color:'#6B6E8E'}}>{(e.ciclos?getActiveCiclo(e):e)?.miniSurveys?.length||0} mini-survey</span>
                   </div>
                   <div className="ec-meta"><StatusBadge status={currentStatus(e)}/><span className="ec-info">{e.cadence}</span></div>
                 </div>
@@ -4725,17 +4741,37 @@ function RHPortal({company,engs,onLogout,isCoachView,onBackToCoach}){
             </div>
             {selEng&&(
               <div>
-                <div style={{display:'flex',gap:3,background:'#F4F5F7',borderRadius:9,padding:3,marginBottom:16,width:'fit-content'}}>
-                  {[{id:'prog',l:'Progresso'},{id:'plano',l:'Plano de Ações'}].map(t=>(
-                    <button key={t.id} className={`btn btn-sm ${(selEng._rhTab||'prog')===t.id?'btn-p':'btn-g'}`} style={{border:'none'}}
-                      onClick={()=>setSelId(prev=>{const e=compEngs.find(x=>x.id===prev);if(e)e._rhTab=t.id;return prev;})}>
-                      {t.l}
-                    </button>
-                  ))}
-                </div>
-                <div style={{fontSize:16,fontWeight:600,color:'#1A1D2E',marginBottom:16}}>{selEng.coachee.name}</div>
-                <ProgressChart miniSurveys={selEng.miniSurveys}/>
-                <TabPlanoAcoes eng={selEng} onUpdate={()=>{}} isCoach={false} readOnly={true}/>
+                {(()=>{
+                  const rhEng=selEng.ciclos?selEng:migrateToCiclos(selEng);
+                  const rhCiclo=getActiveCiclo(rhEng)||{};
+                  const rhEngC={...rhEng,...rhCiclo};
+                  return (
+                    <>
+                      <div style={{display:'flex',gap:3,background:'#F4F5F7',borderRadius:9,padding:3,marginBottom:16,width:'fit-content'}}>
+                        {[{id:'prog',l:'Progresso'},{id:'relatorio',l:'Relatório 360°'},{id:'plano',l:'Plano de Ações'}].map(t=>(
+                          <button key={t.id} className={`btn btn-sm ${(selEng._rhTab||'prog')===t.id?'btn-p':'btn-g'}`} style={{border:'none'}}
+                            onClick={()=>setSelId(prev=>{const e=compEngs.find(x=>x.id===prev);if(e)e._rhTab=t.id;return prev;})}>
+                            {t.l}
+                          </button>
+                        ))}
+                      </div>
+                      <div style={{fontSize:16,fontWeight:600,color:'#1A1D2E',marginBottom:16}}>{rhEng.coachee.name}</div>
+                      {(selEng._rhTab||'prog')==='prog'&&<ProgressChart miniSurveys={rhCiclo.miniSurveys||[]}/>}
+                      {selEng._rhTab==='relatorio'&&(
+                        rhEngC.report?.approved
+                          ?<div>
+                            <div style={{background:'#F0FDF4',border:'1px solid #BBF7D0',borderRadius:9,padding:'12px 16px',marginBottom:12,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                              <div style={{fontSize:13,fontWeight:600,color:'#059669'}}>✓ Relatório 360° aprovado em {rhEngC.report.sharedAt}</div>
+                              {rhEngC.report.content&&<button className="btn btn-g btn-sm" onClick={()=>generateDOCX(rhEngC.report.content,`Relatório 360° - ${rhEng.coachee.name}`)}>↓ Baixar .doc</button>}
+                            </div>
+                            {rhEngC.report.content&&<div className="report-view"><div className="report-text" style={{fontSize:13}}>{rhEngC.report.content}</div></div>}
+                          </div>
+                          :<div className="warn-box">O relatório 360° ainda não foi aprovado pelo coach.</div>
+                      )}
+                      {selEng._rhTab==='plano'&&<TabPlanoAcoes eng={rhEngC} onUpdate={()=>{}} isCoach={false} readOnly={true}/>}
+                    </>
+                  );
+                })()}
               </div>
             )}
           </>
