@@ -2519,7 +2519,21 @@ Sugestões para desenvolvimento: categorizadas por frequência, priorizadas, dis
     setAiLoadingMS(false);
   };
 
-  const save360=()=>{onUpdate({report:{...eng.report,content:draft360}});setEditing360(false);};
+  const save360=()=>{
+    // Auto-extract priorities when saving if not already set
+    let autoP=eng.summary360Priorities||'';
+    if(!autoP&&draft360){
+      try{
+        const prioMatch=draft360.match(/##\s*Prioridades de Desenvolvimento[\s\S]*?(?=\n##|$)/i);
+        if(prioMatch){
+          const lines=prioMatch[0].split('\n').filter(l=>l.match(/^\s*(\d+[\.\)]|[-•●▪]|\*\*\d)/)).slice(0,3).map(l=>l.replace(/^\s*\d+[\.\)]\s*|^\s*[-•●▪]\s*|\*\*/g,'').split('\n')[0].trim()).filter(Boolean);
+          if(lines.length>0) autoP=lines.map((l,i)=>`${i+1}. ${l}`).join('\n');
+        }
+      }catch(e){}
+    }
+    onUpdate({report:{...eng.report,content:draft360},summary360Priorities:autoP});
+    setEditing360(false);
+  };
   const cancel360=()=>{
     if(draft360!==eng.report?.content&&!safeConfirm('Descartar as alterações?','As edições não salvas serão perdidas.')) return;
     setEditing360(false);
@@ -3037,28 +3051,23 @@ function EngDetail({id,engs,onBack,onUpdate,onDelete,onOpenPortal}){
   const [showCheckpoint,setShowCheckpoint]=useState(false);
   const [viewCicloId,setViewCicloId]=useState(null);
 
-  const rawEng=engs.find(e=>e.id===id);
-  if(!rawEng)return null;
-  const eng=rawEng.ciclos?rawEng:migrateToCiclos(rawEng);
-  // Migrate once - only if not already migrated (check _migrated flag to avoid loop)
-  if(!rawEng.ciclos && !rawEng._migrated){
-    // Use setTimeout to avoid render-loop
-    setTimeout(()=>onUpdate(id,{ciclos:eng.ciclos,activeCicloId:eng.activeCicloId,_migrated:true}),50);
-  }
+  const eng=engs.find(e=>e.id===id);
+  if(!eng)return null;
   const upd=patch=>onUpdate(id,patch);
-  const activeCiclo=getActiveCiclo(eng)||eng.ciclos[0];
-  const updCiclo=patch=>onUpdate(id,updateCiclo(eng,activeCiclo.id,patch));
-  const viewCiclo=viewCicloId?(eng.ciclos.find(c=>c.id===viewCicloId)||activeCiclo):activeCiclo;
-  const isViewingActive=viewCiclo.id===activeCiclo.id;
-  const updViewCiclo=patch=>onUpdate(id,updateCiclo(eng,viewCiclo.id,patch));
 
-  const pendingStk=(viewCiclo.stakeholders360||[]).some(s=>s.status==='pending')||(eng.stakeholdersMS||[]).some(s=>s.status==='pending');
-  const hasActions=(viewCiclo.planoAcoes||[]).length;
-  const cicloCount=(eng.ciclos||[]).length;
+  // Ciclo view: when viewing a historical ciclo, show its snapshot data
+  const ciclos=eng.ciclos||[];
+  const viewingCiclo=viewCicloId?ciclos.find(c=>c.id===viewCicloId):null;
+  const isViewingHistory=!!viewingCiclo;
+  const engView=viewingCiclo?{...eng,...viewingCiclo,coachee:eng.coachee,leaders:eng.leaders,sessions:eng.sessions}:eng;
+  const updView=isViewingHistory?()=>{}:upd;
+
+  const pendingStk=(eng.stakeholders360||[]).some(s=>s.status==='pending')||(eng.stakeholdersMS||[]).some(s=>s.status==='pending');
+  const hasActions=(eng.planoAcoes||[]).length;
   const TABS=[
     {id:'roadmap',label:'Jornada'},
     {id:'stk',label:`Stakeholders${pendingStk?' ⚠':''}`},
-    {id:'relatorios',label:`Relatórios${viewCiclo.report?.approved?' ✓':viewCiclo.report?' (rascunho)':''}`},
+    {id:'relatorios',label:`Relatórios${eng.report?.approved?' ✓':eng.report?' (rascunho)':''}`},
     {id:'plano',label:`Plano de Ações${hasActions?' ('+hasActions+')':''}`},
     {id:'sessions',label:`Sessões (${eng.sessions.length})`},
   ];
@@ -3140,51 +3149,61 @@ function EngDetail({id,engs,onBack,onUpdate,onDelete,onOpenPortal}){
               {eng.archiveObs&&<div style={{fontSize:12,color:'#6B6E8E',marginTop:2,fontStyle:'italic'}}>"{eng.archiveObs}"</div>}
             </div>
             <div style={{display:'flex',gap:8,marginLeft:'auto'}}>
-              <button className="btn btn-g btn-sm" onClick={()=>{if(safeConfirm('Reativar este processo?','Ele voltará para a lista de processos ativos.')) upd({archived:false,archiveType:null,archiveReason:null,archiveObs:null,archivedAt:null});}}>
-                Reativar
-              </button>
+              <button className="btn btn-g btn-sm" onClick={()=>{if(safeConfirm('Reativar este processo?','Ele voltará para a lista de processos ativos.')) upd({archived:false,archiveType:null,archiveReason:null,archiveObs:null,archivedAt:null});}}>Reativar</button>
               <button className="btn btn-d btn-xs" onClick={()=>{
                 if(!window.confirm('Apagar permanentemente este processo arquivado?')) return;
-                if(!window.confirm('Confirma? Todos os dados de '+eng.coachee.name+' serão excluídos permanentemente.')) return;
+                if(!window.confirm('Confirma a exclusão permanente de todos os dados de '+eng.coachee.name+'?')) return;
                 const nome=window.prompt('Digite o nome do coachee para confirmar:');
                 if(nome?.trim()===eng.coachee.name.trim()){onDelete(eng.id);onBack();}
                 else alert('Nome incorreto. Processo não apagado.');
-              }}>Apagar definitivamente</button>
+              }}>Apagar</button>
             </div>
           </div>
         )}
-        {/* Ciclo selector + checkpoint */}
-        {(eng.ciclos||[]).length>0&&(
+        {/* Ciclo selector */}
+        {ciclos.length>0&&(
           <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
-            <CicloSelector eng={eng} activeCicloId={viewCiclo.id} onSelectCiclo={setViewCicloId}/>
-            {isViewingActive&&!eng.archived&&(
+            <CicloSelector eng={eng} activeCicloId={viewCicloId} onSelectCiclo={setViewCicloId}/>
+            {!isViewingHistory&&!eng.archived&&(
               <button className="btn btn-g btn-sm" style={{marginBottom:16,flexShrink:0}}
                 onClick={()=>setShowCheckpoint(true)}>
                 ⟳ Iniciar novo ciclo
               </button>
             )}
-            {!isViewingActive&&(
+            {isViewingHistory&&(
               <div style={{fontSize:11,color:'#A0A3B1',marginBottom:16,padding:'4px 10px',background:'#F4F5F7',borderRadius:6}}>
-                Visualizando {viewCiclo.label} (encerrado)
+                Visualizando {viewingCiclo.label} (histórico)
               </div>
             )}
+          </div>
+        )}
+        {!isViewingHistory&&!eng.archived&&ciclos.length===0&&(
+          <div style={{display:'flex',justifyContent:'flex-end',marginBottom:8}}>
+            <button className="btn btn-g btn-sm" onClick={()=>setShowCheckpoint(true)}>⟳ Iniciar novo ciclo</button>
           </div>
         )}
         {showCheckpoint&&(
           <CheckpointModal eng={eng} onClose={()=>setShowCheckpoint(false)}
             onCreateNextCiclo={(notes, inherited)=>{
-              const nextId=(eng.ciclos||[]).length+1;
-              const newCiclo=makeCiclo(nextId, inherited);
-              const updatedCiclos=[...(eng.ciclos||[]).map(c=>c.id===activeCiclo.id?{...c,status:'encerrado',endDate:new Date().toISOString().split('T')[0],checkpointNotes:notes}:c),newCiclo];
-              onUpdate(id,{ciclos:updatedCiclos,activeCicloId:nextId});
-              setViewCicloId(null);
+              // Save current state as ciclo snapshot
+              const currentN=ciclos.length+1;
+              const snapshot={id:currentN,label:`Ciclo ${currentN}`,status:'encerrado',
+                endDate:new Date().toISOString().split('T')[0],checkpointNotes:notes,
+                competencias:eng.competencias,stakeholders360:eng.stakeholders360,
+                miniSurveys:eng.miniSurveys,report:eng.report,planoAcoes:eng.planoAcoes};
+              const newComps=inherited.competencias?JSON.parse(JSON.stringify(eng.competencias)):[];
+              const newStk=inherited.stakeholders360?JSON.parse(JSON.stringify(eng.stakeholders360)).map(s=>({...s,status:'pending',feedback:null})):[];
+              const newPlan=inherited.planoAcoes?JSON.parse(JSON.stringify(eng.planoAcoes)).map(a=>({...a,status:'Não iniciada',resultado:''})):[];
+              upd({ciclos:[...ciclos,snapshot],competencias:newComps,stakeholders360:newStk,
+                miniSurveys:[],report:null,planoAcoes:newPlan,summary360Priorities:''});
+              setShowCheckpoint(false);setViewCicloId(null);
             }}/>
         )}
-        {tab==='roadmap'&&<RoadmapTab eng={{...eng,...viewCiclo,cicloLabel:viewCiclo.label}} onUpdate={isViewingActive?patch=>updViewCiclo(patch):()=>{}} ciclosCount={(eng.ciclos||[]).length}/>}
-        {tab==='stk'&&<TabStakeholders eng={{...eng,...viewCiclo}} onUpdate={patch=>updViewCiclo(patch)}/>}
-        {tab==='relatorios'&&<TabRelatorios eng={{...eng,...viewCiclo}} onUpdate={patch=>updViewCiclo(patch)}/>}
-        {tab==='plano'&&<TabPlanoAcoes eng={{...eng,...viewCiclo}} onUpdate={patch=>updViewCiclo(patch)} isCoach={true} readOnly={!isViewingActive}/>}
-        {tab==='sessions'&&<TabSessions eng={eng} onUpdate={upd} activeCiclo={activeCiclo}/>}
+        {tab==='roadmap'&&<RoadmapTab eng={eng} onUpdate={upd}/>}
+        {tab==='stk'&&<TabStakeholders eng={engView} onUpdate={updView}/>}
+        {tab==='relatorios'&&<TabRelatorios eng={engView} onUpdate={updView}/>}
+        {tab==='plano'&&<TabPlanoAcoes eng={engView} onUpdate={updView} isCoach={true} readOnly={isViewingHistory}/>}
+        {tab==='sessions'&&<TabSessions eng={eng} onUpdate={upd}/>}
       </div>
     </>
   );
@@ -4393,13 +4412,8 @@ function ProgressChartCoachee({miniSurveys}){
 }
 
 // ─── COACHEE PORTAL ───────────────────────────────────────────────────────────
-function CoacheePortal({eng:rawEng,onLogout,onUpdate,isCoachView,onBackToCoach}){
-  const eng = rawEng.ciclos ? rawEng : migrateToCiclos(rawEng);
-  const activeCiclo = getActiveCiclo(eng) || {};
-  // Merge active ciclo data into eng for all sub-components
-  const updCiclo = patch => onUpdate(eng.id, updateCiclo(eng, activeCiclo.id, patch));
-  // Merge active ciclo into eng for all sub-components
-  const engC = {...eng, ...activeCiclo};
+function CoacheePortal({eng,onLogout,onUpdate,isCoachView,onBackToCoach}){
+  const updEng=patch=>updEng(patch);
   const [tab,setTab]=useState('jornada');
   const [showAdd360,setShowAdd360]=useState(false);
   const [showAddMS,setShowAddMS]=useState(false);
@@ -4422,8 +4436,8 @@ function CoacheePortal({eng:rawEng,onLogout,onUpdate,isCoachView,onBackToCoach})
   return (
     <div className="portal-page">
       <style>{CSS}</style>
-      {showAdd360&&<AddShModal tipo="360" currentCount={eng.stakeholders360.length} onSave={sh=>{onUpdate(eng.id,{stakeholders360:[...eng.stakeholders360,sh]});setShowAdd360(false);}} onClose={()=>setShowAdd360(false)}/>}
-      {showAddMS&&<AddShModal tipo="ms" currentCount={eng.stakeholdersMS.length} onSave={sh=>{onUpdate(eng.id,{stakeholdersMS:[...eng.stakeholdersMS,sh]});setShowAddMS(false);}} onClose={()=>setShowAddMS(false)}/>}
+      {showAdd360&&<AddShModal tipo="360" currentCount={eng.stakeholders360.length} onSave={sh=>{updEng({stakeholders360:[...eng.stakeholders360,sh]});setShowAdd360(false);}} onClose={()=>setShowAdd360(false)}/>}
+      {showAddMS&&<AddShModal tipo="ms" currentCount={eng.stakeholdersMS.length} onSave={sh=>{updEng({stakeholdersMS:[...eng.stakeholdersMS,sh]});setShowAddMS(false);}} onClose={()=>setShowAddMS(false)}/>}
       <div className="portal-header">
         <div><div style={{fontWeight:700,fontSize:16,color:'#1A1D2E'}}>Lidehra</div><div style={{fontSize:10,color:'#A0A3B1',letterSpacing:'2px',textTransform:'uppercase'}}>Minha Jornada</div></div>
         <div style={{display:'flex',alignItems:'center',gap:12}}>
@@ -4458,7 +4472,7 @@ function CoacheePortal({eng:rawEng,onLogout,onUpdate,isCoachView,onBackToCoach})
         <div className="tabs">{TABS.map(t=><div key={t.id} className={`tab${tab===t.id?' on':''}`} onClick={()=>setTab(t.id)}>{t.l}</div>)}</div>
         <div style={{paddingTop:24}}>
           {tab==='questionario'&&(
-            <QuestionarioForm eng={eng} onUpdate={upd=>onUpdate(eng.id,upd)} isCoach={false}/>
+            <QuestionarioForm eng={eng} onUpdate={upd=>updEng(upd)} isCoach={false}/>
           )}
           {tab==='jornada'&&(
             <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10}}>
@@ -4492,7 +4506,7 @@ function CoacheePortal({eng:rawEng,onLogout,onUpdate,isCoachView,onBackToCoach})
               </div>
               {(activeCiclo.competencias||[]).length===0
                 ?<div className="empty"><div className="ei">◌</div>As competências ainda não foram definidas pelo coach.</div>
-                :<CompEditor competencias={activeCiclo.competencias||[]} onChange={comps=>updCiclo({competencias:comps})} role="coachee"/>
+                :<CompEditor competencias={activeCiclo.competencias||[]} onChange={comps=>updEng({competencias:comps})} role="coachee"/>
               }
             </div>
           )}
@@ -4567,19 +4581,16 @@ function LeaderPortal({engId,liderId,engs,onLogout,onUpdate,isCoachView,onBackTo
   const [invalidModal,setInvalidModal]=useState(null);
   const [suggestModal,setSuggestModal]=useState(false);
   const [listType,setListType]=useState('360');
-  const rawLdrEng=engs.find(e=>e.id===engId);
-  const eng=rawLdrEng?.ciclos?rawLdrEng:rawLdrEng?migrateToCiclos(rawLdrEng):null;
+  const eng=engs.find(e=>e.id===engId);
   if(!eng) return <div className="done-page"><style>{CSS}</style><div className="done-icon">⚠</div><div className="done-title">Processo não encontrado</div></div>;
-  const ldrActiveCiclo=getActiveCiclo(eng)||eng.ciclos[0];
-  const ldrEngC={...eng,...ldrActiveCiclo};
   const lider=eng?.leaders?.find(l=>l.id===liderId) || eng?.leaders?.[0] || {id:liderId,name:'Líder',initials:'L'};
-  const compsAprovadas=(ldrActiveCiclo.competencias||[]).filter(c=>c.status==='aprovada').length;
+  const compsAprovadas=(eng.competencias||[]).filter(c=>c.status==='aprovada').length;
 
   const doInvalidate=(sh,tipo,msg)=>{
     const notif={msg:`Líder solicitou revisão de "${sh.name}" na lista de ${tipo==='360'?'Avaliação 360°':'Mini-survey'}. Mensagem: ${msg}`,date:new Date().toLocaleDateString('pt-BR')};
     if(tipo==='360'){
       onUpdate(eng.id,{
-        stakeholders360:ldrEngC.stakeholders360.map(s=>s.id===sh.id?{...s,invalid:true,leaderMsg:msg}:s),
+        stakeholders360:(eng.stakeholders360||[]).map(s=>s.id===sh.id?{...s,invalid:true,leaderMsg:msg}:s),
         notifications:[...(eng.notifications||[]),notif]
       });
     } else {
@@ -4599,7 +4610,7 @@ function LeaderPortal({engId,liderId,engs,onLogout,onUpdate,isCoachView,onBackTo
   };
 
   const validateAll=(tipo)=>{
-    if(tipo==='360') onUpdate(eng.id,{stakeholders360:ldrEngC.stakeholders360.map(s=>({...s,validatedByLeader:true}))});
+    if(tipo==='360') onUpdate(eng.id,{stakeholders360:(eng.stakeholders360||[]).map(s=>({...s,validatedByLeader:true}))});
     else onUpdate(eng.id,{stakeholdersMS:eng.stakeholdersMS.map(s=>({...s,validatedByLeader:true}))});
     alert('Lista validada!');
   };
@@ -4637,9 +4648,9 @@ function LeaderPortal({engId,liderId,engs,onLogout,onUpdate,isCoachView,onBackTo
                 Valide as competências definidas pelo coach para o desenvolvimento de {eng.coachee.name}.
                 Sua aprovação confirma o alinhamento com as expectativas da liderança.
               </div>
-              {(ldrActiveCiclo.competencias||[]).length===0
+              {((eng.competencias||[])||[]).length===0
                 ?<div className="empty"><div className="ei">◌</div>Competências ainda não definidas pelo coach.</div>
-                :<CompEditor competencias={ldrActiveCiclo.competencias||[]} onChange={comps=>onUpdate(eng.id,{competencias:comps})} role="lider"/>
+                :<CompEditor competencias={(eng.competencias||[])||[]} onChange={comps=>onUpdate(eng.id,{competencias:comps})} role="lider"/>
               }
             </div>
           )}
@@ -4649,7 +4660,7 @@ function LeaderPortal({engId,liderId,engs,onLogout,onUpdate,isCoachView,onBackTo
                 <div><div style={{fontSize:10,color:'#A0A3B1',letterSpacing:'1.5px',textTransform:'uppercase',fontWeight:600,marginBottom:4}}>Sessão atual</div><div style={{fontSize:22,fontWeight:600,color:'#4169FF'}}>{eng.sessions.length}<span style={{fontSize:13,color:'#A0A3B1',fontWeight:400}}>/10</span></div></div>
                 <div><div style={{fontSize:10,color:'#A0A3B1',letterSpacing:'1.5px',textTransform:'uppercase',fontWeight:600,marginBottom:4}}>Etapa atual</div><div style={{fontSize:15,fontWeight:600,color:'#1A1D2E'}}>{STAGES[eng.phase-1]}</div></div>
                 <div><div style={{fontSize:10,color:'#A0A3B1',letterSpacing:'1.5px',textTransform:'uppercase',fontWeight:600,marginBottom:4}}>Cadência</div><div style={{fontSize:15,fontWeight:600,color:'#1A1D2E',textTransform:'capitalize'}}>{eng.cadence}</div></div>
-                <div><div style={{fontSize:10,color:'#A0A3B1',letterSpacing:'1.5px',textTransform:'uppercase',fontWeight:600,marginBottom:4}}>Mini-Surveys</div><div style={{fontSize:15,fontWeight:600,color:'#1A1D2E'}}>{ldrEngC.miniSurveys.length} aplicado{ldrEngC.miniSurveys.length!==1?'s':''}</div></div>
+                <div><div style={{fontSize:10,color:'#A0A3B1',letterSpacing:'1.5px',textTransform:'uppercase',fontWeight:600,marginBottom:4}}>Mini-Surveys</div><div style={{fontSize:15,fontWeight:600,color:'#1A1D2E'}}>{(eng.miniSurveys||[]).length} aplicado{(eng.miniSurveys||[]).length!==1?'s':''}</div></div>
               </div>
               <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8}}>
                 {[1,2,3,4].map(p=>{
@@ -4671,10 +4682,10 @@ function LeaderPortal({engId,liderId,engs,onLogout,onUpdate,isCoachView,onBackTo
                 <button className="btn btn-y btn-sm" style={{marginLeft:'auto'}} onClick={()=>setSuggestModal(true)}>+ Sugerir nome</button>
                 <button className="btn btn-p btn-sm" onClick={()=>validateAll(listType)}>✓ Validar lista</button>
               </div>
-              {(listType==='360'?ldrEngC.stakeholders360:eng.stakeholdersMS).length===0
+              {(listType==='360'?(eng.stakeholders360||[]):eng.stakeholdersMS).length===0
                 ?<div className="empty"><div className="ei">◌</div>Aguardando coachee cadastrar a lista.</div>
                 :<div className="sh-list">
-                  {(listType==='360'?ldrEngC.stakeholders360:eng.stakeholdersMS).map(s=>(
+                  {(listType==='360'?(eng.stakeholders360||[]):eng.stakeholdersMS).map(s=>(
                     <div key={s.id} className={`sh-item ${s.invalid?'sh-invalid':''}`}>
                       <div className="sh-av">{s.initials}</div>
                       <div style={{flex:1}}>
@@ -4693,7 +4704,7 @@ function LeaderPortal({engId,liderId,engs,onLogout,onUpdate,isCoachView,onBackTo
             </>
           )}
           {tab==='plano'&&<TabPlanoAcoes eng={eng} onUpdate={()=>{}} isCoach={false} readOnly={true}/>}
-          {tab==='progresso'&&<ProgressChart miniSurveys={ldrEngC.miniSurveys}/>}
+          {tab==='progresso'&&<ProgressChart miniSurveys={(eng.miniSurveys||[])}/>}
         </div>
       </div>
     </div>
@@ -4742,9 +4753,6 @@ function RHPortal({company,engs,onLogout,isCoachView,onBackToCoach}){
             {selEng&&(
               <div>
                 {(()=>{
-                  const rhEng=selEng.ciclos?selEng:migrateToCiclos(selEng);
-                  const rhCiclo=getActiveCiclo(rhEng)||{};
-                  const rhEngC={...rhEng,...rhCiclo};
                   return (
                     <>
                       <div style={{display:'flex',gap:3,background:'#F4F5F7',borderRadius:9,padding:3,marginBottom:16,width:'fit-content'}}>
@@ -4755,20 +4763,20 @@ function RHPortal({company,engs,onLogout,isCoachView,onBackToCoach}){
                           </button>
                         ))}
                       </div>
-                      <div style={{fontSize:16,fontWeight:600,color:'#1A1D2E',marginBottom:16}}>{rhEng.coachee.name}</div>
-                      {(selEng._rhTab||'prog')==='prog'&&<ProgressChart miniSurveys={rhCiclo.miniSurveys||[]}/>}
+                      <div style={{fontSize:16,fontWeight:600,color:'#1A1D2E',marginBottom:16}}>{selEng.coachee.name}</div>
+                      {(selEng._rhTab||'prog')==='prog'&&<ProgressChart miniSurveys={selEng.miniSurveys||[]}/>}
                       {selEng._rhTab==='relatorio'&&(
-                        rhEngC.report?.approved
+                        selEng.report?.approved
                           ?<div>
                             <div style={{background:'#F0FDF4',border:'1px solid #BBF7D0',borderRadius:9,padding:'12px 16px',marginBottom:12,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-                              <div style={{fontSize:13,fontWeight:600,color:'#059669'}}>✓ Relatório 360° aprovado em {rhEngC.report.sharedAt}</div>
-                              {rhEngC.report.content&&<button className="btn btn-g btn-sm" onClick={()=>generateDOCX(rhEngC.report.content,`Relatório 360° - ${rhEng.coachee.name}`)}>↓ Baixar .doc</button>}
+                              <div style={{fontSize:13,fontWeight:600,color:'#059669'}}>✓ Relatório 360° aprovado em {selEng.report.sharedAt}</div>
+                              {selEng.report.content&&<button className="btn btn-g btn-sm" onClick={()=>generateDOCX(selEng.report.content,`Relatório 360° - ${selEng.coachee.name}`)}>↓ Baixar .doc</button>}
                             </div>
-                            {rhEngC.report.content&&<div className="report-view"><div className="report-text" style={{fontSize:13}}>{rhEngC.report.content}</div></div>}
+                            {selEng.report.content&&<div className="report-view"><div className="report-text" style={{fontSize:13}}>{selEng.report.content}</div></div>}
                           </div>
                           :<div className="warn-box">O relatório 360° ainda não foi aprovado pelo coach.</div>
                       )}
-                      {selEng._rhTab==='plano'&&<TabPlanoAcoes eng={rhEngC} onUpdate={()=>{}} isCoach={false} readOnly={true}/>}
+                      {selEng._rhTab==='plano'&&<TabPlanoAcoes eng={selEng} onUpdate={()=>{}} isCoach={false} readOnly={true}/>}
                     </>
                   );
                 })()}
