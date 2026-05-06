@@ -1403,7 +1403,6 @@ function RoadmapTab({eng,onUpdate,ciclosCount=1}){
   const [selStage,setSelStage]=useState(0);
   const [showEditProfile,setShowEditProfile]=useState(false);
   const [profileDraft,setProfileDraft]=useState({});
-  const [showQuestionnaire,setShowQuestionnaire]=useState(false);
 
   // actionStatuses stored in eng — manual overrides
   const as = eng.actionStatuses || {};
@@ -3034,15 +3033,28 @@ function EngDetail({id,engs,onBack,onUpdate,onDelete,onOpenPortal}){
   const [tab,setTab]=useState('roadmap');
   const [showPortalMenu,setShowPortalMenu]=useState(false);
   const [showArchive,setShowArchive]=useState(false);
-  const eng=engs.find(e=>e.id===id);
-  if(!eng)return null;
+  const [showQuestionnaire,setShowQuestionnaire]=useState(false);
+  const [showCheckpoint,setShowCheckpoint]=useState(false);
+  const [viewCicloId,setViewCicloId]=useState(null);
+
+  const rawEng=engs.find(e=>e.id===id);
+  if(!rawEng)return null;
+  const eng=rawEng.ciclos?rawEng:migrateToCiclos(rawEng);
+  if(!rawEng.ciclos){onUpdate(id,{ciclos:eng.ciclos,activeCicloId:eng.activeCicloId});}
   const upd=patch=>onUpdate(id,patch);
-  const pendingStk=eng.stakeholders360.some(s=>s.status==='pending')||eng.stakeholdersMS.some(s=>s.status==='pending');
-  const hasActions=(eng.planoAcoes||[]).length;
+  const activeCiclo=getActiveCiclo(eng)||eng.ciclos[0];
+  const updCiclo=patch=>onUpdate(id,updateCiclo(eng,activeCiclo.id,patch));
+  const viewCiclo=viewCicloId?(eng.ciclos.find(c=>c.id===viewCicloId)||activeCiclo):activeCiclo;
+  const isViewingActive=viewCiclo.id===activeCiclo.id;
+  const updViewCiclo=patch=>onUpdate(id,updateCiclo(eng,viewCiclo.id,patch));
+
+  const pendingStk=(viewCiclo.stakeholders360||[]).some(s=>s.status==='pending')||(eng.stakeholdersMS||[]).some(s=>s.status==='pending');
+  const hasActions=(viewCiclo.planoAcoes||[]).length;
+  const cicloCount=(eng.ciclos||[]).length;
   const TABS=[
     {id:'roadmap',label:'Jornada'},
     {id:'stk',label:`Stakeholders${pendingStk?' ⚠':''}`},
-    {id:'relatorios',label:`Relatórios${eng.report?.approved?' ✓':eng.report?' (rascunho)':''}`},
+    {id:'relatorios',label:`Relatórios${viewCiclo.report?.approved?' ✓':viewCiclo.report?' (rascunho)':''}`},
     {id:'plano',label:`Plano de Ações${hasActions?' ('+hasActions+')':''}`},
     {id:'sessions',label:`Sessões (${eng.sessions.length})`},
   ];
