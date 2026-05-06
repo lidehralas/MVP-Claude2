@@ -457,6 +457,35 @@ const PILLAR_DESCRIPTIONS = {
   disciplina:'Comprometimento com o processo, consistência nas ações e persistência.',
 };
 
+// Returns true only if every individual question meets its minimum
+function allThresholdsMet(pillar_scores){
+  if(!pillar_scores) return false;
+  return ['coragem','humildade','disciplina'].every(p=>{
+    const ps=pillar_scores[p];
+    if(!ps) return false;
+    const pqs=ASSESSMENT_QUESTIONS.filter(q=>q.pillar===p);
+    return pqs.every((q,i)=>(ps.scores?.[i]??0)>=q.minimum_score);
+  });
+}
+
+// Effective classification: only shows label if ALL thresholds met
+function getEffectiveClassification(pillar_scores, overall_average){
+  if(!allThresholdsMet(pillar_scores)){
+    // Determine severity: how many items are below minimum
+    const total=ASSESSMENT_QUESTIONS.length;
+    const below=ASSESSMENT_QUESTIONS.filter((q,_)=>{
+      const p=q.pillar;
+      const ps=pillar_scores?.[p];
+      const pqs=ASSESSMENT_QUESTIONS.filter(x=>x.pillar===p);
+      const idx=pqs.indexOf(q);
+      return (ps?.scores?.[idx]??0)<q.minimum_score;
+    }).length;
+    if(below>=4) return {key:'insuficiente',label:'Insuficiente',color:'#DC2626',bg:'#FEF2F2',pending:true,rec:'Há múltiplos itens abaixo do mínimo. O processo não é recomendado sem trabalho preparatório.'};
+    return {key:'regular',label:'Regular',color:'#D97706',bg:'#FFFBEB',pending:true,rec:'Há itens que requerem atenção antes de prosseguir. Consulte o detalhamento abaixo.'};
+  }
+  return getClassification(overall_average);
+}
+
 function getClassification(avg){
   if(avg<=2.0) return {key:'muito_baixa',label:'Muito Baixa',color:'#DC2626',bg:'#FEF2F2',rec:'Prontidão insuficiente para iniciar o processo. Recomenda-se sessões preliminares para fortalecer os pilares mais fracos antes de qualquer compromisso.'};
   if(avg<=3.0) return {key:'fragil',label:'Frágil',color:'#D97706',bg:'#FFFBEB',rec:'Base razoável, mas com lacunas importantes. Priorize o alinhamento dos pilares mais fracos. Esteja preparado para trabalhar resistências desde o início.'};
@@ -840,13 +869,18 @@ function Login({onLogin}){
 
   const sendRecovery=async()=>{
     if(!recoveryEmail.trim()){setErr('Digite o e-mail cadastrado.');return;}
-    setRecLoading(true);
-    const{error}=await supabase.auth.resetPasswordForEmail(recoveryEmail,{
-      redirectTo:`${window.location.origin}${window.location.pathname}`
+    setRecLoading(true);setErr('');
+    const{error}=await supabase.auth.resetPasswordForEmail(recoveryEmail.trim(),{
+      redirectTo:'https://mvp-claude2.vercel.app'
     });
     setRecLoading(false);
-    if(error){setErr('Erro ao enviar. Verifique o e-mail e tente novamente.');}
-    else{setRecoverySent(true);}
+    if(error){
+      if(error.message?.includes('rate limit')) setErr('Muitas tentativas. Aguarde alguns minutos e tente novamente.');
+      else if(error.message?.includes('not found')||error.status===404) setErr('E-mail não encontrado. Verifique o endereço digitado.');
+      else setErr(`Erro: ${error.message||'Tente novamente em alguns instantes.'}`);
+    } else {
+      setRecoverySent(true);
+    }
   };
 
   const hints={coach:'Use o e-mail e senha cadastrados no Supabase',coachee:'CE-1 (Vagner) · CE-2 (Gabriel)',lider:'LD-1-1 · LD-2-1',rh:'RH-dimas',stk:'ST-1-1 · ST-1-2 · ST-1-3'};
@@ -3776,7 +3810,7 @@ function AssessmentResult({assessment,onUpdate}){
   const anyBelow=hasRed||hasYellow;
 
   // Overall only shown if all individual met
-  const cls=getClassification(assessment.overall_average);
+  const cls=getEffectiveClassification(result, assessment.overall_average);
 
   const saveDecision=(decision)=>{
     onUpdate({coach_decision:decision,coach_notes:notes});
@@ -3947,8 +3981,9 @@ function AssessmentCard({eng,onUpdate}){
     if(!assessment) return {txt:'Não iniciada',color:'#A0A3B1',bg:'#F4F5F7'};
     if(assessment.status==='pending') return {txt:'Aguardando preenchimento',color:'#D97706',bg:'#FFFBEB'};
     if(assessment.status==='completed'){
-      const cls=getClassification(assessment.overall_average);
-      return {txt:`Concluída — ${cls.label}`,color:cls.color,bg:cls.bg};
+      const cls=getEffectiveClassification(assessment.pillar_scores, assessment.overall_average);
+      const label=cls.pending?'Requer análise':cls.label;
+      return {txt:`Concluída — ${label}`,color:cls.color,bg:cls.bg};
     }
     if(assessment.status==='expired') return {txt:'Link expirado',color:'#A0A3B1',bg:'#F4F5F7'};
     return {txt:'Não iniciada',color:'#A0A3B1',bg:'#F4F5F7'};
