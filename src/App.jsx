@@ -641,6 +641,58 @@ const Q_MEDIA = [
   ]},
 ];
 
+// ─── CICLO HELPERS ───────────────────────────────────────────────────────────
+function makeCiclo(n, inherited={}){
+  return {
+    id: n,
+    label: `Ciclo ${n}`,
+    status: 'ativo',
+    startDate: new Date().toISOString().split('T')[0],
+    endDate: null,
+    checkpointNotes: '',
+    competencias: inherited.competencias ? JSON.parse(JSON.stringify(inherited.competencias)) : [],
+    stakeholders360: inherited.stakeholders360 ? JSON.parse(JSON.stringify(inherited.stakeholders360)).map(s=>({...s,status:'pending',feedback:null})) : [],
+    miniSurveys: [],
+    report: null,
+    planoAcoes: inherited.planoAcoes ? JSON.parse(JSON.stringify(inherited.planoAcoes)).map(a=>({...a,status:'Não iniciada',resultado:''})) : [],
+  };
+}
+
+// Migrate legacy eng (no ciclos) to ciclo-based structure
+function migrateToCiclos(eng){
+  if(eng.ciclos) return eng; // already migrated
+  const ciclo1 = {
+    id: 1,
+    label: 'Ciclo 1',
+    status: 'ativo',
+    startDate: eng.startDate,
+    endDate: null,
+    checkpointNotes: '',
+    competencias: eng.competencias || [],
+    stakeholders360: eng.stakeholders360 || [],
+    miniSurveys: eng.miniSurveys || [],
+    report: eng.report || null,
+    planoAcoes: eng.planoAcoes || [],
+  };
+  return {...eng, ciclos:[ciclo1], activeCicloId:1};
+}
+
+function getActiveCiclo(eng){
+  if(!eng.ciclos) return null;
+  return eng.ciclos.find(c=>c.id===eng.activeCicloId) || eng.ciclos[eng.ciclos.length-1];
+}
+
+function updateCiclo(eng, cicloId, patch){
+  return {...eng, ciclos: eng.ciclos.map(c => c.id===cicloId ? {...c,...patch} : c)};
+}
+
+// Session cycle badge: given sessions array and ciclos, tag each session
+function getSessionCicloLabel(session, ciclos){
+  if(!ciclos||ciclos.length<=1) return null;
+  if(session.cicloId) return `C${session.cicloId}`;
+  return 'C1'; // legacy sessions belong to ciclo 1
+}
+
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 const ini = n => n.split(' ').filter(Boolean).slice(0,2).map(w=>w[0].toUpperCase()).join('');
 function Dots(){ return <div className="ldots"><div className="ldot"/><div className="ldot"/><div className="ldot"/></div>; }
@@ -1347,7 +1399,7 @@ function autoStatus(id, eng){
   }
 }
 
-function RoadmapTab({eng,onUpdate}){
+function RoadmapTab({eng,onUpdate,ciclosCount=1}){
   const [selStage,setSelStage]=useState(0);
   const [showEditProfile,setShowEditProfile]=useState(false);
   const [profileDraft,setProfileDraft]=useState({});
@@ -2862,7 +2914,7 @@ function UploadZone({accept,storagePath,onUploaded,currentFile,onRemove}){
 }
 
 // ─── SESSIONS TAB ─────────────────────────────────────────────────────────────
-function TabSessions({eng,onUpdate}){
+function TabSessions({eng,onUpdate,activeCiclo}){
   const [showNew,setShowNew]=useState(false);
   const [newSession,setNewSession]=useState({date:'',notes:''});
   const [expandedIdx,setExpandedIdx]=useState(null);
@@ -2875,7 +2927,8 @@ function TabSessions({eng,onUpdate}){
     const d=new Date(newSession.date);
     const months=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
     const dateStr=`${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
-    onUpdate({sessions:[{num,date:dateStr,notes:newSession.notes.trim(),filePath:newSession.filePath||'',fileName:newSession.fileName||''},...eng.sessions]});
+    const cicloId = activeCiclo?.id || 1;
+    onUpdate({sessions:[{num,date:dateStr,notes:newSession.notes.trim(),filePath:newSession.filePath||'',fileName:newSession.fileName||'',cicloId},...eng.sessions]});
     setNewSession({date:'',notes:'',filePath:'',fileName:''});setShowNew(false);
   };
 
@@ -2931,7 +2984,10 @@ function TabSessions({eng,onUpdate}){
                 <div style={{fontSize:9,color:'#A0A3B1',letterSpacing:'1px',textTransform:'uppercase',marginTop:2}}>{months[m]||m}</div>
               </div>
               <div style={{flex:1}}>
-                <div style={{fontSize:11,fontWeight:600,color:'#A0A3B1',textTransform:'uppercase',letterSpacing:'.8px',marginBottom:4}}>Sessão {s.num}</div>
+                <div style={{fontSize:11,fontWeight:600,color:'#A0A3B1',textTransform:'uppercase',letterSpacing:'.8px',marginBottom:4,display:'flex',alignItems:'center',gap:6}}>
+                  Sessão {s.num}
+                  {(eng.ciclos||[]).length>1&&<span style={{fontSize:9,background:'#EEF1FF',color:'#4169FF',padding:'1px 5px',borderRadius:3,fontWeight:700,textTransform:'none',letterSpacing:0}}>C{s.cicloId||1}</span>}
+                </div>
                 <div style={{fontSize:14,color:'#6B6E8E',lineHeight:1.5,overflow:'hidden',whiteSpace:expandedIdx===i?'pre-wrap':'nowrap',textOverflow:'ellipsis'}}>{s.notes}</div>
               </div>
               <span style={{fontSize:12,color:'#A0A3B1',flexShrink:0,paddingTop:4}}>{expandedIdx===i?'▲':'▼'}</span>
@@ -3072,11 +3128,38 @@ function EngDetail({id,engs,onBack,onUpdate,onDelete,onOpenPortal}){
             </button>
           </div>
         )}
-        {tab==='roadmap'&&<RoadmapTab eng={eng} onUpdate={upd}/>}
-        {tab==='stk'&&<TabStakeholders eng={eng} onUpdate={upd}/>}
-        {tab==='relatorios'&&<TabRelatorios eng={eng} onUpdate={upd}/>}
-        {tab==='plano'&&<TabPlanoAcoes eng={eng} onUpdate={upd} isCoach={true}/>}
-        {tab==='sessions'&&<TabSessions eng={eng} onUpdate={upd}/>}
+        {/* Ciclo selector + checkpoint */}
+        {(eng.ciclos||[]).length>0&&(
+          <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
+            <CicloSelector eng={eng} activeCicloId={viewCiclo.id} onSelectCiclo={setViewCicloId}/>
+            {isViewingActive&&!eng.archived&&(
+              <button className="btn btn-g btn-sm" style={{marginBottom:16,flexShrink:0}}
+                onClick={()=>setShowCheckpoint(true)}>
+                ⟳ Iniciar novo ciclo
+              </button>
+            )}
+            {!isViewingActive&&(
+              <div style={{fontSize:11,color:'#A0A3B1',marginBottom:16,padding:'4px 10px',background:'#F4F5F7',borderRadius:6}}>
+                Visualizando {viewCiclo.label} (encerrado)
+              </div>
+            )}
+          </div>
+        )}
+        {showCheckpoint&&(
+          <CheckpointModal eng={eng} onClose={()=>setShowCheckpoint(false)}
+            onCreateNextCiclo={(notes, inherited)=>{
+              const nextId=(eng.ciclos||[]).length+1;
+              const newCiclo=makeCiclo(nextId, inherited);
+              const updatedCiclos=[...(eng.ciclos||[]).map(c=>c.id===activeCiclo.id?{...c,status:'encerrado',endDate:new Date().toISOString().split('T')[0],checkpointNotes:notes}:c),newCiclo];
+              onUpdate(id,{ciclos:updatedCiclos,activeCicloId:nextId});
+              setViewCicloId(null);
+            }}/>
+        )}
+        {tab==='roadmap'&&<RoadmapTab eng={{...eng,...viewCiclo,cicloLabel:viewCiclo.label}} onUpdate={isViewingActive?patch=>updViewCiclo(patch):()=>{}} ciclosCount={(eng.ciclos||[]).length}/>}
+        {tab==='stk'&&<TabStakeholders eng={{...eng,...viewCiclo}} onUpdate={patch=>updViewCiclo(patch)}/>}
+        {tab==='relatorios'&&<TabRelatorios eng={{...eng,...viewCiclo}} onUpdate={patch=>updViewCiclo(patch)}/>}
+        {tab==='plano'&&<TabPlanoAcoes eng={{...eng,...viewCiclo}} onUpdate={patch=>updViewCiclo(patch)} isCoach={true} readOnly={!isViewingActive}/>}
+        {tab==='sessions'&&<TabSessions eng={eng} onUpdate={upd} activeCiclo={activeCiclo}/>}
       </div>
     </>
   );
@@ -4285,7 +4368,13 @@ function ProgressChartCoachee({miniSurveys}){
 }
 
 // ─── COACHEE PORTAL ───────────────────────────────────────────────────────────
-function CoacheePortal({eng,onLogout,onUpdate,isCoachView,onBackToCoach}){
+function CoacheePortal({eng:rawEng,onLogout,onUpdate,isCoachView,onBackToCoach}){
+  const eng = rawEng.ciclos ? rawEng : migrateToCiclos(rawEng);
+  const activeCiclo = getActiveCiclo(eng) || {};
+  // Merge active ciclo data into eng for all sub-components
+  const updCiclo = patch => onUpdate(eng.id, updateCiclo(eng, activeCiclo.id, patch));
+  // Merge active ciclo into eng for all sub-components
+  const engC = {...eng, ...activeCiclo};
   const [tab,setTab]=useState('jornada');
   const [showAdd360,setShowAdd360]=useState(false);
   const [showAddMS,setShowAddMS]=useState(false);
@@ -4376,9 +4465,9 @@ function CoacheePortal({eng,onLogout,onUpdate,isCoachView,onBackToCoach}){
                 Abaixo estão as competências definidas pelo seu coach para este processo.
                 Você pode revisar e adicionar comentários antes da aprovação final.
               </div>
-              {eng.competencias.length===0
+              {(activeCiclo.competencias||[]).length===0
                 ?<div className="empty"><div className="ei">◌</div>As competências ainda não foram definidas pelo coach.</div>
-                :<CompEditor competencias={eng.competencias} onChange={comps=>onUpdate(eng.id,{competencias:comps})} role="coachee"/>
+                :<CompEditor competencias={activeCiclo.competencias||[]} onChange={comps=>updCiclo({competencias:comps})} role="coachee"/>
               }
             </div>
           )}
@@ -4428,7 +4517,7 @@ function CoacheePortal({eng,onLogout,onUpdate,isCoachView,onBackToCoach}){
             <CoacheeRelatorios eng={eng}/>
           )}
 
-          {tab==='plano'&&<TabPlanoAcoes eng={eng} onUpdate={upd=>onUpdate(eng.id,upd)} isCoach={false}/>}
+          {tab==='plano'&&<TabPlanoAcoes eng={engC} onUpdate={updCiclo} isCoach={false}/>}
           {tab==='progresso'&&(
             <>
               {eng.miniSurveys.length===0
@@ -4702,6 +4791,81 @@ function PublicAssessmentView({token,engs,onUpdate}){
   };
 
   return <AssessmentForm assessmentData={assessment} coachName={coachName} onSubmit={handleSubmit}/>;
+}
+
+// ─── CICLO SELECTOR + CHECKPOINT MODAL ──────────────────────────────────────
+function CicloSelector({eng, onSelectCiclo, activeCicloId}){
+  const ciclos = eng.ciclos || [];
+  if(ciclos.length <= 1) return null;
+  return (
+    <div style={{display:'flex',gap:3,background:'#F4F5F7',borderRadius:8,padding:3,marginBottom:16,flexWrap:'wrap'}}>
+      {ciclos.map(c=>(
+        <button key={c.id}
+          className={`btn btn-sm ${c.id===activeCicloId?'btn-p':'btn-g'}`}
+          style={{border:'none',position:'relative'}}
+          onClick={()=>onSelectCiclo(c.id)}>
+          {c.label}
+          {c.status==='encerrado'&&<span style={{fontSize:9,marginLeft:4,opacity:0.7}}>✓</span>}
+          {c.status==='ativo'&&<span style={{fontSize:9,marginLeft:4,color:'#10B981'}}>●</span>}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function CheckpointModal({eng, onClose, onCreateNextCiclo}){
+  const activeCiclo = getActiveCiclo(eng);
+  const [notes, setNotes] = useState('');
+  const [inheritComps, setInheritComps] = useState(true);
+  const [inheritStk, setInheritStk] = useState(true);
+  const [inheritPlan, setInheritPlan] = useState(false);
+  const nextN = (eng.ciclos||[]).length + 1;
+
+  const confirm = () => {
+    const inherited = {
+      competencias: inheritComps ? activeCiclo.competencias : [],
+      stakeholders360: inheritStk ? activeCiclo.stakeholders360 : [],
+      planoAcoes: inheritPlan ? activeCiclo.planoAcoes : [],
+    };
+    onCreateNextCiclo(notes, inherited);
+    onClose();
+  };
+
+  return (
+    <Overlay onClose={onClose}>
+      <div className="modal">
+        <div className="modal-title">Encerrar {activeCiclo?.label} e iniciar Ciclo {nextN}</div>
+        <div className="modal-sub">Checkpoint formal de encerramento</div>
+        <div className="field">
+          <div className="flbl">Notas do checkpoint</div>
+          <textarea className="finp" rows={3}
+            placeholder="Principais aprendizados, resultados e direcionamentos para o próximo ciclo..."
+            value={notes} onChange={e=>setNotes(e.target.value)}/>
+        </div>
+        <div style={{fontSize:12,fontWeight:700,color:'#6B6E8E',marginBottom:10,textTransform:'uppercase',letterSpacing:'1px'}}>O que herdar no Ciclo {nextN}?</div>
+        {[
+          {key:'comps', label:'Competências', sub:'As mesmas competências, prontas para edição', val:inheritComps, set:setInheritComps},
+          {key:'stk', label:'Stakeholders 360°', sub:'Mesmo grupo de stakeholders (sem respostas anteriores)', val:inheritStk, set:setInheritStk},
+          {key:'plan', label:'Plano de ações', sub:'Ações pendentes/em andamento como base', val:inheritPlan, set:setInheritPlan},
+        ].map(item=>(
+          <label key={item.key} style={{display:'flex',alignItems:'flex-start',gap:10,marginBottom:12,cursor:'pointer'}}>
+            <input type="checkbox" checked={item.val} onChange={e=>item.set(e.target.checked)} style={{marginTop:2}}/>
+            <div>
+              <div style={{fontSize:13,fontWeight:600,color:'#1A1D2E'}}>{item.label}</div>
+              <div style={{fontSize:11,color:'#A0A3B1'}}>{item.sub}</div>
+            </div>
+          </label>
+        ))}
+        <div style={{background:'#EEF1FF',border:'1px solid #D0D8F8',borderRadius:8,padding:'10px 14px',fontSize:12,color:'#4169FF',marginBottom:16}}>
+          O {activeCiclo?.label} ficará em modo leitura. Sessões continuam com numeração sequencial.
+        </div>
+        <div className="modal-foot">
+          <button className="btn btn-g" onClick={onClose}>Cancelar</button>
+          <button className="btn btn-p" onClick={confirm}>Encerrar e iniciar Ciclo {nextN}</button>
+        </div>
+      </div>
+    </Overlay>
+  );
 }
 
 // ─── ARCHIVE MODAL ────────────────────────────────────────────────────────────
