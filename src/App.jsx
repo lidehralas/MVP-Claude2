@@ -2694,6 +2694,21 @@ Sugestões para desenvolvimento: categorizadas por frequência, priorizadas, dis
                     onUpdate({report:{...eng.report,content:txt}});
                   })}>↑ Importar .txt/.md</button>
                 )}
+                {!editing360&&eng.report.content&&!aiLoading360&&(
+                  <button className="btn btn-g btn-sm" onClick={async()=>{
+                    if(!safeConfirm('Extrair prioridades com IA?','A IA vai analisar o relatório e extrair os pontos prioritários de desenvolvimento.')) return;
+                    setAiLoading360(true);
+                    const prompt=`Analise o relatório 360° abaixo e extraia os 2-3 pontos prioritários de desenvolvimento mais relevantes para ${eng.coachee.name}.\n\nUse nomes curtos e diretos (máx. 4 palavras), baseados em nomenclatura Korn Ferry.\n\nRESPONDA APENAS com a lista numerada, sem texto adicional:\n1. [nome]\n2. [nome]\n(3. [nome] — apenas se houver evidência clara de um terceiro tema)\n\nRELATÓRIO:\n${eng.report.content.slice(0,8000)}`;
+                    try{
+                      const res=await fetch('/api/ai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt,max_tokens:200})});
+                      const data=await res.json();
+                      const text=data.content?.[0]?.text||'';
+                      if(text) onUpdate({summary360Priorities:text.trim()});
+                      alert('Prioridades extraídas! Verifique o campo abaixo.');
+                    }catch(e){alert('Erro: '+e.message);}
+                    setAiLoading360(false);
+                  }}>✦ Extrair prioridades</button>
+                )}
                 {!editing360&&(
                   <button className="btn btn-d btn-sm" onClick={()=>{
                     const msg = eng.report.approved
@@ -3742,23 +3757,23 @@ function CoacheeRelatorios({eng}){
 
       {sub==='360'&&(
         <>
-          {!engC.report?.approved
+          {!eng.report?.approved
             ?<div className="warn-box">Seu relatório 360° está sendo preparado pelo coach.</div>
             :<div>
               <div style={{background:'#F0FDF4',border:'1px solid #BBF7D0',borderRadius:9,padding:'14px 16px',marginBottom:12,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                 <div>
                   <div style={{fontSize:13,fontWeight:600,color:'#059669'}}>✓ Relatório de Desenvolvimento disponível</div>
-                  <div style={{fontSize:12,color:'#6B6E8E',marginTop:2}}>Aprovado em {engC.report.sharedAt}</div>
+                  <div style={{fontSize:12,color:'#6B6E8E',marginTop:2}}>Aprovado em {eng.report.sharedAt}</div>
                 </div>
                 <div style={{display:'flex',gap:8}}>
-                  {engC.report.reportFile&&<button className="btn btn-p btn-sm" onClick={async()=>{
-                    const url=await getFileUrl(engC.report.reportFile);
+                  {eng.report.reportFile&&<button className="btn btn-p btn-sm" onClick={async()=>{
+                    const url=await getFileUrl(eng.report.reportFile);
                     if(url) window.open(url,'_blank'); else alert('Arquivo não encontrado.');
                   }}>↓ Baixar relatório completo</button>}
-                  {engC.report.content&&<button className="btn btn-g btn-sm" onClick={()=>generateDOCX(engC.report.content,`Relatório 360° - ${eng.coachee?.name||''}`)}>↓ Baixar .doc</button>}
+                  {eng.report.content&&<button className="btn btn-g btn-sm" onClick={()=>generateDOCX(eng.report.content,`Relatório 360° - ${eng.coachee?.name||''}`)}>↓ Baixar .doc</button>}
                 </div>
               </div>
-              {engC.report.content&&<div className="report-view"><div className="report-text" style={{fontSize:13}}>{engC.report.content}</div></div>}
+              {eng.report.content&&<div className="report-view"><div className="report-text" style={{fontSize:13}}>{eng.report.content}</div></div>}
             </div>
           }
         </>
@@ -4504,9 +4519,9 @@ function CoacheePortal({eng,onLogout,onUpdate,isCoachView,onBackToCoach}){
                 Abaixo estão as competências definidas pelo seu coach para este processo.
                 Você pode revisar e adicionar comentários antes da aprovação final.
               </div>
-              {(activeCiclo.competencias||[]).length===0
+              {(eng.competencias||[]).length===0
                 ?<div className="empty"><div className="ei">◌</div>As competências ainda não foram definidas pelo coach.</div>
-                :<CompEditor competencias={activeCiclo.competencias||[]} onChange={comps=>updEng({competencias:comps})} role="coachee"/>
+                :<CompEditor competencias={eng.competencias||[]} onChange={comps=>updEng({competencias:comps})} role="coachee"/>
               }
             </div>
           )}
@@ -4556,7 +4571,7 @@ function CoacheePortal({eng,onLogout,onUpdate,isCoachView,onBackToCoach}){
             <CoacheeRelatorios eng={eng}/>
           )}
 
-          {tab==='plano'&&<TabPlanoAcoes eng={engC} onUpdate={updCiclo} isCoach={false}/>}
+          {tab==='plano'&&<TabPlanoAcoes eng={eng} onUpdate={updEng} isCoach={false}/>}
           {tab==='progresso'&&(
             <>
               {eng.miniSurveys.length===0
@@ -4744,7 +4759,7 @@ function RHPortal({company,engs,onLogout,isCoachView,onBackToCoach}){
                   <div style={{display:'flex',gap:12,marginBottom:8}}>
                     <span style={{fontSize:11,color:'#6B6E8E'}}>Sessão <strong style={{color:'#1A1D2E'}}>{e.sessions.length}</strong>/10</span>
                     <span style={{fontSize:11,color:'#6B6E8E'}}>{STAGES[e.phase-1]}</span>
-                    <span style={{fontSize:11,color:'#6B6E8E'}}>{(e.ciclos?getActiveCiclo(e):e)?.miniSurveys?.length||0} mini-survey</span>
+                    <span style={{fontSize:11,color:'#6B6E8E'}}>{(e.miniSurveys||[]).length} mini-survey</span>
                   </div>
                   <div className="ec-meta"><StatusBadge status={currentStatus(e)}/><span className="ec-info">{e.cadence}</span></div>
                 </div>
@@ -4799,7 +4814,7 @@ function PublicAssessmentView({token,engs,onUpdate}){
     // Load all engagements from Supabase to find the one with this token
     supabase.from('engagements').select('app_id,data').then(({data:rows,error})=>{
       if(error||!rows){setLoadState('invalid');return;}
-      const all=[...rows.map(r=>({...r.data,id:r.app_id})),...INIT_ENGS];
+      const all=rows.map(r=>({...r.data,id:r.app_id}));
       const found=all.find(e=>e.assessment&&e.assessment.token===token);
       if(found){setEng(found);setLoadState('ok');}
       else setLoadState('invalid');
@@ -4870,7 +4885,7 @@ function CicloSelector({eng, onSelectCiclo, activeCicloId}){
 }
 
 function CheckpointModal({eng, onClose, onCreateNextCiclo}){
-  const activeCiclo = getActiveCiclo(eng);
+  // activeCiclo removed - use eng directly
   const [notes, setNotes] = useState('');
   const [inheritComps, setInheritComps] = useState(true);
   const [inheritStk, setInheritStk] = useState(true);
@@ -4879,9 +4894,9 @@ function CheckpointModal({eng, onClose, onCreateNextCiclo}){
 
   const confirm = () => {
     const inherited = {
-      competencias: inheritComps ? activeCiclo.competencias : [],
-      stakeholders360: inheritStk ? activeCiclo.stakeholders360 : [],
-      planoAcoes: inheritPlan ? activeCiclo.planoAcoes : [],
+      competencias: inheritComps ? eng.competencias : [],
+      stakeholders360: inheritStk ? eng.stakeholders360 : [],
+      planoAcoes: inheritPlan ? eng.planoAcoes : [],
     };
     onCreateNextCiclo(notes, inherited);
     onClose();
@@ -4890,7 +4905,7 @@ function CheckpointModal({eng, onClose, onCreateNextCiclo}){
   return (
     <Overlay onClose={onClose}>
       <div className="modal">
-        <div className="modal-title">Encerrar {activeCiclo?.label} e iniciar Ciclo {nextN}</div>
+        <div className="modal-title">Encerrar {"Ciclo atual"} e iniciar Ciclo {nextN}</div>
         <div className="modal-sub">Checkpoint formal de encerramento</div>
         <div className="field">
           <div className="flbl">Notas do checkpoint</div>
@@ -5071,11 +5086,11 @@ export default function App(){
         // Load engagements from DB first so the portal has real data
         const engId=mSTK?parseInt(mSTK[1]):mCE?parseInt(mCE[1]):parseInt(mLD[1]);
         supabase.from('engagements').select('app_id,data').order('app_id',{ascending:true}).then(({data:rows,error})=>{
-          let loadedEngs=INIT_ENGS;
+          let loadedEngs=[];
           if(!error&&rows&&rows.length>0){
             const fromDB=rows.map(row=>({...row.data,id:row.app_id}));
             const dbIds=new Set(fromDB.map(e=>e.id));
-            loadedEngs=[...fromDB,...INIT_ENGS.filter(e=>!dbIds.has(e.id))].sort((a,b)=>a.id-b.id);
+            loadedEngs=fromDB.sort((a,b)=>a.id-b.id);
           }
           setEngs(loadedEngs);
           if(mSTK){setUser({role:'stk',engId:parseInt(mSTK[1]),shId:parseInt(mSTK[2])});setView('stk');setActiveEng(parseInt(mSTK[1]));}
@@ -5106,14 +5121,11 @@ export default function App(){
   const loadEngsFromDB=async()=>{
     setLoading(true);
     const{data,error}=await supabase.from('engagements').select('app_id,data').order('app_id',{ascending:true});
-    if(!error&&data&&data.length>0){
+    if(!error&&data){
       const fromDB=data.map(row=>({...row.data,id:row.app_id}));
-      const dbIds=new Set(fromDB.map(e=>e.id));
-      // Merge: DB data takes priority; INIT_ENGS fills in anything not yet saved
-      const merged=[...fromDB, ...INIT_ENGS.filter(e=>!dbIds.has(e.id))];
-      setEngs(merged.sort((a,b)=>a.id-b.id));
+      setEngs(fromDB.sort((a,b)=>a.id-b.id));
     } else {
-      setEngs(INIT_ENGS);
+      setEngs([]);
     }
     setLoading(false);
   };
